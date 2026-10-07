@@ -12,6 +12,7 @@ import {assess} from "../../../../lib/market/assessment";
 import {configuredSourceHealth} from "../../../../lib/market/providers";
 import {buildAlignment} from "../../../../lib/alignment/engine";
 import {globalEventRisk} from "../../../../lib/market/globalRisk";
+import {evaluateSupervisors} from "../../../../lib/alignment/supervisors";
 
 export const dynamic="force-dynamic";
 
@@ -111,7 +112,12 @@ export async function GET(req:Request){
         market:marketContext,
         calibration
       });
-      const alignment=governor?{...baseAlignment,buyState:governor.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState,sellState:governor.capitalGuardOverride?"MUST SELL":governor.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor}:baseAlignment;
+      const supervisors=evaluateSupervisors(baseAlignment,{calibration});
+      let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
+      if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
+      let finalSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState;
+      if(supervisors.sellEscalation>=30&&finalSell==="HOLD")finalSell="CAUTION";
+      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors};
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
         values('alignment_snapshot','symbol',${symbol},'swiss-movement-v1',${JSON.stringify(alignment)}::jsonb)
