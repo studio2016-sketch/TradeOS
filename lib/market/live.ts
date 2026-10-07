@@ -29,6 +29,8 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
       vwap:x.day?.vw==null?undefined:Number(x.day.vw),
       bid:x.lastQuote?.p==null?undefined:Number(x.lastQuote.p),
       ask:x.lastQuote?.P==null?undefined:Number(x.lastQuote.P),
+      bidSize:x.lastQuote?.s==null?undefined:Number(x.lastQuote.s),
+      askSize:x.lastQuote?.S==null?undefined:Number(x.lastQuote.S),
       source:"Massive",
       coverage:"US consolidated snapshot",
       entitlement:"Determined by Massive subscription"
@@ -54,14 +56,14 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
   return clean.map(symbol=>{
     const q=quotes[symbol], b=bars[symbol];
     const ts=q?.t??b?.t??new Date().toISOString();
-    const bid=q?.bp==null?undefined:Number(q.bp), ask=q?.ap==null?undefined:Number(q.ap);
+    const bid=q?.bp==null?undefined:Number(q.bp), ask=q?.ap==null?undefined:Number(q.ap), bidSize=q?.bs==null?undefined:Number(q.bs), askSize=q?.as==null?undefined:Number(q.as);
     return {
       symbol,
       timestamp:String(ts),
       price:b?.c!=null?Number(b.c):(bid!=null&&ask!=null?(bid+ask)/2:0),
       volume:Number(b?.v??0),
       vwap:b?.vw==null?undefined:Number(b.vw),
-      bid,ask,
+      bid,ask,bidSize,askSize,
       source:`Alpaca:${feed}`,
       coverage:feed==="sip"?"All US exchanges":feed==="iex"?"IEX only":feed==="delayed_sip"?"All US exchanges / delayed":"Provider-specific",
       entitlement:feed==="sip"?"full-market":feed==="iex"?"partial-real-time":"delayed-or-specialized"
