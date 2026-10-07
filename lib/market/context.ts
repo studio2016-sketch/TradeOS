@@ -58,9 +58,10 @@ export async function buildMarketContext(symbol:string):Promise<MarketContext|nu
   const relativeStrengthScore=symbolRoc20==null||sectorRoc20==null?null:clamp(50+(symbolRoc20-sectorRoc20)*5);
 
   const start=new Date(Date.now()-60*86400000).toISOString();
+  const delayedEnd=new Date(Date.now()-16*60*1000).toISOString();
   const [symBars,spyBars]=await Promise.all([
-    historicalBars(symbol,"1Day",start,100).catch(()=>[]),
-    historicalBars("SPY","1Day",start,100).catch(()=>[])
+    historicalBars(symbol,"1Day",start,100,"sip",delayedEnd).catch(()=>[]),
+    historicalBars("SPY","1Day",start,100,"sip",delayedEnd).catch(()=>[])
   ]);
   const c=corr(returns(symBars),returns(spyBars));
   const corrScore=c==null?null:clamp(75-Math.abs(c)*25);
