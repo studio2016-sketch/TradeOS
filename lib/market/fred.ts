@@ -4,11 +4,9 @@ export interface FredSeriesResult{series:string;point:FredPoint|null;status:"ok"
 function isoDate(d:Date){return d.toISOString().slice(0,10)}
 
 async function latestSeries(series:string):Promise<FredSeriesResult>{
-  const start=new Date(Date.now()-45*24*60*60*1000);
+  const start=new Date(Date.now()-60*24*60*60*1000);
   const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}&cosd=${isoDate(start)}`;
   try{
-    // Keep this request intentionally plain. FRED's graph endpoint has proven reliable
-    // from Vercel without custom request headers.
     const res=await fetch(url,{cache:"no-store"});
     if(!res.ok)return{series,point:null,status:"error",error:`HTTP ${res.status}`};
     const text=await res.text();
@@ -28,16 +26,22 @@ async function latestSeries(series:string):Promise<FredSeriesResult>{
 }
 
 export async function latestRegimeContext(){
-  const vixResult=await latestSeries("VIXCLS");
-  const tenYearResult=await latestSeries("DGS10");
-  const fedFundsResult=await latestSeries("DFF");
-  const diagnostics=[vixResult,tenYearResult,fedFundsResult];
+  const ids=["VIXCLS","DGS10","DGS2","T10Y2Y","DFF","DTWEXBGS","BAMLH0A0HYM2","DCOILWTICO"] as const;
+  const results:Record<string,FredSeriesResult>={};
+  // Sequential fetches have proven more reliable from the current serverless runtime.
+  for(const id of ids)results[id]=await latestSeries(id);
+  const diagnostics=Object.values(results);
   return {
     source:"FRED",
     generatedAt:new Date().toISOString(),
-    vix:vixResult.point,
-    tenYear:tenYearResult.point,
-    fedFunds:fedFundsResult.point,
+    vix:results.VIXCLS.point,
+    tenYear:results.DGS10.point,
+    twoYear:results.DGS2.point,
+    curve10y2y:results.T10Y2Y.point,
+    fedFunds:results.DFF.point,
+    broadDollar:results.DTWEXBGS.point,
+    highYieldSpread:results.BAMLH0A0HYM2.point,
+    wti:results.DCOILWTICO.point,
     diagnostics,
     usableCount:diagnostics.filter(x=>x.status==="ok").length,
     note:"Official FRED daily observations; regime context only, not an intraday trading feed."
