@@ -5,6 +5,7 @@ export interface SecCatalyst{
   company:string;
   form:string;
   filedAt:string;
+  acceptedAt?:string;
   reportDate?:string;
   description:string;
   filingUrl:string;
@@ -67,6 +68,7 @@ export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Prom
         company:company.title,
         form,
         filedAt:String(recent.filingDate?.[i]??""),
+        acceptedAt:String(recent.acceptanceDateTime?.[i]??recent.filingDate?.[i]??""),
         reportDate:String(recent.reportDate?.[i]??""),
         description:String(recent.primaryDocDescription?.[i]??form),
         filingUrl:`https://www.sec.gov/Archives/edgar/data/${cikNoZeros}/${accessionCompact}/${primary}`,
