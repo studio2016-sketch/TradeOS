@@ -190,7 +190,10 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
         const s=Math.max(0,Math.min(100,ret>=0?50+mag/2:50-mag/2));
         return [s,"Observed Catalyst Reaction","measured",`${r.classification}; return ${ret}% over ${r.observedMinutes}m`];
       }
-      return [null,"Reaction engine","waiting","Requires at least two post-catalyst market observations"];
+      if(ctx.newsReaction?.reactionScore!=null){
+        return [Number(ctx.newsReaction.reactionScore),"Provider News Reaction","historical/context",ctx.newsReaction.note];
+      }
+      return [null,"Reaction engine","waiting","Requires measurable price history surrounding a recent catalyst or headline"];
     }
     if(label==="SEC filing significance" && secLive){
       const rows=ctx.catalysts?.catalysts??[];
