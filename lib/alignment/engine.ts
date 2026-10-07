@@ -119,7 +119,26 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
         "Chart cleanliness":f.daily?.chartCleanliness,
         "Tradeability score":f.daily?.tradeability,
         "Trend-continuation quality":f.daily?.trendScore==null||f.intraday?.trendScore==null?null:(f.daily.trendScore*.55+f.intraday.trendScore*.45),
-        "Setup repeatability":f.quality?.coverageScore
+        "Setup repeatability":f.quality?.coverageScore,
+        "Anchored VWAP alignment":f.structure?.anchoredVwapScore,
+        "Stop-distance practicality":f.structure?.stopDistanceScore,
+        "Reward-to-risk ratio":f.structure?.rewardRiskScore,
+        "Loss-containment potential":f.structure?.lossContainmentScore,
+        "Absorption / exhaustion":f.structure?.absorptionScore,
+        "Opening-auction quality":f.structure?.openingAuctionScore,
+        "Pullback quality":f.structure?.pullbackScore,
+        "Base quality":f.structure?.baseScore,
+        "Reversal-pattern quality":f.structure?.reversalScore,
+        "Confluence count":f.structure?.confluenceScore,
+        "Failed-move trap risk":f.structure?.failedMoveRiskScore,
+        "Clean invalidation level":f.structure?.cleanInvalidationScore,
+        "Time-of-day edge":f.structure?.timeOfDayScore,
+        "Confirmation-candle close":f.structure?.confirmationScore,
+        "Reclaim / hold behavior":f.structure?.reclaimHoldScore,
+        "Retest success":f.structure?.retestScore,
+        "Trigger proximity":f.structure?.triggerProximityScore,
+        "Chase-avoidance condition":f.structure?.chaseAvoidanceScore,
+        "Entry precision":f.structure?.entryPrecisionScore
       };
       if(Object.prototype.hasOwnProperty.call(trendMap,label)){
         const s=num(trendMap[label]);
@@ -170,6 +189,13 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const s=m<=6?85:m<=10?72:m<=16?55:35;
       return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
     }
+    if(label==="Bid-ask imbalance" && marketReady){
+      const bs=Number(marketSnap.bidSize),as=Number(marketSnap.askSize);
+      const total=bs+as;
+      const imb=total>0?(bs-as)/total:null;
+      const s=imb==null?null:Math.max(0,Math.min(100,50+imb*45));
+      return [s,marketSnap.source,marketSnap.freshness,imb==null?"Quote sizes unavailable":`Bid/ask size imbalance ${(imb*100).toFixed(1)}%`];
+    }
     if(["Relative liquidity","Bid-ask spread quality","VWAP behavior","Execution slippage risk","Relative volume","Volume-confirmation persistence"].includes(label) && marketReady){
       const bid=Number(marketSnap.bid),ask=Number(marketSnap.ask),price=Number(marketSnap.price),vwap=Number(marketSnap.vwap);
       const spread=bid>0&&ask>0&&price>0?(ask-bid)/price:null;
@@ -182,7 +208,7 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       return [secLive?78:null,secLive?"SEC EDGAR":"none",secLive?"live":"unavailable",secLive?"Authoritative catalyst source available":"No authoritative catalyst source"];
     }
     if(label==="Headline-to-price reaction") return [null,"Reaction engine","waiting","Requires quote observations after catalyst time"];
-    if(["Reward-to-risk ratio","Position-size compatibility","Stop-distance practicality","Clean invalidation level","Stop-order readiness","Profit-target readiness","Checklist completion","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Journal accountability","Broker / platform readiness"].includes(label)){
+    if(["Position-size compatibility","Stop-order readiness","Profit-target readiness","Checklist completion","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Journal accountability","Broker / platform readiness"].includes(label)){
       return [null,"User / broker state","not connected","Requires trade ticket, account state, or user confirmation"];
     }
     if(calibrationReady && label==="Setup repeatability") return [Math.max(0,Math.min(100,(ctx.calibration?.confidenceMultiplier??.65)*100)),"TradeOS calibration","measured","Resolved-forecast calibration"];
