@@ -4,6 +4,7 @@ import {latestRegimeContext} from "../../../lib/market/fred";
 import {latestSecCatalysts} from "../../../lib/market/sec";
 import {bestSnapshots} from "../../../lib/market/live";
 import {globalEventRisk} from "../../../lib/market/globalRisk";
+import {evaluateSupervisors} from "../../../lib/alignment/supervisors";
 
 export const dynamic="force-dynamic";
 
@@ -23,8 +24,11 @@ export async function GET(req:Request){
 
   const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
-  const governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
-  const governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
+  const supervisors=evaluateSupervisors(result,{calibration:calibrationRes});
+  let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
+  if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
+  let governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
+  if(supervisors.sellEscalation>=30&&governedSell==="HOLD")governedSell="CAUTION";
   return NextResponse.json({
     ...result,
     buyState:governedBuy,
@@ -32,6 +36,7 @@ export async function GET(req:Request){
     rawBuyState:result.buyState,
     rawSellState:result.sellState,
     governor,
+    supervisors,
     disclaimer:"MUST BUY / MUST SELL are TradeOS state labels for maximum alignment or capital-protection conditions, not guarantees or personalized investment advice."
   });
 }
