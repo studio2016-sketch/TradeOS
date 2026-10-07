@@ -19,6 +19,7 @@ import {featureSet} from "../../../../lib/market/features";
 import {buildMarketContext} from "../../../../lib/market/context";
 import {buildNewsContext} from "../../../../lib/market/newsContext";
 import {catalystReactions} from "../../../../lib/market/reactions";
+import {microstructureContext} from "../../../../lib/market/microstructure";
 
 export const dynamic="force-dynamic";
 
@@ -113,7 +114,7 @@ export async function GET(req:Request){
     }
     for(const symbol of watchlist){
       const spot=market.snapshots.find((x:any)=>x.symbol===symbol)?.price;
-      const [optionSurface,features,marketContext,newsContext,reactions]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[])]);
+      const [optionSurface,features,marketContext,newsContext,reactions,microstructure]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null)]);
       const baseAlignment=buildAlignment(symbol,{
         assessment:assessmentData,
         regime,
@@ -125,14 +126,15 @@ export async function GET(req:Request){
         features,
         marketContext,
         newsContext,
-        reactions
+        reactions,
+        microstructure
       });
       const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
       if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
       let finalSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState;
       if(supervisors.sellEscalation>=30&&finalSell==="HOLD")finalSell="CAUTION";
-      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,optionSurface,features,marketContext,newsContext,reactions};
+      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,optionSurface,features,marketContext,newsContext,reactions,microstructure};
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
         values('alignment_snapshot','symbol',${symbol},'swiss-movement-v1',${JSON.stringify(alignment)}::jsonb)
