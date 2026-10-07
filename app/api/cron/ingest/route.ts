@@ -117,7 +117,7 @@ export async function GET(req:Request){
     }
     for(const symbol of watchlist){
       const spot=market.snapshots.find((x:any)=>x.symbol===symbol)?.price;
-      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
+      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
       const baseAlignment=buildAlignment(symbol,{
         assessment:assessmentData,
         regime,
