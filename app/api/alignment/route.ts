@@ -33,8 +33,8 @@ export async function GET(req:Request){
     macroRiskContext().catch(()=>null)
   ]);
 
-  const [optionSurface,features,marketContext,newsContext,reactions,microstructure,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
-  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,issuer,brokerState});
+  const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
+  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
@@ -55,6 +55,7 @@ export async function GET(req:Request){
     newsContext,
     reactions,
     microstructure,
+    newsReaction,
     issuer,
     brokerRead:brokerReadStatus(),
     macro,
