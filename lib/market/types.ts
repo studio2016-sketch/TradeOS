@@ -1,4 +1,4 @@
-export type SourceState="live"|"degraded"|"stale"|"offline"|"unconfigured";
+export type SourceState="available"|"live"|"degraded"|"stale"|"offline"|"unconfigured";
 export type EvidenceDirection="bullish"|"bearish"|"neutral"|"mixed";
 export interface SourceHealth{id:string;label:string;state:SourceState;latencyMs?:number;ageMs?:number;quality:number;authoritative?:boolean;note?:string}
 export interface Evidence{id:string;label:string;value:number;direction:EvidenceDirection;quality:number;freshness:number;independence:number;sourceIds:string[];explanation:string}
