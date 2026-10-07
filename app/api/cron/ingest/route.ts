@@ -11,6 +11,7 @@ import {observedMarketEvidence} from "../../../../lib/market/observedAssessment"
 import {assess} from "../../../../lib/market/assessment";
 import {configuredSourceHealth} from "../../../../lib/market/providers";
 import {buildAlignment} from "../../../../lib/alignment/engine";
+import {globalEventRisk} from "../../../../lib/market/globalRisk";
 
 export const dynamic="force-dynamic";
 
@@ -97,14 +98,20 @@ export async function GET(req:Request){
     `;
     const calibration={sampleCount:Number((calibrationRows as any[])[0]?.sample_count??0),confidenceMultiplier:.65};
     const marketContext={mode:market.provider?"provider_data":"unconfigured",...market};
+    const governor=await globalEventRisk(market.snapshots,watchlist).catch(()=>null);
+    if(governor){
+      await sql`insert into audit_events(event_type,entity_type,model_version,payload) values('global_risk_snapshot','market','global-governor-v1',${JSON.stringify(governor)}::jsonb)`;
+      results.globalRisk={level:governor.level,score:governor.score,verifiedTransmission:governor.verifiedTransmission};
+    }
     for(const symbol of watchlist){
-      const alignment=buildAlignment(symbol,{
+      const baseAlignment=buildAlignment(symbol,{
         assessment:assessmentData,
         regime,
         catalysts:{mode:"live_authoritative",catalysts},
         market:marketContext,
         calibration
       });
+      const alignment=governor?{...baseAlignment,buyState:governor.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState,sellState:governor.capitalGuardOverride?"MUST SELL":governor.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor}:baseAlignment;
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
         values('alignment_snapshot','symbol',${symbol},'swiss-movement-v1',${JSON.stringify(alignment)}::jsonb)
