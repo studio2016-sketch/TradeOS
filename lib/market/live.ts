@@ -29,7 +29,9 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
       vwap:x.day?.vw==null?undefined:Number(x.day.vw),
       bid:x.lastQuote?.p==null?undefined:Number(x.lastQuote.p),
       ask:x.lastQuote?.P==null?undefined:Number(x.lastQuote.P),
-      source:"Massive"
+      source:"Massive",
+      coverage:"US consolidated snapshot",
+      entitlement:"Determined by Massive subscription"
     } satisfies MarketSnapshot;
   });
 }
@@ -40,7 +42,7 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
   if(!key||!secret) return [];
   const clean=cleanSymbols(symbols);
   if(!clean.length) return [];
-  const feed=process.env.ALPACA_FEED||"delayed_sip";
+  const feed=process.env.ALPACA_FEED||"iex";
   const headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret};
   const [quotesRes,barsRes]=await Promise.all([
     fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${encodeURIComponent(clean.join(","))}&feed=${encodeURIComponent(feed)}`,{headers,cache:"no-store"}),
@@ -60,7 +62,9 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
       volume:Number(b?.v??0),
       vwap:b?.vw==null?undefined:Number(b.vw),
       bid,ask,
-      source:`Alpaca:${feed}`
+      source:`Alpaca:${feed}`,
+      coverage:feed==="sip"?"All US exchanges":feed==="iex"?"IEX only":feed==="delayed_sip"?"All US exchanges / delayed":"Provider-specific",
+      entitlement:feed==="sip"?"full-market":feed==="iex"?"partial-real-time":"delayed-or-specialized"
     } satisfies MarketSnapshot;
   });
 }
