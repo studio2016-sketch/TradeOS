@@ -1,4 +1,4 @@
-export interface FredPoint{series:string;date:string;value:number|null}
+export interface FredPoint{series:string;date:string;value:number|null;previous?:number|null;changePct?:number|null}
 export interface FredSeriesResult{series:string;point:FredPoint|null;status:"ok"|"empty"|"error";error?:string}
 
 function isoDate(d:Date){return d.toISOString().slice(0,10)}
@@ -11,13 +11,19 @@ async function latestSeries(series:string):Promise<FredSeriesResult>{
     if(!res.ok)return{series,point:null,status:"error",error:`HTTP ${res.status}`};
     const text=await res.text();
     const lines=text.trim().split(/\r?\n/);
-    for(let i=lines.length-1;i>=1;i--){
+    const valid:{date:string,value:number}[]=[];
+    for(let i=1;i<lines.length;i++){
       const cols=lines[i].split(",");
       if(cols.length<2)continue;
       const raw=cols[1]?.trim();
       if(!raw||raw===".")continue;
       const value=Number(raw);
-      if(Number.isFinite(value))return{series,point:{series,date:cols[0],value},status:"ok"};
+      if(Number.isFinite(value))valid.push({date:cols[0],value});
+    }
+    if(valid.length){
+      const latest=valid[valid.length-1],previous=valid.length>1?valid[valid.length-2]:null;
+      const changePct=previous&&previous.value!==0?(latest.value-previous.value)/Math.abs(previous.value)*100:null;
+      return{series,point:{series,date:latest.date,value:latest.value,previous:previous?.value??null,changePct},status:"ok"};
     }
     return{series,point:null,status:"empty"};
   }catch(error){
