@@ -20,5 +20,6 @@ export async function GET(){
   {id:"breadth",label:"Market breadth",value:61,direction:"bullish",quality:.88,freshness:.96,independence:.85,sourceIds:["demo"],explanation:"Illustrative breadth evidence used only until enough real observations exist."},
   {id:"vol",label:"Volatility structure",value:54,direction:"neutral",quality:.7,freshness:.8,independence:.95,sourceIds:["demo"],explanation:"Illustrative volatility context; no live volatility feed is connected yet."}
  ];
- return NextResponse.json({mode:"fallback_demo",assessment:assess(evidence),sources:configuredSourceHealth(),generatedAt:new Date().toISOString()});
+ const fallback=assess(evidence);
+ return NextResponse.json({mode:"fallback_demo",assessment:{...fallback,confidence:0,uncertainty:100,decision:"pass",warnings:[...fallback.warnings,"No live intraday market feed is connected; fallback evidence is non-actionable."]},sources:configuredSourceHealth(),generatedAt:new Date().toISOString()});
 }
