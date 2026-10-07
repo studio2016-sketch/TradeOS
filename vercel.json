@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/ingest",
-      "schedule": "*/5 13-21 * * 1-5"
+      "schedule": "*/5 12-23 * * 1-5"
     },
     {
       "path": "/api/cron/calibrate",
