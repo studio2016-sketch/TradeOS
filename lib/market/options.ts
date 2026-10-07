@@ -29,7 +29,7 @@ function occ(symbol:string){
 }
 
 export async function alpacaOptionSurface(underlying:string,spot?:number):Promise<OptionSurface|null>{
-  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
+  const key=(process.env.ALPACA_API_KEY||process.env.ALOACA_API_KEY),secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return null;
   const feed=process.env.ALPACA_OPTIONS_FEED||"indicative";
   const start=new Date(),end=new Date(Date.now()+45*24*60*60*1000);
