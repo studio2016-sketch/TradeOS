@@ -3,7 +3,7 @@ export type EvidenceDirection="bullish"|"bearish"|"neutral"|"mixed";
 export interface SourceHealth{id:string;label:string;state:SourceState;latencyMs?:number;ageMs?:number;quality:number;authoritative?:boolean;note?:string}
 export interface Evidence{id:string;label:string;value:number;direction:EvidenceDirection;quality:number;freshness:number;independence:number;sourceIds:string[];explanation:string}
 export interface Assessment{score:number;confidence:number;uncertainty:number;direction:EvidenceDirection;decision:"consider"|"wait"|"pass";agreement:number;dataQuality:number;evidence:Evidence[];reasons:string[];warnings:string[]}
-export interface MarketSnapshot{symbol:string;timestamp:string;price:number;volume:number;vwap?:number;relativeVolume?:number;bid?:number;ask?:number;source:string;coverage?:string;entitlement?:string}
+export interface MarketSnapshot{symbol:string;timestamp:string;price:number;volume:number;vwap?:number;relativeVolume?:number;bid?:number;ask?:number;bidSize?:number;askSize?:number;source:string;coverage?:string;entitlement?:string}
 export interface NewsSignal{id:string;timestamp:string;headline:string;symbols:string[];source:string;sourceQuality:number;novelty:number;marketImpact:number;priceConfirmed:boolean;summary:string}
 export interface MarketDataProvider{id:string;health():Promise<SourceHealth>;snapshot(symbol:string):Promise<MarketSnapshot|null>}
 export interface NewsProvider{id:string;health():Promise<SourceHealth>;latest(symbols?:string[]):Promise<NewsSignal[]>}
