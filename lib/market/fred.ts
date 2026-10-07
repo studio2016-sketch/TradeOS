@@ -1,17 +1,15 @@
 export interface FredPoint{series:string;date:string;value:number|null}
 export interface FredSeriesResult{series:string;point:FredPoint|null;status:"ok"|"empty"|"error";error?:string}
 
+function isoDate(d:Date){return d.toISOString().slice(0,10)}
+
 async function latestSeries(series:string):Promise<FredSeriesResult>{
-  const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}`;
+  const start=new Date(Date.now()-45*24*60*60*1000);
+  const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}&cosd=${isoDate(start)}`;
   try{
-    const res=await fetch(url,{
-      cache:"no-store",
-      headers:{
-        "Accept":"text/csv,*/*",
-        "User-Agent":"TradeOS/1.0"
-      },
-      signal:AbortSignal.timeout(8000)
-    });
+    // Keep this request intentionally plain. FRED's graph endpoint has proven reliable
+    // from Vercel without custom request headers.
+    const res=await fetch(url,{cache:"no-store"});
     if(!res.ok)return{series,point:null,status:"error",error:`HTTP ${res.status}`};
     const text=await res.text();
     const lines=text.trim().split(/\r?\n/);
@@ -30,7 +28,6 @@ async function latestSeries(series:string):Promise<FredSeriesResult>{
 }
 
 export async function latestRegimeContext(){
-  // Fetch sequentially so one transient upstream failure cannot collapse all macro context.
   const vixResult=await latestSeries("VIXCLS");
   const tenYearResult=await latestSeries("DGS10");
   const fedFundsResult=await latestSeries("DFF");
@@ -43,6 +40,6 @@ export async function latestRegimeContext(){
     fedFunds:fedFundsResult.point,
     diagnostics,
     usableCount:diagnostics.filter(x=>x.status==="ok").length,
-    note:"Daily-close/regime context, not an intraday trading feed."
+    note:"Official FRED daily observations; regime context only, not an intraday trading feed."
   };
 }
