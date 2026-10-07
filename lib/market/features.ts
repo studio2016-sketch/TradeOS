@@ -1,15 +1,16 @@
 export interface Bar{t:string;o:number;h:number;l:number;c:number;v:number;vw?:number;n?:number}
 export interface FeatureSet{
   symbol:string;feed:string;generatedAt:string;
-  daily:{trendScore:number|null;ema20:number|null;ema50:number|null;atr14Pct:number|null;roc20Pct:number|null;volumeRatio20:number|null};
+  daily:{trendScore:number|null;ema20:number|null;ema50:number|null;atr14Pct:number|null;roc20Pct:number|null;volumeRatio20:number|null;avgVolume20:number|null;realizedVol20Pct:number|null;chartCleanliness:number|null;tradeability:number|null};
   hourly:{trendScore:number|null;rocPct:number|null};
-  intraday:{trendScore:number|null;rocPct:number|null;rsi14:number|null;vwapHoldScore:number|null;openingRangeScore:number|null;breakoutScore:number|null;volumeAcceleration:number|null;supportDistancePct:number|null;resistanceDistancePct:number|null};
+  intraday:{trendScore:number|null;rocPct:number|null;rsi14:number|null;macdScore:number|null;priceAcceleration:number|null;momentumPersistence:number|null;squeezeScore:number|null;vwapHoldScore:number|null;openingRangeScore:number|null;breakoutScore:number|null;breakoutVolumeScore:number|null;volumeAcceleration:number|null;accumulationScore:number|null;rangeConditionScore:number|null;supportDistancePct:number|null;resistanceDistancePct:number|null};
   quality:{barCount:number;coverageScore:number;note:string};
 }
 function ema(xs:number[],p:number){if(xs.length<p)return null;const k=2/(p+1);let e=xs.slice(0,p).reduce((a,b)=>a+b,0)/p;for(const x of xs.slice(p))e=x*k+e*(1-k);return e}
 function sma(xs:number[],p:number){return xs.length<p?null:xs.slice(-p).reduce((a,b)=>a+b,0)/p}
 function rsi(xs:number[],p=14){if(xs.length<=p)return null;let g=0,l=0;for(let i=xs.length-p;i<xs.length;i++){const d=xs[i]-xs[i-1];if(d>=0)g+=d;else l-=d}if(l===0)return 100;const rs=(g/p)/(l/p);return 100-100/(1+rs)}
 function atr(b:Bar[],p=14){if(b.length<=p)return null;const tr=b.slice(1).map((x,i)=>Math.max(x.h-x.l,Math.abs(x.h-b[i].c),Math.abs(x.l-b[i].c)));return sma(tr,p)}
+function stdev(xs:number[]){if(xs.length<2)return null;const m=xs.reduce((a,b)=>a+b,0)/xs.length;return Math.sqrt(xs.reduce((s,x)=>s+(x-m)**2,0)/(xs.length-1))}
 function clamp(n:number,min=0,max=100){return Math.max(min,Math.min(max,n))}
 async function bars(symbol:string,timeframe:string,start:string,limit=1000):Promise<Bar[]>{
   const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
@@ -40,7 +41,17 @@ function intradayFeatures(b:Bar[]){
   const breakout=ph==null?null:clamp(last.c>ph?92:last.c<pl! ?25:58);
   const short=sma(vol,5),long=sma(vol,20);const volumeAcceleration=short&&long?clamp(50+(short/long-1)*45):null;
   const support=pl,resistance=ph;
-  return{trendScore:trendScore(b),rocPct:roc(b,12),rsi14:rsi(c),vwapHoldScore:vwapHold,openingRangeScore,breakoutScore:breakout,volumeAcceleration,supportDistancePct:support?((last.c-support)/last.c)*100:null,resistanceDistancePct:resistance?((resistance-last.c)/last.c)*100:null};
+  const e12=ema(c,12),e26=ema(c,26),macdScore=e12==null||e26==null?null:clamp(50+(e12-e26)/last.c*1200);
+  const r6=roc(b,6),r12=roc(b,12),priceAcceleration=r6==null||r12==null?null:clamp(50+(r6-r12/2)*10);
+  const changes=c.slice(-13).map((x,i,a)=>i?x-a[i-1]:0).slice(1),up=changes.filter(x=>x>0).length,down=changes.filter(x=>x<0).length;
+  const momentumPersistence=changes.length?clamp(50+(up-down)/changes.length*45):null;
+  const recentRanges=b.slice(-20).map(x=>(x.h-x.l)/x.c*100),rangeAvg=sma(recentRanges,20),range5=sma(recentRanges,5);
+  const squeezeScore=rangeAvg&&range5?clamp(70-(range5/rangeAvg-1)*70):null;
+  const breakoutVolumeScore=short&&long?clamp(50+(short/long-1)*50):null;
+  const recent=b.slice(-20),signedVol=recent.reduce((s,x,i)=>i?s+(x.c>=recent[i-1].c?x.v:-x.v):0,0),totVol=recent.reduce((s,x)=>s+x.v,0);
+  const accumulationScore=totVol?clamp(50+signedVol/totVol*45):null;
+  const rangeConditionScore=rangeAvg==null?null:(rangeAvg<=.35?55:rangeAvg<=1.2?88:rangeAvg<=2.5?72:45);
+  return{trendScore:trendScore(b),rocPct:roc(b,12),rsi14:rsi(c),macdScore,priceAcceleration,momentumPersistence,squeezeScore,vwapHoldScore:vwapHold,openingRangeScore,breakoutScore:breakout,breakoutVolumeScore,volumeAcceleration,accumulationScore,rangeConditionScore,supportDistancePct:support?((last.c-support)/last.c)*100:null,resistanceDistancePct:resistance?((resistance-last.c)/last.c)*100:null};
 }
 export async function featureSet(symbol:string):Promise<FeatureSet|null>{
   if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return null;
@@ -52,7 +63,13 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
   const total=daily.length+hourly.length+intra.length;
   return{
     symbol,feed:process.env.ALPACA_FEED||"iex",generatedAt:new Date().toISOString(),
-    daily:{trendScore:trendScore(daily,20,50),ema20:e20,ema50:e50,atr14Pct:a&&last?a/last*100:null,roc20Pct:roc(daily,20),volumeRatio20:dailyVolRatio},
+    daily:{
+      trendScore:trendScore(daily,20,50),ema20:e20,ema50:e50,atr14Pct:a&&last?a/last*100:null,roc20Pct:roc(daily,20),volumeRatio20:dailyVolRatio,
+      avgVolume20:v20,
+      realizedVol20Pct:(()=>{const rets=dc.slice(-21).map((x,i,a)=>i?Math.log(x/a[i-1]):0).slice(1);const sd=stdev(rets);return sd==null?null:sd*Math.sqrt(252)*100})(),
+      chartCleanliness:(()=>{const t=trendScore(daily,20,50);if(t==null)return null;const closes=dc.slice(-20),e=ema(dc,20);if(e==null||!closes.length)return null;const same=closes.filter(x=>t>=50?x>=e:x<=e).length/closes.length;return clamp(45+same*50)})(),
+      tradeability:(()=>{const atrPct=a&&last?a/last*100:null;if(atrPct==null||v20==null)return null;const volScore=v20>=1e7?95:v20>=3e6?85:v20>=1e6?72:v20>=3e5?55:35;const atrScore=atrPct<=1?58:atrPct<=4?90:atrPct<=7?72:45;return clamp(.6*volScore+.4*atrScore)})()
+    },
     hourly:{trendScore:trendScore(hourly,9,20),rocPct:roc(hourly,12)},
     intraday:intradayFeatures(intra),
     quality:{barCount:total,coverageScore:clamp(total/12),note:"Historical bars are derived from the configured Alpaca feed; IEX is partial-market coverage."}
