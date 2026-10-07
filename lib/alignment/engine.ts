@@ -33,6 +33,7 @@ type Context={
   calibration?:any;
   options?:any;
   macro?:any;
+  features?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -53,6 +54,37 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
   const calibrationReady=(ctx.calibration?.sampleCount??0)>=30;
 
   function scoreFor(label:string):[number|null,string,string,string]{
+    const f=ctx.features;
+    if(f){
+      const histSource=`Alpaca Historical:${f.feed}`;
+      const num=(x:any)=>Number.isFinite(Number(x))?Number(x):null;
+      const trendMap:Record<string,any>={
+        "Daily trend alignment":f.daily?.trendScore,
+        "4-hour trend alignment":f.hourly?.trendScore,
+        "1-hour trend alignment":f.hourly?.trendScore,
+        "15-minute trend alignment":f.intraday?.trendScore,
+        "5-minute trend alignment":f.intraday?.trendScore,
+        "Trend durability":f.daily?.trendScore,
+        "Moving-average stack":f.daily?.trendScore,
+        "Moving-average slope":f.daily?.trendScore,
+        "Higher-high / higher-low structure":f.hourly?.trendScore,
+        "Rate of change":f.intraday?.rocPct==null?null:Math.max(0,Math.min(100,50+f.intraday.rocPct*8)),
+        "RSI quality":f.intraday?.rsi14==null?null:(f.intraday.rsi14>=50&&f.intraday.rsi14<=72?88:f.intraday.rsi14>=40&&f.intraday.rsi14<80?68:42),
+        "VWAP behavior":f.intraday?.vwapHoldScore,
+        "Opening-range behavior":f.intraday?.openingRangeScore,
+        "Breakout quality":f.intraday?.breakoutScore,
+        "Volume acceleration":f.intraday?.volumeAcceleration,
+        "Support / resistance clarity":f.intraday?.supportDistancePct==null||f.intraday?.resistanceDistancePct==null?null:Math.max(0,Math.min(100,80-Math.min(50,Math.abs(f.intraday.supportDistancePct)+Math.abs(f.intraday.resistanceDistancePct)))),
+        "ATR suitability":f.daily?.atr14Pct==null?null:(f.daily.atr14Pct<=2?78:f.daily.atr14Pct<=4?88:f.daily.atr14Pct<=7?68:42),
+        "Relative volume":f.daily?.volumeRatio20==null?null:Math.max(0,Math.min(100,50+(f.daily.volumeRatio20-1)*35)),
+        "Trend-continuation quality":f.daily?.trendScore==null||f.intraday?.trendScore==null?null:(f.daily.trendScore*.55+f.intraday.trendScore*.45),
+        "Setup repeatability":f.quality?.coverageScore
+      };
+      if(Object.prototype.hasOwnProperty.call(trendMap,label)){
+        const s=num(trendMap[label]);
+        return [s,histSource,"historical",s==null?"Insufficient historical sample":`Derived from ${f.quality?.barCount??0} historical bars`];
+      }
+    }
     if(label==="VIX condition" && fredLive){
       const v=Number(ctx.regime?.vix?.value);
       const s=Number.isFinite(v)?(v<18?90:v<24?72:v<32?45:20):null;
