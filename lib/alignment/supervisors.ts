@@ -52,15 +52,20 @@ export function evaluateSupervisors(alignment:AlignmentResult,ctx:any={}):Superv
 
   // 2) Derivatives / dealer positioning.
   const deriv=available(r,["Options liquidity","Expected-move context","Volatility expansion / compression"]);
-  const derivScore=avg(deriv.map(x=>x.buyScore as number));
+  const optionScores=[
+    ...deriv.map(x=>x.buyScore as number),
+    ...(ctx?.options?.liquidityScore!=null?[Number(ctx.options.liquidityScore)]:[]),
+    ...(ctx?.options?.volatilitySuitability!=null?[Number(ctx.options.volatilitySuitability)]:[])
+  ];
+  const derivScore=avg(optionScores);
   out.push(mk(
     "derivatives-positioning","Derivatives & Dealer Positioning",
     derivScore==null?"UNAVAILABLE":derivScore>=75?"CLEAR":derivScore>=55?"WATCH":"BLOCK",
     derivScore,
     false,
     derivScore!=null&&derivScore<45?8:0,
-    derivScore==null?"Options surface, skew, term structure, dealer-gamma proxy and expiration positioning are not yet connected.":"Uses options-derived risk only when the underlying feed is available and validated.",
-    deriv.map(x=>x.label)
+    derivScore==null?"Options surface, skew, term structure, dealer-gamma proxy and expiration positioning are not yet connected.":ctx?.options?.dealerGammaProxy==null?"Options surface is connected; dealer gamma remains intentionally unavailable without open-interest/positioning support.":"Uses options-derived risk only when the underlying feed is available and validated.",
+    [...deriv.map(x=>x.label),...(ctx?.options?[`feed=${ctx.options.feed}`,`contracts=${ctx.options.contractCount}`]:[])]
   ));
 
   // 3) Crowding / positioning.
