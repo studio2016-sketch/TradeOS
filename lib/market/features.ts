@@ -12,7 +12,7 @@ function rsi(xs:number[],p=14){if(xs.length<=p)return null;let g=0,l=0;for(let i
 function atr(b:Bar[],p=14){if(b.length<=p)return null;const tr=b.slice(1).map((x,i)=>Math.max(x.h-x.l,Math.abs(x.h-b[i].c),Math.abs(x.l-b[i].c)));return sma(tr,p)}
 function stdev(xs:number[]){if(xs.length<2)return null;const m=xs.reduce((a,b)=>a+b,0)/xs.length;return Math.sqrt(xs.reduce((s,x)=>s+(x-m)**2,0)/(xs.length-1))}
 function clamp(n:number,min=0,max=100){return Math.max(min,Math.min(max,n))}
-async function bars(symbol:string,timeframe:string,start:string,limit=1000):Promise<Bar[]>{
+export async function historicalBars(symbol:string,timeframe:string,start:string,limit=1000):Promise<Bar[]>{
   const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return[];
   const feed=process.env.ALPACA_FEED||"iex";
@@ -56,7 +56,7 @@ function intradayFeatures(b:Bar[]){
 export async function featureSet(symbol:string):Promise<FeatureSet|null>{
   if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return null;
   const now=Date.now(),d180=new Date(now-220*86400000).toISOString(),d15=new Date(now-15*86400000).toISOString(),d3=new Date(now-3*86400000).toISOString();
-  const [daily,hourly,intra]=await Promise.all([bars(symbol,"1Day",d180,300),bars(symbol,"1Hour",d15,500),bars(symbol,"5Min",d3,1000)]);
+  const [daily,hourly,intra]=await Promise.all([historicalBars(symbol,"1Day",d180,300),historicalBars(symbol,"1Hour",d15,500),historicalBars(symbol,"5Min",d3,1000)]);
   const dc=daily.map(x=>x.c),dv=daily.map(x=>x.v),a=atr(daily,14),last=daily[daily.length-1]?.c;
   const e20=ema(dc,20),e50=ema(dc,50),v20=sma(dv,20);
   const dailyVolRatio=v20&&dv.length?dv[dv.length-1]/v20:null;
