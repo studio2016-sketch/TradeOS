@@ -38,6 +38,7 @@ type Context={
   newsContext?:any;
   reactions?:any[];
   microstructure?:any;
+  issuer?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -213,6 +214,14 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const m=Number(ctx.options.expectedMovePct30d);
       const s=m<=6?85:m<=10?72:m<=16?55:35;
       return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
+    }
+    if(ctx.issuer){
+      if(label==="Float structure" && ctx.issuer.floatStructureScore!=null){
+        return [Number(ctx.issuer.floatStructureScore),"SEC Company Facts","authoritative",ctx.issuer.note];
+      }
+      if(label==="Institutional participation" && ctx.issuer.institutionalParticipationScore!=null){
+        return [Number(ctx.issuer.institutionalParticipationScore),"SEC 13D/13G Activity","authoritative proxy",ctx.issuer.note];
+      }
     }
     if(ctx.microstructure){
       if(label==="Tape aggression" && ctx.microstructure.tapeAggressionScore!=null){
