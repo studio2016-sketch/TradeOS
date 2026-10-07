@@ -61,6 +61,12 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const s=Number.isFinite(y)?(y<4.5?82:y<5?68:y<5.5?52:35):null;
       return [s,"FRED DGS10","daily",`10Y Treasury: ${y}%`];
     }
+    if(label==="Dollar risk tone" && fredLive){
+      const d=ctx.regime?.broadDollar;
+      const ch=Number(d?.changePct);
+      const s=Number.isFinite(ch)?(ch<=-.25?88:ch<.10?72:ch<.35?55:35):null;
+      return [s,"FRED DTWEXBGS","daily",`Broad dollar daily change: ${Number.isFinite(ch)?ch.toFixed(2)+"%":"unknown"}`];
+    }
     if(label==="SEC filing significance" && secLive){
       const rows=ctx.catalysts?.catalysts??[];
       const has=rows.some((x:any)=>x.symbol===symbol);
