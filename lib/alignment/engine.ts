@@ -35,6 +35,8 @@ type Context={
   macro?:any;
   features?:any;
   marketContext?:any;
+  newsContext?:any;
+  reactions?:any[];
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -164,6 +166,28 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const s=Number.isFinite(ch)?(ch<=-.25?88:ch<.10?72:ch<.35?55:35):null;
       return [s,"FRED DTWEXBGS","daily",`Broad dollar daily change: ${Number.isFinite(ch)?ch.toFixed(2)+"%":"unknown"}`];
     }
+    if(ctx.newsContext){
+      const newsMap:Record<string,any>={
+        "Earnings / guidance relevance":ctx.newsContext.earningsScore,
+        "Analyst revision pressure":ctx.newsContext.analystRevisionScore,
+        "Sector narrative strength":ctx.newsContext.sectorNarrativeScore,
+        "Sentiment condition":ctx.newsContext.sentimentScore,
+        "Event asymmetry":ctx.newsContext.eventAsymmetryScore
+      };
+      if(Object.prototype.hasOwnProperty.call(newsMap,label)){
+        const s=Number.isFinite(Number(newsMap[label]))?Number(newsMap[label]):null;
+        return [s,"Provider News Context","recent",ctx.newsContext.note??"Deterministic provider-news context"];
+      }
+    }
+    if(label==="Headline-to-price reaction"){
+      const rows=ctx.reactions??[];
+      if(rows.length){
+        const r=rows[0],mag=Number(r.reactionScore??0),ret=Number(r.returnPct??0);
+        const s=Math.max(0,Math.min(100,ret>=0?50+mag/2:50-mag/2));
+        return [s,"Observed Catalyst Reaction","measured",`${r.classification}; return ${ret}% over ${r.observedMinutes}m`];
+      }
+      return [null,"Reaction engine","waiting","Requires at least two post-catalyst market observations"];
+    }
     if(label==="SEC filing significance" && secLive){
       const rows=ctx.catalysts?.catalysts??[];
       const has=rows.some((x:any)=>x.symbol===symbol);
@@ -207,7 +231,6 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
     if(["News quality","News freshness","Catalyst interpretation confidence"].includes(label)){
       return [secLive?78:null,secLive?"SEC EDGAR":"none",secLive?"live":"unavailable",secLive?"Authoritative catalyst source available":"No authoritative catalyst source"];
     }
-    if(label==="Headline-to-price reaction") return [null,"Reaction engine","waiting","Requires quote observations after catalyst time"];
     if(["Position-size compatibility","Stop-order readiness","Profit-target readiness","Checklist completion","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Journal accountability","Broker / platform readiness"].includes(label)){
       return [null,"User / broker state","not connected","Requires trade ticket, account state, or user confirmation"];
     }
