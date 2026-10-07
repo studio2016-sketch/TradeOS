@@ -4,6 +4,7 @@ import {db,hasDatabase} from "../../../../lib/db";
 import {latestSecCatalysts} from "../../../../lib/market/sec";
 import {bestSnapshots} from "../../../../lib/market/live";
 import {resolveEligibleForecasts} from "../../../../lib/market/resolve";
+import {generateShadowForecasts} from "../../../../lib/market/shadow";
 
 export const dynamic="force-dynamic";
 
