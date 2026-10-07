@@ -20,6 +20,7 @@ import {buildMarketContext} from "../../../../lib/market/context";
 import {buildNewsContext} from "../../../../lib/market/newsContext";
 import {catalystReactions} from "../../../../lib/market/reactions";
 import {microstructureContext} from "../../../../lib/market/microstructure";
+import {latestNewsReaction} from "../../../../lib/market/newsReaction";
 import {secIssuerContext} from "../../../../lib/market/sec";
 import {alpacaBrokerState,brokerReadStatus} from "../../../../lib/broker/alpaca";
 
