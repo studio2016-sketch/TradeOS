@@ -3,6 +3,7 @@ import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {latestSecCatalysts} from "../../../../lib/market/sec";
 import {bestSnapshots} from "../../../../lib/market/live";
+import {resolveEligibleForecasts} from "../../../../lib/market/resolve";
 
 export const dynamic="force-dynamic";
 
