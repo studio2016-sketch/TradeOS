@@ -18,12 +18,12 @@ function rsi(xs:number[],p=14){if(xs.length<=p)return null;let g=0,l=0;for(let i
 function atr(b:Bar[],p=14){if(b.length<=p)return null;const tr=b.slice(1).map((x,i)=>Math.max(x.h-x.l,Math.abs(x.h-b[i].c),Math.abs(x.l-b[i].c)));return sma(tr,p)}
 function stdev(xs:number[]){if(xs.length<2)return null;const m=xs.reduce((a,b)=>a+b,0)/xs.length;return Math.sqrt(xs.reduce((s,x)=>s+(x-m)**2,0)/(xs.length-1))}
 function clamp(n:number,min=0,max=100){return Math.max(min,Math.min(max,n))}
-export async function historicalBars(symbol:string,timeframe:string,start:string,limit=1000):Promise<Bar[]>{
+export async function historicalBars(symbol:string,timeframe:string,start:string,limit=1000,feedOverride?:string,endOverride?:string):Promise<Bar[]>{
   const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return[];
-  const feed=process.env.ALPACA_FEED||"iex";
+  const feed=feedOverride||(process.env.ALPACA_FEED||"iex");
   const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
-  url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","asc");
+  url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","asc");if(endOverride)url.searchParams.set("end",endOverride);
   const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store"});
   if(!res.ok)throw new Error(`Alpaca ${timeframe} bars HTTP ${res.status}`);
   const j=await res.json() as any; return j.bars??[];
@@ -149,13 +149,18 @@ function structureFeatures(intra:Bar[],daily:Bar[],intr:any){
 export async function featureSet(symbol:string):Promise<FeatureSet|null>{
   if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return null;
   const now=Date.now(),d180=new Date(now-220*86400000).toISOString(),d15=new Date(now-15*86400000).toISOString(),d3=new Date(now-3*86400000).toISOString();
-  const [daily,hourly,intra]=await Promise.all([historicalBars(symbol,"1Day",d180,300),historicalBars(symbol,"1Hour",d15,500),historicalBars(symbol,"5Min",d3,1000)]);
+  const delayedEnd=new Date(now-16*60*1000).toISOString();
+  const [daily,hourly,intra]=await Promise.all([
+    historicalBars(symbol,"1Day",d180,300,"sip",delayedEnd),
+    historicalBars(symbol,"1Hour",d15,500,"sip",delayedEnd),
+    historicalBars(symbol,"5Min",d3,1000,process.env.ALPACA_FEED||"iex")
+  ]);
   const dc=daily.map(x=>x.c),dv=daily.map(x=>x.v),a=atr(daily,14),last=daily[daily.length-1]?.c;
   const e20=ema(dc,20),e50=ema(dc,50),v20=sma(dv,20);
   const dailyVolRatio=v20&&dv.length?dv[dv.length-1]/v20:null;
   const total=daily.length+hourly.length+intra.length;
   return{
-    symbol,feed:process.env.ALPACA_FEED||"iex",generatedAt:new Date().toISOString(),
+    symbol,feed:"sip-history+"+(process.env.ALPACA_FEED||"iex")+"-intraday",generatedAt:new Date().toISOString(),
     daily:{
       trendScore:trendScore(daily,20,50),ema20:e20,ema50:e50,atr14Pct:a&&last?a/last*100:null,roc20Pct:roc(daily,20),volumeRatio20:dailyVolRatio,
       avgVolume20:v20,
@@ -166,6 +171,6 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
     hourly:{trendScore:trendScore(hourly,9,20),rocPct:roc(hourly,12)},
     intraday:intradayFeatures(intra),
     structure:structureFeatures(intra,daily,intradayFeatures(intra)),
-    quality:{barCount:total,coverageScore:clamp(total/12),note:"Historical bars are derived from the configured Alpaca feed; IEX is partial-market coverage."}
+    quality:{barCount:total,coverageScore:clamp(total/12),note:"Daily/hourly structure uses consolidated SIP history ending at least 16 minutes ago; immediate intraday timing uses the configured real-time feed."}
   };
 }
