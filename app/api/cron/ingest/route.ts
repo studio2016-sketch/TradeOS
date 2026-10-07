@@ -14,6 +14,7 @@ import {buildAlignment} from "../../../../lib/alignment/engine";
 import {globalEventRisk} from "../../../../lib/market/globalRisk";
 import {evaluateSupervisors} from "../../../../lib/alignment/supervisors";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
+import {macroRiskContext} from "../../../../lib/market/bls";
 
 export const dynamic="force-dynamic";
 
@@ -92,6 +93,7 @@ export async function GET(req:Request){
       ? {mode:"observed_market_data",assessment:assess(observed.evidence),sources:configuredSourceHealth()}
       : {mode:"fallback_demo",assessment:null,sources:configuredSourceHealth()};
     const regimeRaw=await latestRegimeContext().catch(()=>null);
+    const macro=await macroRiskContext().catch(()=>null);
     const regime=regimeRaw?{mode:regimeRaw.usableCount>0?"official_daily":"unavailable",...regimeRaw}:null;
     const calibrationRows=await sql`
       select count(*)::int as sample_count,
@@ -114,7 +116,8 @@ export async function GET(req:Request){
         catalysts:{mode:"live_authoritative",catalysts},
         market:marketContext,
         calibration,
-        options:optionSurface
+        options:optionSurface,
+        macro
       });
       const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
