@@ -30,6 +30,12 @@ export async function GET(){
         where event_type='catalyst_observed'
         order by created_at desc
         limit 12
+      `,
+      sql`
+        select model_version,strategy,regime,sample_count,win_rate,brier_score,drift_score,status,updated_at
+        from model_scorecards
+        order by sample_count desc,updated_at desc
+        limit 12
       `
     ]);
     return NextResponse.json({
