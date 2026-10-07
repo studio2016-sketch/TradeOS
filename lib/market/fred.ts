@@ -1,36 +1,48 @@
 export interface FredPoint{series:string;date:string;value:number|null}
-const SERIES=["VIXCLS","DGS10","DFF"] as const;
+export interface FredSeriesResult{series:string;point:FredPoint|null;status:"ok"|"empty"|"error";error?:string}
 
-async function latestSeries(series:string):Promise<FredPoint|null>{
+async function latestSeries(series:string):Promise<FredSeriesResult>{
   const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}`;
-  const res=await fetch(url,{next:{revalidate:3600},headers:{"User-Agent":"TradeOS/1.0 market research"}});
-  if(!res.ok)throw new Error(`FRED ${series} HTTP ${res.status}`);
-  const text=await res.text();
-  const lines=text.trim().split(/\r?\n/);
-  if(lines.length<2)return null;
-  for(let i=lines.length-1;i>=1;i--){
-    const cols=lines[i].split(",");
-    if(cols.length<2)continue;
-    const raw=cols[1]?.trim();
-    if(!raw||raw===".")continue;
-    const value=Number(raw);
-    if(Number.isFinite(value))return{series,date:cols[0],value};
+  try{
+    const res=await fetch(url,{
+      cache:"no-store",
+      headers:{
+        "Accept":"text/csv,*/*",
+        "User-Agent":"TradeOS/1.0"
+      },
+      signal:AbortSignal.timeout(8000)
+    });
+    if(!res.ok)return{series,point:null,status:"error",error:`HTTP ${res.status}`};
+    const text=await res.text();
+    const lines=text.trim().split(/\r?\n/);
+    for(let i=lines.length-1;i>=1;i--){
+      const cols=lines[i].split(",");
+      if(cols.length<2)continue;
+      const raw=cols[1]?.trim();
+      if(!raw||raw===".")continue;
+      const value=Number(raw);
+      if(Number.isFinite(value))return{series,point:{series,date:cols[0],value},status:"ok"};
+    }
+    return{series,point:null,status:"empty"};
+  }catch(error){
+    return{series,point:null,status:"error",error:error instanceof Error?error.message:String(error)};
   }
-  return null;
 }
 
 export async function latestRegimeContext(){
-  const [vix,tenYear,fedFunds]=await Promise.all([
-    latestSeries("VIXCLS"),
-    latestSeries("DGS10"),
-    latestSeries("DFF")
-  ]);
+  // Fetch sequentially so one transient upstream failure cannot collapse all macro context.
+  const vixResult=await latestSeries("VIXCLS");
+  const tenYearResult=await latestSeries("DGS10");
+  const fedFundsResult=await latestSeries("DFF");
+  const diagnostics=[vixResult,tenYearResult,fedFundsResult];
   return {
     source:"FRED",
     generatedAt:new Date().toISOString(),
-    vix,
-    tenYear,
-    fedFunds,
+    vix:vixResult.point,
+    tenYear:tenYearResult.point,
+    fedFunds:fedFundsResult.point,
+    diagnostics,
+    usableCount:diagnostics.filter(x=>x.status==="ok").length,
     note:"Daily-close/regime context, not an intraday trading feed."
   };
 }
