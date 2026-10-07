@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {configuredSourceHealth} from "../../../lib/market/providers";
 export const dynamic="force-dynamic";
 export async function GET(){
-  const alpacaConfigured=Boolean(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET);
+  const alpacaConfigured=Boolean((process.env.ALPACA_API_KEY||process.env.ALOACA_API_KEY)&&process.env.ALPACA_API_SECRET);
   const massiveConfigured=Boolean(process.env.MASSIVE_API_KEY);
   const alpacaFeed=process.env.ALPACA_FEED||"iex";
   const optionFeed=process.env.ALPACA_OPTIONS_FEED||"indicative";
