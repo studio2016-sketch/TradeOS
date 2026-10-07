@@ -37,6 +37,7 @@ type Context={
   marketContext?:any;
   newsContext?:any;
   reactions?:any[];
+  microstructure?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -212,6 +213,14 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const m=Number(ctx.options.expectedMovePct30d);
       const s=m<=6?85:m<=10?72:m<=16?55:35;
       return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
+    }
+    if(ctx.microstructure){
+      if(label==="Tape aggression" && ctx.microstructure.tapeAggressionScore!=null){
+        return [Number(ctx.microstructure.tapeAggressionScore),"Alpaca Recent Trades",ctx.microstructure.feed,ctx.microstructure.note];
+      }
+      if(label==="Block participation" && ctx.microstructure.blockParticipationScore!=null){
+        return [Number(ctx.microstructure.blockParticipationScore),"Alpaca Recent Trades",ctx.microstructure.feed,ctx.microstructure.note];
+      }
     }
     if(label==="Bid-ask imbalance" && marketReady){
       const bs=Number(marketSnap.bidSize),as=Number(marketSnap.askSize);
