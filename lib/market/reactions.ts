@@ -1,4 +1,5 @@
 import {db,hasDatabase} from "../db";
+import {historicalBars} from "./features";
 
 function scoreReaction(ret:number,volumeRatio:number|null,minutes:number){
   const direction=Math.min(35,Math.abs(ret)*100*8);
@@ -34,12 +35,25 @@ export async function catalystReactions(symbol?:string){
       order by event_time asc
       limit 500
     `;
-    if(obs.length<2) continue;
-    const first:any=obs[0].metadata,last:any=obs[obs.length-1].metadata;
+    let first:any,last:any,firstTime:any,lastTime:any;
+    if(obs.length>=2){
+      first=obs[0].metadata;last=obs[obs.length-1].metadata;firstTime=obs[0].event_time;lastTime=obs[obs.length-1].event_time;
+    }else{
+      const age=Date.now()-eventAt.getTime();
+      if(age<0||age>14*24*60*60*1000) continue;
+      const bars=await historicalBars(String(p.symbol),"5Min",eventAt.toISOString(),1000).catch(()=>[]);
+      const window=bars.filter((b:any)=>{
+        const t=new Date(b.t).getTime();
+        return t>=eventAt.getTime()&&t<=eventAt.getTime()+24*60*60*1000;
+      });
+      if(window.length<2) continue;
+      first={price:window[0].c,volume:window[0].v};last={price:window[window.length-1].c,volume:window[window.length-1].v};
+      firstTime=window[0].t;lastTime=window[window.length-1].t;
+    }
     const p0=Number(first.price||0),p1=Number(last.price||0);
     if(!(p0>0&&p1>0)) continue;
     const ret=(p1-p0)/p0;
-    const minutes=Math.max(0,(new Date(obs[obs.length-1].event_time).getTime()-new Date(obs[0].event_time).getTime())/60000);
+    const minutes=Math.max(0,(new Date(lastTime).getTime()-new Date(firstTime).getTime())/60000);
     const v0=Number(first.volume||0),v1=Number(last.volume||0);
     const volumeRatio=v0>0&&v1>0?Math.max(v1/v0,v0/v1):null;
     reactions.push({
