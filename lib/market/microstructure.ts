@@ -12,7 +12,7 @@ export async function microstructureContext(symbol:string):Promise<Microstructur
   const feed=process.env.ALPACA_FEED||"iex";
   const start=new Date(Date.now()-12*60*60*1000).toISOString();
   const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/trades`);
-  url.searchParams.set("start",start);url.searchParams.set("limit","5000");url.searchParams.set("feed",feed);url.searchParams.set("sort","asc");
+  url.searchParams.set("start",start);url.searchParams.set("limit","10000");url.searchParams.set("feed",feed);url.searchParams.set("sort","asc");
   const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store"});
   if(!res.ok)throw new Error(`Alpaca trades HTTP ${res.status}`);
   const data=await res.json() as any; const trades=(data.trades??[]).filter((t:any)=>Number(t.p)>0&&Number(t.s)>0);
