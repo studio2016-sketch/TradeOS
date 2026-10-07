@@ -30,7 +30,7 @@ function unfold(text:string){
 }
 
 export async function blsMacroCalendar():Promise<MacroEvent[]>{
-  const res=await fetch("https://www.bls.gov/schedule/news_release/bls.ics",{next:{revalidate:21600}});
+  const res=await fetch("https://www.bls.gov/schedule/news_release/bls.ics",{next:{revalidate:21600},headers:{"User-Agent":"TradeOS/1.0 (+https://tradeos-lac.vercel.app)","Accept":"text/calendar,text/plain;q=0.9,*/*;q=0.8"}});
   if(!res.ok)throw new Error(`BLS calendar HTTP ${res.status}`);
   const lines=unfold(await res.text());
   const events:MacroEvent[]=[];
