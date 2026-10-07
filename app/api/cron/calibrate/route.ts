@@ -35,6 +35,43 @@ export async function GET(req:Request){
   `;
 
   await sql`
+    insert into model_scorecards(model_version,strategy,regime,sample_count,win_rate,brier_score,drift_score,status,updated_at)
+    select
+      f.model_version,
+      f.model_version,
+      f.regime,
+      count(*)::int,
+      avg(case when o.was_correct then 1.0 else 0.0 end),
+      avg(power(f.probability-(case when o.was_correct then 1.0 else 0.0 end),2)),
+      case
+        when count(*) < 30 then null
+        else abs(
+          avg(case when o.was_correct then 1.0 else 0.0 end) -
+          coalesce(avg(case when o.was_correct then 1.0 else 0.0 end) filter (where f.created_at >= now()-interval '7 days'),
+                   avg(case when o.was_correct then 1.0 else 0.0 end))
+        )
+      end,
+      case
+        when count(*) < 30 then 'observing'
+        when avg(power(f.probability-(case when o.was_correct then 1.0 else 0.0 end),2)) <= 0.20 then 'healthy'
+        when avg(power(f.probability-(case when o.was_correct then 1.0 else 0.0 end),2)) <= 0.25 then 'watch'
+        else 'degraded'
+      end,
+      now()
+    from forecast_ledger f
+    join forecast_outcomes o on o.forecast_id=f.id
+    where o.was_correct is not null
+    group by f.model_version,f.regime
+    on conflict(model_version,strategy,regime) do update set
+      sample_count=excluded.sample_count,
+      win_rate=excluded.win_rate,
+      brier_score=excluded.brier_score,
+      drift_score=excluded.drift_score,
+      status=excluded.status,
+      updated_at=excluded.updated_at
+  `;
+
+  await sql`
     insert into audit_events(event_type,entity_type,payload)
     values('calibration_refresh','system',jsonb_build_object(
       'resolvedForecasts',(select count(*) from forecast_outcomes where was_correct is not null),
