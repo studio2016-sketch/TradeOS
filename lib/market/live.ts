@@ -37,7 +37,7 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
 }
 
 export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]>{
-  const key=(process.env.ALPACA_API_KEY||process.env.ALOACA_API_KEY);
+  const key=process.env.ALPACA_API_KEY;
   const secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret) return [];
   const clean=cleanSymbols(symbols);
@@ -75,7 +75,7 @@ export async function bestSnapshots(symbols:string[]){
     try{const data=await massiveSnapshots(symbols); if(data.length)return {provider:"Massive",snapshots:data,attempts:[{source:"Massive",count:data.length}]};}
     catch(e){attempts.push({source:"Massive",error:e instanceof Error?e.message:String(e)});}
   }
-  if((process.env.ALPACA_API_KEY||process.env.ALOACA_API_KEY)&&process.env.ALPACA_API_SECRET){
+  if(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET){
     try{const data=await alpacaSnapshots(symbols); if(data.length)return {provider:"Alpaca",snapshots:data,attempts:[...attempts,{source:"Alpaca",count:data.length}]};}
     catch(e){attempts.push({source:"Alpaca",error:e instanceof Error?e.message:String(e)});}
   }
