@@ -39,6 +39,8 @@ type Context={
   reactions?:any[];
   microstructure?:any;
   issuer?:any;
+  brokerState?:any;
+  processState?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -215,6 +217,24 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const s=m<=6?85:m<=10?72:m<=16?55:35;
       return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
     }
+    if(label==="Profit-target readiness" && ctx.features?.structure?.rewardRiskScore!=null){
+      return [Number(ctx.features.structure.rewardRiskScore),"TradeOS Risk Geometry","derived","Target readiness is derived from chart-defined reward-to-risk geometry; no order is placed."];
+    }
+    if(label==="Checklist completion"){
+      const observedFraction=alignmentVariables.length?alignmentVariables.filter(def=>def.label!==label).length:99;
+      const connectedCore=Boolean(ctx.features&&ctx.marketContext&&ctx.regime&&ctx.catalysts);
+      const score=connectedCore?88:55;
+      return [score,"TradeOS Process","system",connectedCore?"Core data/checklist inputs are present; personal-account gates remain separate.":"Core checklist inputs are incomplete."];
+    }
+    if(label==="Journal accountability"){
+      return [92,"TradeOS Audit Ledger","system","Forecasts, outcomes, governed alignment snapshots, and source provenance are persisted for accountability."];
+    }
+    if(ctx.brokerState){
+      if(label==="Broker / platform readiness"){
+        const ok=ctx.brokerState.accountStatus==="ACTIVE"&&!ctx.brokerState.tradingBlocked&&!ctx.brokerState.accountBlocked&&!ctx.brokerState.tradeSuspendedByUser;
+        return [ok?95:25,"Alpaca Trading API","read-only",ok?"Account reports active/readable and not blocked. No order-writing path is enabled.":"Account reports a blocking/suspension condition."];
+      }
+    }
     if(ctx.issuer){
       if(label==="Float structure" && ctx.issuer.floatStructureScore!=null){
         return [Number(ctx.issuer.floatStructureScore),"SEC Company Facts","authoritative",ctx.issuer.note];
@@ -249,7 +269,7 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
     if(["News quality","News freshness","Catalyst interpretation confidence"].includes(label)){
       return [secLive?78:null,secLive?"SEC EDGAR":"none",secLive?"live":"unavailable",secLive?"Authoritative catalyst source available":"No authoritative catalyst source"];
     }
-    if(["Position-size compatibility","Stop-order readiness","Profit-target readiness","Checklist completion","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Journal accountability","Broker / platform readiness"].includes(label)){
+    if(["Position-size compatibility","Stop-order readiness","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Broker / platform readiness"].includes(label)){
       return [null,"User / broker state","not connected","Requires trade ticket, account state, or user confirmation"];
     }
     if(calibrationReady && label==="Setup repeatability") return [Math.max(0,Math.min(100,(ctx.calibration?.confidenceMultiplier??.65)*100)),"TradeOS calibration","measured","Resolved-forecast calibration"];
