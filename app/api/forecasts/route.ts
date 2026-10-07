@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, hasDatabase } from "../../../lib/db";
+import { authorizeIngest } from "../../../lib/security";
 
 export const dynamic="force-dynamic";
 
@@ -11,6 +12,7 @@ export async function GET(){
 }
 
 export async function POST(req:Request){
+  if(!authorizeIngest(req)) return NextResponse.json({error:"unauthorized"},{status:401});
   if(!hasDatabase()) return NextResponse.json({error:"DATABASE_URL is not configured"},{status:503});
   const body=await req.json();
   const sql=db();
