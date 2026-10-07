@@ -35,19 +35,47 @@ export function evaluateSupervisors(alignment:AlignmentResult,ctx:any={}):Superv
   const out:SupervisorResult[]=[];
 
   // 1) Evidence independence / double-counting.
+  // Measure concentration by evidence family rather than raw provider-name frequency.
   const observed=r.filter(x=>x.buyScore!=null);
-  const sources=observed.map(x=>x.source).filter(Boolean);
-  const uniqueSources=new Set(sources);
-  const sourceDiversity=sources.length?uniqueSources.size/sources.length:0;
-  const independenceScore=sources.length?Math.max(0,Math.min(100,sourceDiversity*140)):null;
+  const familyFor=(source:string)=>{
+    if(/Historical|Market Context/i.test(source))return"price-volume";
+    if(/Recent Trades/i.test(source))return"microstructure";
+    if(/Alpaca Options|Options/i.test(source))return"derivatives";
+    if(/FRED|BLS/i.test(source))return"macro";
+    if(/SEC/i.test(source))return"filings";
+    if(/Provider News|Alpaca News|Massive \/ /i.test(source))return"news";
+    if(/Catalyst Reaction/i.test(source))return"reaction";
+    if(/User \/ broker|Broker/i.test(source))return"account";
+    if(/Alpaca:|Massive/i.test(source))return"execution";
+    return"other";
+  };
+  const familyWeights=new Map<string,number>();
+  for(const x of observed){
+    const family=familyFor(x.source||"");
+    familyWeights.set(family,(familyWeights.get(family)||0)+Math.max(.01,x.weight||1));
+  }
+  const totalFamilyWeight=[...familyWeights.values()].reduce((a,b)=>a+b,0);
+  const shares=[...familyWeights.entries()].map(([family,w])=>({family,share:totalFamilyWeight?w/totalFamilyWeight:0})).sort((a,b)=>b.share-a.share);
+  const hhi=shares.reduce((s,x)=>s+x.share*x.share,0);
+  const effectiveFamilies=hhi>0?1/hhi:0;
+  const maxShare=shares[0]?.share??1;
+  const observedGroups=new Set(observed.map(x=>x.group)).size;
+  const groupCoverage=observedGroups/10;
+  const familyBreadth=Math.min(1,effectiveFamilies/6);
+  const concentrationScore=1-maxShare;
+  const independenceScore=observed.length
+    ?Math.max(0,Math.min(100,100*(.45*groupCoverage+.35*familyBreadth+.20*concentrationScore)))
+    :null;
   out.push(mk(
     "evidence-independence","Evidence Independence",
     independenceScore==null?"UNAVAILABLE":independenceScore>=70?"CLEAR":independenceScore>=45?"WATCH":"BLOCK",
     independenceScore,
     independenceScore!=null&&independenceScore<45,
     independenceScore!=null&&independenceScore<45?10:0,
-    independenceScore==null?"No observed evidence to test for redundancy.":"Penalizes apparent confluence when many gears originate from the same underlying source.",
-    sources.length?[...uniqueSources].slice(0,8):[]
+    independenceScore==null
+      ?"No observed evidence to test for redundancy."
+      :"Measures concentration across independent evidence families so many correlated indicators cannot masquerade as many independent confirmations.",
+    shares.slice(0,8).map(x=>x.family+" "+Math.round(x.share*100)+"%")
   ));
 
   // 2) Derivatives / dealer positioning.
