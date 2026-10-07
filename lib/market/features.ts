@@ -4,6 +4,12 @@ export interface FeatureSet{
   daily:{trendScore:number|null;ema20:number|null;ema50:number|null;atr14Pct:number|null;roc20Pct:number|null;volumeRatio20:number|null;avgVolume20:number|null;realizedVol20Pct:number|null;chartCleanliness:number|null;tradeability:number|null};
   hourly:{trendScore:number|null;rocPct:number|null};
   intraday:{trendScore:number|null;rocPct:number|null;rsi14:number|null;macdScore:number|null;priceAcceleration:number|null;momentumPersistence:number|null;squeezeScore:number|null;vwapHoldScore:number|null;openingRangeScore:number|null;breakoutScore:number|null;breakoutVolumeScore:number|null;volumeAcceleration:number|null;accumulationScore:number|null;rangeConditionScore:number|null;supportDistancePct:number|null;resistanceDistancePct:number|null};
+  structure:{
+    anchoredVwapScore:number|null;sessionVwap:number|null;stopDistanceScore:number|null;rewardRiskScore:number|null;rewardRiskRatio:number|null;lossContainmentScore:number|null;
+    absorptionScore:number|null;openingAuctionScore:number|null;pullbackScore:number|null;baseScore:number|null;reversalScore:number|null;confluenceScore:number|null;
+    failedMoveRiskScore:number|null;cleanInvalidationScore:number|null;timeOfDayScore:number|null;confirmationScore:number|null;reclaimHoldScore:number|null;
+    retestScore:number|null;triggerProximityScore:number|null;chaseAvoidanceScore:number|null;entryPrecisionScore:number|null
+  };
   quality:{barCount:number;coverageScore:number;note:string};
 }
 function ema(xs:number[],p:number){if(xs.length<p)return null;const k=2/(p+1);let e=xs.slice(0,p).reduce((a,b)=>a+b,0)/p;for(const x of xs.slice(p))e=x*k+e*(1-k);return e}
@@ -53,6 +59,93 @@ function intradayFeatures(b:Bar[]){
   const rangeConditionScore=rangeAvg==null?null:(rangeAvg<=.35?55:rangeAvg<=1.2?88:rangeAvg<=2.5?72:45);
   return{trendScore:trendScore(b),rocPct:roc(b,12),rsi14:rsi(c),macdScore,priceAcceleration,momentumPersistence,squeezeScore,vwapHoldScore:vwapHold,openingRangeScore,breakoutScore:breakout,breakoutVolumeScore,volumeAcceleration,accumulationScore,rangeConditionScore,supportDistancePct:support?((last.c-support)/last.c)*100:null,resistanceDistancePct:resistance?((resistance-last.c)/last.c)*100:null};
 }
+function currentEtMinutes(){
+  const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(new Date());
+  const get=(t:string)=>parts.find(p=>p.type===t)?.value||"";
+  return{weekday:get("weekday"),minutes:Number(get("hour"))*60+Number(get("minute"))};
+}
+function structureFeatures(intra:Bar[],daily:Bar[],intr:any){
+  if(intra.length<20)return{
+    anchoredVwapScore:null,sessionVwap:null,stopDistanceScore:null,rewardRiskScore:null,rewardRiskRatio:null,lossContainmentScore:null,
+    absorptionScore:null,openingAuctionScore:null,pullbackScore:null,baseScore:null,reversalScore:null,confluenceScore:null,failedMoveRiskScore:null,
+    cleanInvalidationScore:null,timeOfDayScore:null,confirmationScore:null,reclaimHoldScore:null,retestScore:null,triggerProximityScore:null,chaseAvoidanceScore:null,entryPrecisionScore:null
+  };
+  const last=intra[intra.length-1],todayDate=new Date(last.t).toISOString().slice(0,10);
+  const today=intra.filter(x=>new Date(x.t).toISOString().slice(0,10)===todayDate);
+  const session=today.length?today:intra.slice(-78);
+  const vol=session.reduce((s,x)=>s+x.v,0);
+  const pv=session.reduce((s,x)=>s+((x.vw??((x.h+x.l+x.c)/3))*x.v),0);
+  const sessionVwap=vol?pv/vol:null;
+  const anchoredVwapScore=sessionVwap==null?null:clamp(last.c>=sessionVwap?82+(last.c-sessionVwap)/last.c*700:45-(sessionVwap-last.c)/last.c*700);
+
+  const atrPct=atr(daily,14)&&daily[daily.length-1]?.c?(atr(daily,14)!/daily[daily.length-1].c)*100:null;
+  const supportDist=Math.abs(Number(intr.supportDistancePct??NaN));
+  const resistanceDist=Number(intr.resistanceDistancePct??NaN);
+  const stopAtr=atrPct&&Number.isFinite(supportDist)?supportDist/atrPct:null;
+  const stopDistanceScore=stopAtr==null?null:stopAtr>=.25&&stopAtr<=1.2?90:stopAtr<=1.8?70:stopAtr<.15?52:38;
+  const rr=Number.isFinite(supportDist)&&supportDist>.05&&Number.isFinite(resistanceDist)&&resistanceDist>0?resistanceDist/supportDist:null;
+  const rewardRiskScore=rr==null?null:rr>=2.5?95:rr>=2?86:rr>=1.5?72:rr>=1?55:30;
+  const lossContainmentScore=stopDistanceScore==null||atrPct==null?null:clamp(.7*stopDistanceScore+.3*(atrPct<=4?88:atrPct<=7?62:38));
+
+  const recent=intra.slice(-20),prev=intra.slice(-40,-20);
+  const recentRange=recent.length?(Math.max(...recent.map(x=>x.h))-Math.min(...recent.map(x=>x.l)))/last.c*100:null;
+  const prevRange=prev.length?(Math.max(...prev.map(x=>x.h))-Math.min(...prev.map(x=>x.l)))/last.c*100:null;
+  const baseScore=recentRange==null||prevRange==null||prevRange===0?null:clamp(75-(recentRange/prevRange-0.65)*65);
+
+  const last3=recent.slice(-3),prevBar=recent[recent.length-2],lastBar=recent[recent.length-1];
+  const reversalScore=!prevBar||!lastBar?null:
+    (lastBar.c>lastBar.o&&prevBar.c<prevBar.o&&lastBar.c>=prevBar.o&&lastBar.o<=prevBar.c)?92:
+    (lastBar.c>prevBar.h?78:lastBar.c<prevBar.l?30:55);
+
+  const signedVol=recent.reduce((s,x,i)=>i?s+(x.c>=recent[i-1].c?x.v:-x.v):0,0);
+  const rangeMove=recent.length>1?Math.abs(recent[recent.length-1].c-recent[0].c)/last.c*100:0;
+  const totalRecentVol=recent.reduce((s,x)=>s+x.v,0);
+  const flowBias=totalRecentVol?Math.abs(signedVol)/totalRecentVol:0;
+  const absorptionScore=clamp(45+(flowBias>.35&&rangeMove<.5?35:flowBias>.2?18:0));
+
+  const open=session.slice(0,6),next=session.slice(6,12);
+  const openVol=open.reduce((s,x)=>s+x.v,0),nextVol=next.reduce((s,x)=>s+x.v,0);
+  const openDir=open.length>1?(open[open.length-1].c-open[0].o)/open[0].o:0;
+  const openingAuctionScore=!open.length?null:clamp(55+(nextVol?Math.min(25,(openVol/Math.max(nextVol,1)-1)*18):10)+Math.min(20,Math.abs(openDir)*1000));
+
+  const trend=trendScore(daily,20,50),vwap=anchoredVwapScore;
+  const pullbackScore=trend==null||vwap==null?null:clamp((trend*.55)+(vwap>=55&&vwap<=88?35:vwap>88?25:10));
+
+  const confirms=[intr.trendScore,intr.vwapHoldScore,intr.breakoutScore,intr.breakoutVolumeScore,intr.momentumPersistence,anchoredVwapScore]
+    .filter((x):x is number=>x!=null);
+  const confluenceScore=confirms.length?clamp(confirms.filter(x=>x>=70).length/confirms.length*100):null;
+  const failedMoveRiskScore=intr.breakoutScore==null||intr.momentumPersistence==null?null:clamp(.55*intr.breakoutScore+.45*intr.momentumPersistence);
+  const cleanInvalidationScore=stopDistanceScore;
+
+  const et=currentEtMinutes();
+  const timeOfDayScore=["Sat","Sun"].includes(et.weekday)?25:
+    et.minutes>=585&&et.minutes<=690?90:
+    et.minutes>=840&&et.minutes<=945?82:
+    et.minutes>=570&&et.minutes<960?65:
+    et.minutes>=240&&et.minutes<570?45:40;
+
+  const aboveSessionVwap=sessionVwap!=null?last3.filter(x=>x.c>=sessionVwap).length:null;
+  const confirmationScore=aboveSessionVwap==null?null:clamp(45+(aboveSessionVwap/Math.max(1,last3.length))*50);
+  const last8=recent.slice(-8);
+  const hadBelow=sessionVwap!=null&&last8.some(x=>x.c<sessionVwap);
+  const last3Above=sessionVwap!=null&&last3.length>=2&&last3.every(x=>x.c>=sessionVwap);
+  const reclaimHoldScore=sessionVwap==null?null:hadBelow&&last3Above?92:last3Above?76:38;
+
+  const prev20=intra.slice(-41,-1),priorHigh=prev20.length?Math.max(...prev20.map(x=>x.h)):null;
+  const broke=priorHigh!=null&&recent.some(x=>x.c>priorHigh);
+  const retested=priorHigh!=null&&recent.slice(-8).some(x=>Math.abs(x.l-priorHigh)/priorHigh<=.003&&x.c>=priorHigh);
+  const retestScore=priorHigh==null?null:broke&&retested?94:broke?68:50;
+
+  const triggerDist=Number.isFinite(resistanceDist)?Math.abs(resistanceDist):null;
+  const triggerProximityScore=triggerDist==null?null:triggerDist<=.3?94:triggerDist<=.7?84:triggerDist<=1.5?68:triggerDist<=3?50:32;
+  const distanceFromVwap=sessionVwap?Math.abs(last.c-sessionVwap)/last.c*100:null;
+  const chaseAtr=atrPct&&distanceFromVwap!=null?distanceFromVwap/atrPct:null;
+  const chaseAvoidanceScore=chaseAtr==null?null:chaseAtr<=.5?94:chaseAtr<=.9?82:chaseAtr<=1.4?62:35;
+  const entryParts=[triggerProximityScore,confirmationScore,chaseAvoidanceScore].filter((x):x is number=>x!=null);
+  const entryPrecisionScore=entryParts.length?entryParts.reduce((a,b)=>a+b,0)/entryParts.length:null;
+
+  return{anchoredVwapScore,sessionVwap,stopDistanceScore,rewardRiskScore,rewardRiskRatio:rr,lossContainmentScore,absorptionScore,openingAuctionScore,pullbackScore,baseScore,reversalScore,confluenceScore,failedMoveRiskScore,cleanInvalidationScore,timeOfDayScore,confirmationScore,reclaimHoldScore,retestScore,triggerProximityScore,chaseAvoidanceScore,entryPrecisionScore};
+}
 export async function featureSet(symbol:string):Promise<FeatureSet|null>{
   if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return null;
   const now=Date.now(),d180=new Date(now-220*86400000).toISOString(),d15=new Date(now-15*86400000).toISOString(),d3=new Date(now-3*86400000).toISOString();
@@ -72,6 +165,7 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
     },
     hourly:{trendScore:trendScore(hourly,9,20),rocPct:roc(hourly,12)},
     intraday:intradayFeatures(intra),
+    structure:structureFeatures(intra,daily,intradayFeatures(intra)),
     quality:{barCount:total,coverageScore:clamp(total/12),note:"Historical bars are derived from the configured Alpaca feed; IEX is partial-market coverage."}
   };
 }
