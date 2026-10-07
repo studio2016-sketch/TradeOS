@@ -26,7 +26,7 @@ export async function GET(req:Request){
   const optionSurface=await alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null);
   const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
-  const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface});
+  const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
   let governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
