@@ -1,7 +1,7 @@
 import type {SourceHealth} from "./types";
 export const providerRegistry=[
  {id:"massive",label:"Massive / SIP equities",role:"Primary consolidated U.S. equities trades, quotes and bars",env:"MASSIVE_API_KEY"},
- {id:"alpaca",label:"Alpaca Market Data",role:"Secondary equities, options, streaming news and sandbox",env:"ALPACA_DATA_KEY"},
+ {id:"alpaca",label:"Alpaca Market Data",role:"Secondary equities, options, streaming news and sandbox",env:"ALPACA_API_KEY"},
  {id:"sec",label:"SEC EDGAR",role:"Authoritative company filings and disclosure catalysts",env:null},
  {id:"cboe",label:"Cboe volatility",role:"VIX family, term structure and volatility context",env:null},
  {id:"macro",label:"Macro calendar provider",role:"Scheduled economic events and consensus/actual values",env:"MACRO_DATA_API_KEY"}
