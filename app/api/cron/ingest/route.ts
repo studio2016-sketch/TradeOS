@@ -6,6 +6,11 @@ import {bestSnapshots} from "../../../../lib/market/live";
 import {resolveEligibleForecasts} from "../../../../lib/market/resolve";
 import {generateShadowForecasts} from "../../../../lib/market/shadow";
 import {curatedNews} from "../../../../lib/market/news";
+import {latestRegimeContext} from "../../../../lib/market/fred";
+import {observedMarketEvidence} from "../../../../lib/market/observedAssessment";
+import {assess} from "../../../../lib/market/assessment";
+import {configuredSourceHealth} from "../../../../lib/market/providers";
+import {buildAlignment} from "../../../../lib/alignment/engine";
 
 export const dynamic="force-dynamic";
 
@@ -18,11 +23,12 @@ export async function GET(req:Request){
     .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
 
   const started=new Date();
-  const results:any={startedAt:started.toISOString(),watchlist,sec:0,market:0,errors:[]};
+  const results:any={startedAt:started.toISOString(),watchlist,sec:0,market:0,news:0,alignments:0,errors:[]};
 
+  let catalysts:any[]=[];
   try{
     const secSymbols=watchlist.filter(s=>!["SPY","QQQ","IWM"].includes(s));
-    const catalysts=await latestSecCatalysts(secSymbols,8);
+    catalysts=await latestSecCatalysts(secSymbols,8);
     for(const c of catalysts){
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,payload)
@@ -35,8 +41,9 @@ export async function GET(req:Request){
     results.sec=catalysts.length;
   }catch(e){results.errors.push({source:"sec",error:e instanceof Error?e.message:String(e)});}
 
+  let market:any={provider:null,snapshots:[],attempts:[]};
   try{
-    const market=await bestSnapshots(watchlist);
+    market=await bestSnapshots(watchlist);
     for(const s of market.snapshots){
       const eventTime=new Date(s.timestamp);
       const ageMs=Math.max(0,Date.now()-eventTime.getTime());
@@ -52,6 +59,59 @@ export async function GET(req:Request){
     results.marketProvider=market.provider;
     results.marketAttempts=market.attempts;
   }catch(e){results.errors.push({source:"market",error:e instanceof Error?e.message:String(e)});}
+
+  try{
+    const curated=await curatedNews(watchlist,40);
+    for(const n of curated.news){
+      await sql`
+        insert into audit_events(event_type,entity_type,entity_id,payload)
+        select 'news_observed','provider_news',${n.id},${JSON.stringify(n)}::jsonb
+        where not exists(
+          select 1 from audit_events where event_type='news_observed' and entity_id=${n.id}
+        )
+      `;
+    }
+    results.news=curated.news.length;
+    results.newsErrors=curated.errors;
+  }catch(e){results.errors.push({source:"news",error:e instanceof Error?e.message:String(e)});}
+
+  try{
+    results.shadowForecasts=await generateShadowForecasts(watchlist);
+  }catch(e){results.errors.push({source:"shadow",error:e instanceof Error?e.message:String(e)});}
+
+  try{
+    results.forecastResolution=await resolveEligibleForecasts(100);
+  }catch(e){results.errors.push({source:"resolver",error:e instanceof Error?e.message:String(e)});}
+
+  try{
+    const observed=await observedMarketEvidence();
+    const assessmentData=observed
+      ? {mode:"observed_market_data",assessment:assess(observed.evidence),sources:configuredSourceHealth()}
+      : {mode:"fallback_demo",assessment:null,sources:configuredSourceHealth()};
+    const regimeRaw=await latestRegimeContext().catch(()=>null);
+    const regime=regimeRaw?{mode:regimeRaw.usableCount>0?"official_daily":"unavailable",...regimeRaw}:null;
+    const calibrationRows=await sql`
+      select count(*)::int as sample_count,
+             avg(brier_score)::float as avg_brier
+      from calibration_buckets
+    `;
+    const calibration={sampleCount:Number((calibrationRows as any[])[0]?.sample_count??0),confidenceMultiplier:.65};
+    const marketContext={mode:market.provider?"provider_data":"unconfigured",...market};
+    for(const symbol of watchlist){
+      const alignment=buildAlignment(symbol,{
+        assessment:assessmentData,
+        regime,
+        catalysts:{mode:"live_authoritative",catalysts},
+        market:marketContext,
+        calibration
+      });
+      await sql`
+        insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
+        values('alignment_snapshot','symbol',${symbol},'swiss-movement-v1',${JSON.stringify(alignment)}::jsonb)
+      `;
+      results.alignments++;
+    }
+  }catch(e){results.errors.push({source:"alignment",error:e instanceof Error?e.message:String(e)});}
 
   await sql`
     insert into audit_events(event_type,entity_type,payload)
