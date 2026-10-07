@@ -41,7 +41,8 @@ export async function catalystReactions(symbol?:string){
     }else{
       const age=Date.now()-eventAt.getTime();
       if(age<0||age>14*24*60*60*1000) continue;
-      const bars=await historicalBars(String(p.symbol),"5Min",eventAt.toISOString(),1000).catch(()=>[]);
+      const delayedEnd=new Date(Math.min(Date.now()-16*60*1000,eventAt.getTime()+24*60*60*1000)).toISOString();
+      const bars=await historicalBars(String(p.symbol),"5Min",eventAt.toISOString(),1000,"sip",delayedEnd).catch(()=>[]);
       const window=bars.filter((b:any)=>{
         const t=new Date(b.t).getTime();
         return t>=eventAt.getTime()&&t<=eventAt.getTime()+24*60*60*1000;
