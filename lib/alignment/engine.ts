@@ -31,6 +31,7 @@ type Context={
   market?:any;
   catalysts?:any;
   calibration?:any;
+  options?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -77,6 +78,20 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       if(label==="Breadth participation") return [assessment?.agreement??null,"Observed assessment","intraday","Agreement proxy from stored market observations"];
       const s=(assessment?.direction==="bullish"?88:assessment?.direction==="bearish"?28:58);
       return [s,"Observed market data","intraday",`${map[label]} proxy inherits observed market direction`];
+    }
+    if(label==="Options liquidity" && ctx.options?.liquidityScore!=null){
+      return [Number(ctx.options.liquidityScore),"Alpaca Options",ctx.options.feed,ctx.options.note];
+    }
+    if(label==="Expected-move context" && ctx.options?.volatilitySuitability!=null){
+      return [Number(ctx.options.volatilitySuitability),"Alpaca Options",ctx.options.feed,`30-day implied expected move: ${ctx.options.expectedMovePct30d}%`];
+    }
+    if(label==="Volatility usability" && ctx.options?.volatilitySuitability!=null){
+      return [Number(ctx.options.volatilitySuitability),"Alpaca Options",ctx.options.feed,`ATM IV: ${ctx.options.atmIv??"unknown"}`];
+    }
+    if(label==="Gap risk" && ctx.options?.expectedMovePct30d!=null){
+      const m=Number(ctx.options.expectedMovePct30d);
+      const s=m<=6?85:m<=10?72:m<=16?55:35;
+      return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
     }
     if(["Relative liquidity","Bid-ask spread quality","VWAP behavior","Execution slippage risk","Relative volume","Volume-confirmation persistence"].includes(label) && marketReady){
       const bid=Number(marketSnap.bid),ask=Number(marketSnap.ask),price=Number(marketSnap.price),vwap=Number(marketSnap.vwap);
