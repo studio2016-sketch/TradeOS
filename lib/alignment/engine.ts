@@ -38,6 +38,7 @@ type Context={
   newsContext?:any;
   reactions?:any[];
   microstructure?:any;
+  newsReaction?:any;
   issuer?:any;
   brokerState?:any;
   processState?:any;
