@@ -34,6 +34,7 @@ type Context={
   options?:any;
   macro?:any;
   features?:any;
+  marketContext?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -54,6 +55,31 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
   const calibrationReady=(ctx.calibration?.sampleCount??0)>=30;
 
   function scoreFor(label:string):[number|null,string,string,string]{
+    const mc=ctx.marketContext;
+    if(mc){
+      const marketMap:Record<string,any>={
+        "SPY trend direction":mc.broad?.SPY,
+        "QQQ trend direction":mc.broad?.QQQ,
+        "IWM trend direction":mc.broad?.IWM,
+        "Breadth participation":mc.broad?.breadthScore,
+        "Sector relative strength":mc.sector?.relativeStrengthScore,
+        "Market correlation":mc.correlation?.score,
+        "Market session condition":mc.session?.score,
+        "Market-internals confirmation":mc.broad?.internalsScore,
+        "Relative strength vs peers":mc.sector?.relativeStrengthScore
+      };
+      if(Object.prototype.hasOwnProperty.call(marketMap,label)){
+        const s=Number.isFinite(Number(marketMap[label]))?Number(marketMap[label]):null;
+        const note=label==="Sector relative strength"||label==="Relative strength vs peers"
+          ? `vs ${mc.sector?.proxy??"sector proxy"}; symbol ROC20 ${mc.sector?.symbolRoc20??"n/a"}%, sector ${mc.sector?.sectorRoc20??"n/a"}%`
+          : label==="Market correlation"
+            ? `20-day SPY correlation ${mc.correlation?.spy20==null?"n/a":Number(mc.correlation.spy20).toFixed(2)}`
+            : label==="Market session condition"
+              ? mc.session?.note
+              : "Derived from broad-market historical context";
+        return [s,"Alpaca Market Context","historical/context",note];
+      }
+    }
     const f=ctx.features;
     if(f){
       const histSource=`Alpaca Historical:${f.feed}`;
