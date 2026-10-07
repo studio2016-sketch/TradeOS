@@ -8,7 +8,8 @@ export const providerRegistry=[
 ] as const;
 export function configuredSourceHealth():SourceHealth[]{
  return providerRegistry.map(p=>{
-  const configured=p.env?Boolean(process.env[p.env]):true;
-  return{id:p.id,label:p.label,state:configured?"live":"unconfigured",quality:configured?85:0,authoritative:p.id==="sec"||p.id==="cboe",note:configured?p.role:"Credential required before live ingestion"};
+  const configured=p.env?Boolean(process.env[p.env]):false;
+  const publicAvailable=!p.env;
+  return{id:p.id,label:p.label,state:configured?"live":publicAvailable?"available":"unconfigured",quality:configured?85:publicAvailable?70:0,authoritative:p.id==="sec"||p.id==="cboe",note:configured?p.role:publicAvailable?"Public source available; live adapter not yet activated":"Credential required before live ingestion"};
  });
 }
