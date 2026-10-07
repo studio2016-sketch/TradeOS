@@ -2,6 +2,8 @@ import {NextResponse} from "next/server";
 import {configuredSourceHealth} from "../../../lib/market/providers";
 export const dynamic="force-dynamic";
 export async function GET(){
+  const brokerReadEnabled=process.env.TRADEOS_ALLOW_ACCOUNT_READ==="true";
+  const tradingEnvironment=process.env.ALPACA_TRADING_ENV||null;
   const alpacaConfigured=Boolean(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET);
   const massiveConfigured=Boolean(process.env.MASSIVE_API_KEY);
   const alpacaFeed=process.env.ALPACA_FEED||"iex";
@@ -31,9 +33,9 @@ export async function GET(){
         coverage:massiveConfigured?"Configured market/reference feed":"EOD/reference on free tier; paid plans add delayed or real-time consolidated data"
       },
       {
-        id:"portfolio",label:"Broker / portfolio state",status:"not_connected",
+        id:"portfolio",label:"Broker / portfolio state",status:brokerReadEnabled?"read_only_enabled":"approval_required",
         cost:"depends on broker",
-        coverage:"Positions, concentration, available risk, actual orders and fills"
+        coverage:brokerReadEnabled?`Read-only account/positions/open-order state (${tradingEnvironment||"environment not set"})`:"Read-only adapter is installed but disabled until explicit authorization"
       }
     ],
     readiness:{
@@ -41,7 +43,7 @@ export async function GET(){
       intradayEquities:alpacaConfigured||massiveConfigured,
       optionsSurface:alpacaConfigured,
       providerNews:alpacaConfigured||massiveConfigured,
-      portfolioRisk:false
+      portfolioRisk:brokerReadEnabled
     }
   });
 }
