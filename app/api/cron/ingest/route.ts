@@ -116,7 +116,7 @@ export async function GET(req:Request){
         calibration,
         options:optionSurface
       });
-      const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface});
+      const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
       if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
       let finalSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState;
