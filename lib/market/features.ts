@@ -29,7 +29,7 @@ function trendScore(b:Bar[],fast=9,slow=20){
 }
 function roc(b:Bar[],lookback:number){if(b.length<=lookback)return null;const a=b[b.length-lookback-1].c,z=b[b.length-1].c;return a?((z-a)/a)*100:null}
 function intradayFeatures(b:Bar[]){
-  if(b.length<10)return {trendScore:null,rocPct:null,rsi14:null,vwapHoldScore:null,openingRangeScore:null,breakoutScore:null,volumeAcceleration:null,supportDistancePct:null,resistanceDistancePct:null};
+  if(b.length<10)return {trendScore:null,rocPct:null,rsi14:null,macdScore:null,priceAcceleration:null,momentumPersistence:null,squeezeScore:null,vwapHoldScore:null,openingRangeScore:null,breakoutScore:null,breakoutVolumeScore:null,volumeAcceleration:null,accumulationScore:null,rangeConditionScore:null,supportDistancePct:null,resistanceDistancePct:null};
   const c=b.map(x=>x.c),vol=b.map(x=>x.v),last=b[b.length-1];
   const vwaps=b.map(x=>x.vw).filter((x):x is number=>x!=null);
   const vwap=vwaps.length?vwaps[vwaps.length-1]:null;
