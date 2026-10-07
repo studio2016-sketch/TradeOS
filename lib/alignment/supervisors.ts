@@ -83,15 +83,20 @@ export function evaluateSupervisors(alignment:AlignmentResult,ctx:any={}):Superv
 
   // 4) Cross-asset transmission.
   const cross=available(r,["VIX condition","Yield environment","Dollar risk tone","Market correlation","Market-internals confirmation"]);
-  const crossScore=avg(cross.map(x=>x.buyScore as number));
+  const regimeExtras:number[]=[];
+  const hy=Number(ctx?.regime?.highYieldSpread?.value);
+  if(Number.isFinite(hy))regimeExtras.push(hy<3.5?88:hy<4.5?72:hy<6?50:28);
+  const curve=Number(ctx?.regime?.curve10y2y?.value);
+  if(Number.isFinite(curve))regimeExtras.push(curve>=.25?82:curve>=0?68:curve>=-.5?52:35);
+  const crossScore=avg([...cross.map(x=>x.buyScore as number),...regimeExtras]);
   out.push(mk(
     "cross-asset","Cross-Asset Transmission",
     crossScore==null?"UNAVAILABLE":cross.length>=3&&crossScore>=65?"CLEAR":cross.length>=2?"WATCH":"UNAVAILABLE",
     crossScore,
     false,
     crossScore!=null&&crossScore<40?8:0,
-    cross.length<3?"Insufficient independent cross-asset channels are connected.":"Checks whether rates, volatility, dollar and market internals confirm the equity thesis.",
-    cross.map(x=>x.label+"="+x.buyScore)
+    (cross.length+regimeExtras.length)<3?"Insufficient independent cross-asset channels are connected.":"Checks rates, volatility, dollar, credit, curve and market internals for confirmation.",
+    [...cross.map(x=>x.label+"="+x.buyScore),...(Number.isFinite(hy)?["HY spread="+hy]:[]),...(Number.isFinite(curve)?["10Y-2Y="+curve]:[])]
   ));
 
   // 5) Execution reality.
