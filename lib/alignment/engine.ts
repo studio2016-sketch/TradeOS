@@ -32,6 +32,7 @@ type Context={
   catalysts?:any;
   calibration?:any;
   options?:any;
+  macro?:any;
 };
 
 function stateFromScore(score:number|null):VariableState{
@@ -61,6 +62,9 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const y=Number(ctx.regime?.tenYear?.value);
       const s=Number.isFinite(y)?(y<4.5?82:y<5?68:y<5.5?52:35):null;
       return [s,"FRED DGS10","daily",`10Y Treasury: ${y}%`];
+    }
+    if(label==="Economic event risk" && ctx.macro?.score!=null){
+      return [Number(ctx.macro.score),"BLS release calendar","scheduled",ctx.macro.next?`Next macro release: ${ctx.macro.next.summary} ${ctx.macro.next.date} ${ctx.macro.next.time??""}`:"No near-term major BLS release found"];
     }
     if(label==="Dollar risk tone" && fredLive){
       const d=ctx.regime?.broadDollar;
