@@ -12,7 +12,7 @@ export function assess(evidence:Evidence[]):Assessment{
  const bearishW=usable.filter(e=>e.direction==="bearish").reduce((s,e)=>s+weight(e),0);
  const neutralW=usable.filter(e=>e.direction==="neutral"||e.direction==="mixed").reduce((s,e)=>s+weight(e),0);
  const agreement=clamp(Math.max(bullishW,bearishW,neutralW)/total*100);
- const dataQuality=clamp(usable.reduce((s,e)=>s+e.quality*e.freshness,0)/usable.length);
+ const dataQuality=clamp((usable.reduce((s,e)=>s+e.quality*e.freshness,0)/usable.length)*100);
  const uncertainty=clamp(100-(agreement*.55+dataQuality*.45));
  const confidence=clamp(100-uncertainty);
  let direction:EvidenceDirection="neutral";
