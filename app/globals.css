@@ -52,3 +52,13 @@
 @media(max-width:520px){.movement{min-height:330px}.movementCore{width:150px;height:150px}.movementCore b{font-size:44px}.gearNode{transform-origin:4px 132px}.movementHalo{width:275px;height:275px}.variableGrid{grid-template-columns:1fr}.assemblyGrid{grid-template-columns:1fr 1fr}}
 
 .symbolRail{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.symbolRail button{border:1px solid #ffffff14;background:#ffffff06;color:#aab7bc;border-radius:999px;padding:8px 13px;font-weight:800}.symbolRail button.active{background:#5ae4c6;color:#07110f;border-color:#5ae4c6;box-shadow:0 0 18px #5ae4c633}
+
+.globalGovernor{display:grid;grid-template-columns:1.4fr .8fr;gap:16px;align-items:center;margin:16px 0;border-left:4px solid #5ae4c6}
+.globalGovernor h3{margin:4px 0 8px}.globalGovernor p{margin:0}
+.globalGovernor.relevant{border-left-color:#9dd86d}.globalGovernor.macro{border-left-color:#f2c267;box-shadow:0 0 24px #f2c26712}
+.globalGovernor.severe{border-left-color:#ff8b66;box-shadow:0 0 36px #ff8b6622}
+.globalGovernor.systemic{border-left-color:#ff5a5a;box-shadow:0 0 60px #ff5a5a35,inset 0 0 30px #ff5a5a12;animation:sellPulse .8s ease-in-out infinite alternate}
+.governorFlags{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.governorFlags span{padding:10px;border-radius:10px;background:#ffffff06;font-size:9px;color:#87959a}.governorFlags b{display:block;color:#eef7f5;font-size:12px;margin-top:4px}
+.globalEventTop{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding-top:12px;border-top:1px solid #ffffff0d}.globalEventTop b{font-size:10px}.globalEventTop span{font-size:11px;color:#98a6ab}.globalEventTop em{font-style:normal;font-weight:800}
+@media(max-width:800px){.globalGovernor{grid-template-columns:1fr}.governorFlags{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:520px){.governorFlags{grid-template-columns:1fr}.globalEventTop{grid-template-columns:1fr}.globalEventTop em{justify-self:start}}
