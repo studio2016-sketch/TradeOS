@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {microstructureContext} from "../../../lib/market/microstructure";export const dynamic="force-dynamic";
+export async function GET(req:Request){const s=(new URL(req.url).searchParams.get("symbol")||"NVDA").toUpperCase();try{const context=await microstructureContext(s);return NextResponse.json({mode:context?"provider_trades":"unconfigured",context});}catch(e){return NextResponse.json({mode:"degraded",context:null,error:e instanceof Error?e.message:String(e)},{status:502});}}
