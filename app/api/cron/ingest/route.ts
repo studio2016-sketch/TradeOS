@@ -5,6 +5,7 @@ import {latestSecCatalysts} from "../../../../lib/market/sec";
 import {bestSnapshots} from "../../../../lib/market/live";
 import {resolveEligibleForecasts} from "../../../../lib/market/resolve";
 import {generateShadowForecasts} from "../../../../lib/market/shadow";
+import {curatedNews} from "../../../../lib/market/news";
 
 export const dynamic="force-dynamic";
 
