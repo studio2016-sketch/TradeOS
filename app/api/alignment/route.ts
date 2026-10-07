@@ -8,6 +8,7 @@ import {evaluateSupervisors} from "../../../lib/alignment/supervisors";
 import {alpacaOptionSurface} from "../../../lib/market/options";
 import {macroRiskContext} from "../../../lib/market/bls";
 import {featureSet} from "../../../lib/market/features";
+import {buildMarketContext} from "../../../lib/market/context";
 
 export const dynamic="force-dynamic";
 
@@ -26,8 +27,8 @@ export async function GET(req:Request){
     macroRiskContext().catch(()=>null)
   ]);
 
-  const [optionSurface,features]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null)]);
-  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features});
+  const [optionSurface,features,marketContext]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null)]);
+  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
@@ -44,6 +45,7 @@ export async function GET(req:Request){
     supervisors,
     optionSurface,
     features,
+    marketContext,
     macro,
     disclaimer:"MUST BUY / MUST SELL are TradeOS state labels for maximum alignment or capital-protection conditions, not guarantees or personalized investment advice."
   });
