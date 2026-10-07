@@ -50,3 +50,5 @@
 @media(max-width:1100px){.assemblyGrid{grid-template-columns:repeat(2,1fr)}.variableGrid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:800px){.movementHero{grid-template-columns:1fr}.movement{min-height:360px}.variableGrid{grid-template-columns:1fr 1fr}.assemblyGrid{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.movement{min-height:330px}.movementCore{width:150px;height:150px}.movementCore b{font-size:44px}.gearNode{transform-origin:4px 132px}.movementHalo{width:275px;height:275px}.variableGrid{grid-template-columns:1fr}.assemblyGrid{grid-template-columns:1fr 1fr}}
+
+.symbolRail{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.symbolRail button{border:1px solid #ffffff14;background:#ffffff06;color:#aab7bc;border-radius:999px;padding:8px 13px;font-weight:800}.symbolRail button.active{background:#5ae4c6;color:#07110f;border-color:#5ae4c6;box-shadow:0 0 18px #5ae4c633}
