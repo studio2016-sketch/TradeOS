@@ -3,6 +3,7 @@ import {buildAlignment} from "../../../lib/alignment/engine";
 import {latestRegimeContext} from "../../../lib/market/fred";
 import {latestSecCatalysts} from "../../../lib/market/sec";
 import {bestSnapshots} from "../../../lib/market/live";
+import {globalEventRisk} from "../../../lib/market/globalRisk";
 
 export const dynamic="force-dynamic";
 
@@ -21,8 +22,16 @@ export async function GET(req:Request){
   ]);
 
   const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes});
+  const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
+  const governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
+  const governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
   return NextResponse.json({
     ...result,
+    buyState:governedBuy,
+    sellState:governedSell,
+    rawBuyState:result.buyState,
+    rawSellState:result.sellState,
+    governor,
     disclaimer:"MUST BUY / MUST SELL are TradeOS state labels for maximum alignment or capital-protection conditions, not guarantees or personalized investment advice."
   });
 }
