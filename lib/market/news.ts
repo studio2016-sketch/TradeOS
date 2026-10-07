@@ -18,7 +18,7 @@ function dedupe(items:NewsSignal[]){
 }
 
 export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
-  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
+  const key=(process.env.ALPACA_API_KEY||process.env.ALOACA_API_KEY),secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return[];
   const clean=cleanSymbols(symbols);
   const url=new URL("https://data.alpaca.markets/v1beta1/news");
