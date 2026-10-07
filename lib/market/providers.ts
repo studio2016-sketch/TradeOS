@@ -11,7 +11,7 @@ export function configuredSourceHealth():SourceHealth[]{
  return providerRegistry.map(p=>{
   const configured=p.env?Boolean(process.env[p.env]):false;
   const publicAvailable=!p.env;
-  const adapterActive=p.id==="sec"||p.id==="fred";
+  const adapterActive=p.id==="sec";
   return{id:p.id,label:p.label,state:configured?"live":adapterActive?"live":publicAvailable?"available":"unconfigured",quality:configured?85:adapterActive?90:publicAvailable?70:0,authoritative:p.id==="sec"||p.id==="cboe"||p.id==="fred",note:configured?p.role:adapterActive?p.role:publicAvailable?"Public source available; live adapter not yet activated":"Credential required before live ingestion"};
  });
 }
