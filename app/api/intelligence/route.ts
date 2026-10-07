@@ -7,7 +7,7 @@ export async function GET(){
   if(!hasDatabase()) return NextResponse.json({status:"database_unconfigured"});
   try{
     const sql=db();
-    const [core,recentSources,recentCatalysts]=await Promise.all([
+    const [core,recentSources,recentCatalysts,models]=await Promise.all([
       sql`
         select
           (select count(*) from forecast_ledger)::int as forecasts,
@@ -37,6 +37,7 @@ export async function GET(){
       core:core[0],
       recentSources,
       recentCatalysts,
+      models,
       generatedAt:new Date().toISOString()
     });
   }catch(error){
