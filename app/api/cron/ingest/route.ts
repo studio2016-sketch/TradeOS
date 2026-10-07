@@ -21,6 +21,7 @@ import {buildNewsContext} from "../../../../lib/market/newsContext";
 import {catalystReactions} from "../../../../lib/market/reactions";
 import {microstructureContext} from "../../../../lib/market/microstructure";
 import {secIssuerContext} from "../../../../lib/market/sec";
+import {alpacaBrokerState,brokerReadStatus} from "../../../../lib/broker/alpaca";
 
 export const dynamic="force-dynamic";
 
@@ -115,7 +116,7 @@ export async function GET(req:Request){
     }
     for(const symbol of watchlist){
       const spot=market.snapshots.find((x:any)=>x.symbol===symbol)?.price;
-      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,issuer]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null)]);
+      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
       const baseAlignment=buildAlignment(symbol,{
         assessment:assessmentData,
         regime,
