@@ -221,6 +221,16 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const s=m<=6?85:m<=10?72:m<=16?55:35;
       return [s,"Alpaca Options",ctx.options.feed,`Implied 30-day move: ${m}%`];
     }
+    if(label==="Trade-count discipline"){
+      if(ctx.processState?.tradeCountOk===true)return [95,"User Session Check","session-confirmed","User confirmed they are within their planned trade-count limit for this session."];
+      if(ctx.processState?.tradeCountOk===false)return [20,"User Session Check","session-confirmed","User reported they are outside their planned trade-count limit; new risk should remain blocked."];
+      return [null,"User Session Check","unconfirmed","Requires explicit session confirmation; TradeOS will not infer discipline from market data."];
+    }
+    if(label==="Tilt / emotional-risk check"){
+      if(ctx.processState?.tiltOk===true)return [95,"User Session Check","session-confirmed","User confirmed they are calm and able to follow the trading plan."];
+      if(ctx.processState?.tiltOk===false)return [15,"User Session Check","session-confirmed","User reported elevated emotional/tilt risk; new risk should remain blocked."];
+      return [null,"User Session Check","unconfirmed","Requires explicit session confirmation; TradeOS will not infer emotional state."];
+    }
     if(label==="Profit-target readiness" && ctx.features?.structure?.rewardRiskScore!=null){
       return [Number(ctx.features.structure.rewardRiskScore),"TradeOS Risk Geometry","derived","Target readiness is derived from chart-defined reward-to-risk geometry; no order is placed."];
     }
