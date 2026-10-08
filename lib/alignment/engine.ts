@@ -234,9 +234,41 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       return [92,"TradeOS Audit Ledger","system","Forecasts, outcomes, governed alignment snapshots, and source provenance are persisted for accountability."];
     }
     if(ctx.brokerState){
+      const bs=ctx.brokerState;
+      const accountOk=bs.accountStatus==="ACTIVE"&&!bs.tradingBlocked&&!bs.accountBlocked&&!bs.tradeSuspendedByUser;
       if(label==="Broker / platform readiness"){
-        const ok=ctx.brokerState.accountStatus==="ACTIVE"&&!ctx.brokerState.tradingBlocked&&!ctx.brokerState.accountBlocked&&!ctx.brokerState.tradeSuspendedByUser;
-        return [ok?95:25,"Alpaca Trading API","read-only",ok?"Account reports active/readable and not blocked. No order-writing path is enabled.":"Account reports a blocking/suspension condition."];
+        return [accountOk?95:25,"Alpaca Trading API","read-only",accountOk?"Paper account reports active/readable and not blocked. No order-writing path is enabled.":"Account reports a blocking/suspension condition."];
+      }
+      if(label==="Current open-risk status"){
+        const exposure=(bs.positions??[]).reduce((s:number,p:any)=>s+Math.abs(Number(p.marketValue??0)),0);
+        const equity=Number(bs.equity??0);
+        const pct=equity>0?exposure/equity*100:null;
+        const score=pct==null?null:pct===0?98:pct<=25?92:pct<=50?80:pct<=80?65:pct<=100?50:30;
+        return [score,"Alpaca Trading API","read-only",pct==null?"Equity unavailable":`Gross paper exposure ${pct.toFixed(1)}% across ${(bs.positions??[]).length} position(s).`];
+      }
+      if(label==="Correlation exposure"){
+        const count=(bs.positions??[]).length;
+        const score=count===0?98:count===1?88:70;
+        return [score,"Alpaca Trading API","read-only",count===0?"No open paper positions; portfolio correlation exposure is currently zero.":`${count} open paper position(s); detailed cross-position correlation requires holdings analysis.`];
+      }
+      if(label==="Position-size compatibility"){
+        const equity=Number(bs.equity??0),bp=Number(bs.buyingPower??0);
+        const geom=Number(ctx.features?.structure?.stopDistanceScore??NaN);
+        const score=!accountOk||!(equity>0)||!(bp>0)?25:Number.isFinite(geom)?Math.max(55,Math.min(95,.55*geom+42)):75;
+        return [score,"Alpaca Paper + TradeOS Risk Geometry","read-only/derived",`Paper equity ${equity.toFixed(0)}, buying power ${bp.toFixed(0)}. Compatibility reflects account capacity and chart-defined stop practicality, not an authorized position size.`];
+      }
+      if(label==="Stop-order readiness"){
+        const geom=Number(ctx.features?.structure?.cleanInvalidationScore??NaN);
+        const score=accountOk&&Number.isFinite(geom)?Math.min(80,Math.max(55,geom)):null;
+        return [score,"Alpaca Paper + TradeOS Risk Geometry","read-only/derived",score==null?"Stop geometry unavailable":"Broker is readable and an invalidation level exists, but no order is placed and user confirmation remains required."];
+      }
+      if(label==="Daily-loss-limit status"){
+        const eq=Number(bs.equity??0),last=Number(bs.lastEquity??0);
+        if(eq>0&&last>0){
+          const pnlPct=(eq-last)/last*100;
+          const score=pnlPct>=0?80:pnlPct>-0.5?72:pnlPct>-1?60:45;
+          return [score,"Alpaca Trading API","read-only",`Paper account day change ${pnlPct.toFixed(2)}%. A user-defined daily loss ceiling is not configured, so this gate cannot be fully aligned.`];
+        }
       }
     }
     if(ctx.issuer){
@@ -273,7 +305,7 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
     if(["News quality","News freshness","Catalyst interpretation confidence"].includes(label)){
       return [secLive?78:null,secLive?"SEC EDGAR":"none",secLive?"live":"unavailable",secLive?"Authoritative catalyst source available":"No authoritative catalyst source"];
     }
-    if(["Position-size compatibility","Stop-order readiness","Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check","Broker / platform readiness"].includes(label)){
+    if(["Trade-count discipline","Tilt / emotional-risk check"].includes(label)){
       return [null,"User / broker state","not connected","Requires trade ticket, account state, or user confirmation"];
     }
     if(calibrationReady && label==="Setup repeatability") return [Math.max(0,Math.min(100,(ctx.calibration?.confidenceMultiplier??.65)*100)),"TradeOS calibration","measured","Resolved-forecast calibration"];
