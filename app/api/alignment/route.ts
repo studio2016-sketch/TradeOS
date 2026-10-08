@@ -21,6 +21,8 @@ export const dynamic="force-dynamic";
 export async function GET(req:Request){
   const {searchParams}=new URL(req.url);
   const symbol=(searchParams.get("symbol")||"NVDA").toUpperCase();
+  const tradeCountOk=searchParams.get("tradeCountOk")==="1"?true:searchParams.get("tradeCountOk")==="0"?false:undefined;
+  const tiltOk=searchParams.get("tiltOk")==="1"?true:searchParams.get("tiltOk")==="0"?false:undefined;
   const base=new URL(req.url);
   const origin=base.origin;
 
@@ -34,7 +36,7 @@ export async function GET(req:Request){
   ]);
 
   const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
-  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState});
+  const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState,processState:{tradeCountOk,tiltOk}});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
@@ -58,6 +60,7 @@ export async function GET(req:Request){
     newsReaction,
     issuer,
     brokerRead:brokerReadStatus(),
+    humanChecks:{tradeCountOk,tiltOk},
     macro,
     disclaimer:"MUST BUY / MUST SELL are TradeOS state labels for maximum alignment or capital-protection conditions, not guarantees or personalized investment advice."
   });
