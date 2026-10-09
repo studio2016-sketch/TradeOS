@@ -38,7 +38,8 @@ const themes:Array<[string,RegExp,string[]]>=[
 ];
 
 const expertRole=/\b(chief investment officer|cio|chief market strategist|market strategist|equity strategist|investment strategist|portfolio manager|fund manager|economist|analyst|research director|chief economist)\b/i;
-const viewWords=/\b(expect|forecast|outlook|target|predict|sees|projects|bullish|bearish|overweight|underweight|upgrade|downgrade|recession|soft landing|risk|opportunity)\b/i;\nconst expertInstitution=/\b(goldman sachs|jpmorgan|morgan stanley|blackrock|vanguard|fidelity|charles schwab|bank of america|bofa|citigroup|citi|ubs|barclays|deutsche bank|wells fargo|evercore|bernstein|jefferies|piper sandler|rbc|oppenheimer|morningstar|fundstrat|yardeni|cme|cboe)\b/i;
+const viewWords=/\b(expect|forecast|outlook|target|predict|sees|projects|bullish|bearish|overweight|underweight|upgrade|downgrade|recession|soft landing|risk|opportunity)\b/i;
+const expertInstitution=/\b(goldman sachs|jpmorgan|morgan stanley|blackrock|vanguard|fidelity|charles schwab|bank of america|bofa|citigroup|citi|ubs|barclays|deutsche bank|wells fargo|evercore|bernstein|jefferies|piper sandler|rbc|oppenheimer|morningstar|fundstrat|yardeni|cme|cboe)\b/i;
 const bullish=/\b(bullish|upside|outperform|overweight|upgrade|stronger|accelerat|growth|positive|rally)\b/i;
 const bearish=/\b(bearish|downside|underperform|underweight|downgrade|weaker|slowdown|recession|negative|selloff)\b/i;
 
