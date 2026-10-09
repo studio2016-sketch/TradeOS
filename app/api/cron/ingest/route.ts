@@ -24,6 +24,7 @@ import {microstructureContext} from "../../../../lib/market/microstructure";
 import {latestNewsReaction} from "../../../../lib/market/newsReaction";
 import {secIssuerContext} from "../../../../lib/market/sec";
 import {alpacaBrokerState,brokerReadStatus} from "../../../../lib/broker/alpaca";
+import {evaluateInstitutionalLens} from "../../../../lib/research/institutionalLens";
 
 export const dynamic="force-dynamic";
 
@@ -152,6 +153,7 @@ export async function GET(req:Request){
       });
       const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
       const adaptive=evaluateAdaptiveIntelligence(baseAlignment,supervisors,{calibration,intelligence});
+      const institutional=evaluateInstitutionalLens(symbol,{alignment:baseAlignment,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
       if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
       const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
@@ -162,11 +164,23 @@ export async function GET(req:Request){
       if(finalBuy==="READY"&&adaptive.score<55)finalBuy="WATCH";
       let finalSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState;
       if(supervisors.sellEscalation>=30&&finalSell==="HOLD")finalSell="CAUTION";
-      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,adaptive,canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:baseAlignment.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:baseAlignment.observedCount+adaptive.observedCount,availability:+((baseAlignment.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(baseAlignment.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer};
+      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,adaptive,institutional,canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:baseAlignment.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:baseAlignment.observedCount+adaptive.observedCount,availability:+((baseAlignment.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(baseAlignment.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer};
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
         values('alignment_snapshot','symbol',${symbol},'swiss-movement-v2-120',${JSON.stringify(alignment)}::jsonb)
       `;
+      for(const playbook of institutional.playbooks){
+        if(playbook.score==null)continue;
+        const playbookId=`${symbol}:${playbook.id}:${new Date().toISOString().slice(0,13)}`;
+        await sql`
+          insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
+          select 'institutional_playbook_observed','symbol',${playbookId},'institutional-lens-v1',${JSON.stringify({symbol,...playbook,observedAt:new Date().toISOString()})}::jsonb
+          where not exists(
+            select 1 from audit_events
+            where event_type='institutional_playbook_observed' and entity_id=${playbookId}
+          )
+        `;
+      }
       results.alignments++;
     }
   }catch(e){results.errors.push({source:"alignment",error:e instanceof Error?e.message:String(e)});}
