@@ -177,13 +177,16 @@ export async function resolveInstitutionalPlaybooks(limit=36){
         limit 1
       `;
       if((exists as any[]).length)continue;
+      const target=String(p.predictiveTarget||"direction");
+      if(target==="execution"||target==="risk"){skipped++;continue;}
       const outcome=await outcomeFor(symbol,new Date(row.created_at),days);
       if(!outcome){skipped++;continue;}
-      const signed=signedReturn(String(p.direction||"neutral"),Number(outcome.returnPct));
-      const directional=["bullish","bearish"].includes(String(p.direction));
-      const success=directional?signed>0:Math.abs(Number(outcome.returnPct))<1;
+      const directional=target==="direction"&&["bullish","bearish"].includes(String(p.direction));
+      const signed=directional?signedReturn(String(p.direction),Number(outcome.returnPct)):Math.abs(Number(outcome.returnPct));
+      const magnitudeThreshold=days===1?1:days===5?2:4;
+      const success=directional?signed>0:target==="magnitude"?Math.abs(Number(outcome.returnPct))>=magnitudeThreshold:false;
       const payload={
-        playbookId:p.id,label:p.label,symbol,direction:p.direction,score:p.score,
+        playbookId:p.id,label:p.label,symbol,direction:p.direction,predictiveTarget:target,score:p.score,
         horizon,days,returnPct:outcome.returnPct,signedReturnPct:+signed.toFixed(3),success,
         maxUpPct:outcome.maxUpPct,maxDownPct:outcome.maxDownPct,
         resolvedAt:new Date().toISOString()
@@ -215,17 +218,17 @@ export async function institutionalPlaybookScorecard(days=90){
     by.set(key,[...(by.get(key)||[]),x]);
   }
   const playbooks=[...by.entries()].map(([id,xs])=>{
-    const directional=xs.filter(x=>["bullish","bearish"].includes(String(x.direction)));
-    const wins=directional.filter(x=>x.success).length;
+    const scoreable=xs.filter(x=>["direction","magnitude"].includes(String(x.predictiveTarget||"direction")));
+    const wins=scoreable.filter(x=>x.success).length;
     const byHorizon=["1d","5d","20d"].map(h=>{
-      const hs=directional.filter(x=>x.horizon===h);
+      const hs=scoreable.filter(x=>x.horizon===h);
       const hw=hs.filter(x=>x.success).length;
-      return{horizon:h,samples:hs.length,hitRate:hs.length?+(hw/hs.length*100).toFixed(1):null,avgSignedReturn:hs.length?+(hs.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/hs.length).toFixed(3):null};
+      return{horizon:h,samples:hs.length,hitRate:hs.length?+(hw/hs.length*100).toFixed(1):null,avgEvaluationReturn:hs.length?+(hs.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/hs.length).toFixed(3):null};
     });
     return{
-      id,label:String(xs[0]?.label||id),samples:directional.length,
-      hitRate:directional.length?+(wins/directional.length*100).toFixed(1):null,
-      avgSignedReturn:directional.length?+(directional.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/directional.length).toFixed(3):null,
+      id,label:String(xs[0]?.label||id),predictiveTarget:String(xs[0]?.predictiveTarget||"direction"),samples:scoreable.length,
+      hitRate:scoreable.length?+(wins/scoreable.length*100).toFixed(1):null,
+      avgEvaluationReturn:scoreable.length?+(scoreable.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/scoreable.length).toFixed(3):null,
       byHorizon
     };
   }).filter(x=>x.samples>0).sort((a,b)=>b.samples-a.samples||Number(b.hitRate??0)-Number(a.hitRate??0));
