@@ -16,6 +16,7 @@ import {microstructureContext} from "../../../lib/market/microstructure";
 import {latestNewsReaction} from "../../../lib/market/newsReaction";
 import {secIssuerContext} from "../../../lib/market/sec";
 import {alpacaBrokerState,brokerReadStatus} from "../../../lib/broker/alpaca";
+import {evaluateInstitutionalLens} from "../../../lib/research/institutionalLens";
 
 export const dynamic="force-dynamic";
 
@@ -42,6 +43,7 @@ export async function GET(req:Request){
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes});
+  const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
   const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
@@ -63,6 +65,7 @@ export async function GET(req:Request){
     governor,
     supervisors,
     adaptive,
+    institutional,
     canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:result.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:result.observedCount+adaptive.observedCount,availability:+((result.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(result.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},
     optionSurface,
     features,
