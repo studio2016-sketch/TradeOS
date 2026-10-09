@@ -15,11 +15,11 @@ export interface AlignmentVariableDef{
 const G:Record<AlignmentGroup,string[]> = {
   "Market Regime":[
     "SPY trend direction","QQQ trend direction","IWM trend direction","Sector relative strength","Breadth participation",
-    "VIX condition","Yield environment","Dollar risk tone","Economic event risk","Market session condition"
+    "VIX condition","Yield environment","Dollar risk tone","Economic event risk","Market session condition","Credit-stress condition","Yield-curve condition"
   ],
   "Instrument Quality":[
     "Average daily volume","Relative liquidity","Bid-ask spread quality","Float structure","Volatility usability",
-    "Chart cleanliness","Institutional participation","Options liquidity","Market correlation","Tradeability score"
+    "Chart cleanliness","Institutional participation","Options liquidity","Market correlation","Tradeability score","Quote freshness quality"
   ],
   "Multi-Timeframe Trend":[
     "Daily trend alignment","4-hour trend alignment","1-hour trend alignment","15-minute trend alignment","5-minute trend alignment",
@@ -31,11 +31,11 @@ const G:Record<AlignmentGroup,string[]> = {
   ],
   "Volatility & Risk":[
     "ATR suitability","Expected-move context","Gap risk","Intraday range condition","Stop-distance practicality",
-    "Reward-to-risk ratio","Position-size compatibility","Realized volatility regime","Volatility expansion / compression","Loss-containment potential"
+    "Reward-to-risk ratio","Position-size compatibility","Realized volatility regime","Volatility expansion / compression","Loss-containment potential","Options skew condition"
   ],
   "Volume & Order Flow":[
     "Relative volume","Breakout-level volume","VWAP behavior","Accumulation behavior","Bid-ask imbalance",
-    "Tape aggression","Block participation","Absorption / exhaustion","Opening-auction quality","Volume-confirmation persistence"
+    "Tape aggression","Block participation","Absorption / exhaustion","Opening-auction quality","Volume-confirmation persistence","Quote-depth quality"
   ],
   "Setup Quality":[
     "Breakout quality","Pullback quality","Support / resistance clarity","Base quality","Trend-continuation quality",
@@ -47,11 +47,11 @@ const G:Record<AlignmentGroup,string[]> = {
   ],
   "Catalyst & Information":[
     "Earnings / guidance relevance","SEC filing significance","News quality","News freshness","Headline-to-price reaction",
-    "Analyst revision pressure","Sector narrative strength","Sentiment condition","Event asymmetry","Catalyst interpretation confidence"
+    "Analyst revision pressure","Sector narrative strength","Sentiment condition","Event asymmetry","Catalyst interpretation confidence","Catalyst recency"
   ],
   "Discipline & Capital Protection":[
     "Daily-loss-limit status","Current open-risk status","Correlation exposure","Trade-count discipline","Tilt / emotional-risk check",
-    "Checklist completion","Broker / platform readiness","Stop-order readiness","Profit-target readiness","Journal accountability"
+    "Checklist completion","Broker / platform readiness","Stop-order readiness","Profit-target readiness","Journal accountability","Buying-power headroom","Cash-reserve condition"
   ]
 };
 
