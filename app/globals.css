@@ -190,3 +190,28 @@
 
 .matrixDetails{padding:0;overflow:hidden}.matrixDetails summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 20px}.matrixDetails summary::-webkit-details-marker{display:none}.matrixDetails summary span{display:grid;gap:5px}.matrixDetails summary b{font-size:16px}.matrixDetails summary em{font-style:normal;font-size:11px;color:#8f9da3;padding:7px 9px;border-radius:999px;background:#ffffff05;border:1px solid #ffffff10}.matrixDetails[open] summary{border-bottom:1px solid #ffffff0d}.matrixDetails .variableGrid,.matrixDetails>p{margin-left:20px;margin-right:20px}.matrixDetails .variableGrid{margin-top:18px}.matrixDetails>p{margin-bottom:20px}
 @media(max-width:600px){.matrixDetails summary{align-items:flex-start}.matrixDetails summary b{font-size:14px}.matrixDetails summary em{white-space:nowrap}}
+
+.askFab{display:none}
+@media(max-width:700px){
+  .askFab{
+    display:grid;
+    place-items:center;
+    position:fixed;
+    right:14px;
+    bottom:calc(84px + env(safe-area-inset-bottom));
+    width:48px;
+    height:48px;
+    z-index:44;
+    border:1px solid #5ae4c655;
+    border-radius:50%;
+    background:#10191df2;
+    color:#67e4c9;
+    box-shadow:0 12px 40px #0009,0 0 20px #5ae4c622;
+    backdrop-filter:blur(18px);
+  }
+  .askFab.open{background:#59e4c6;color:#071014}
+  .ask,.askPrompts{display:none}
+  .ask.mobileOpen{display:grid;bottom:calc(82px + env(safe-area-inset-bottom));z-index:45}
+  .askPrompts.mobileOpen{display:flex;bottom:calc(145px + env(safe-area-inset-bottom));z-index:45}
+  .askFab.open{bottom:calc(150px + env(safe-area-inset-bottom))}
+}
