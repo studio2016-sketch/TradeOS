@@ -22,7 +22,9 @@ export async function GET(req:Request){
     persisted=await persistResearchSnapshot({...snapshot,researchUniverseSize:universe.length,bucket,buckets});
   }catch(error){errors.push({stage:"discovery",error:error instanceof Error?error.message:String(error)});}
   try{resolution=await resolveResearchSubjects(18);}catch(error){errors.push({stage:"resolution",error:error instanceof Error?error.message:String(error)});}
-  try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}\n  try{scorecard=await researchScorecard(90);}catch(error){errors.push({stage:"scorecard",error:error instanceof Error?error.message:String(error)});}\n  try{expertScores=await expertScorecard(90);}catch(error){errors.push({stage:"expert-scorecard",error:error instanceof Error?error.message:String(error)});}
+  try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}
+  try{scorecard=await researchScorecard(90);}catch(error){errors.push({stage:"scorecard",error:error instanceof Error?error.message:String(error)});}
+  try{expertScores=await expertScorecard(90);}catch(error){errors.push({stage:"expert-scorecard",error:error instanceof Error?error.message:String(error)});}
   return NextResponse.json({
     status:errors.length?"degraded":"ok",
     startedAt,finishedAt:new Date().toISOString(),bucket,buckets,symbols,
