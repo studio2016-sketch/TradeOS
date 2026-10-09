@@ -1,8 +1,8 @@
 import {NextResponse} from "next/server";
-import {authorizeCron} from "../../../../../lib/cron";
-import {hasDatabase} from "../../../../../lib/db";
-import {DEFAULT_RESEARCH_UNIVERSE,discoverResearchSubjects} from "../../../../../lib/research/subjectDiscovery";
-import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard} from "../../../../../lib/research/ledger";
+import {authorizeCron} from "../../../../lib/cron";
+import {hasDatabase} from "../../../../lib/db";
+import {DEFAULT_RESEARCH_UNIVERSE,discoverResearchSubjects} from "../../../../lib/research/subjectDiscovery";
+import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard} from "../../../../lib/research/ledger";
 
 export const dynamic="force-dynamic";
 
