@@ -151,6 +151,87 @@ export async function resolveExpertViews(limit=24){
   return{checked:rows.length,resolved,skipped,details};
 }
 
+export async function resolveInstitutionalPlaybooks(limit=36){
+  const sql=db();
+  const rows=await sql`
+    select entity_id,payload,created_at
+    from audit_events
+    where event_type='institutional_playbook_observed'
+      and created_at <= now()-interval '1 day'
+    order by created_at asc
+    limit ${limit}
+  ` as any[];
+
+  let resolved=0,skipped=0;
+  const details:any[]=[];
+  for(const row of rows){
+    const p=row.payload??{};
+    const symbol=String(p.symbol||"").toUpperCase();
+    if(!symbol){skipped++;continue;}
+    for(const [horizon,days] of HORIZONS){
+      if(Date.now()<new Date(row.created_at).getTime()+days*DAY)continue;
+      const id=`${row.entity_id}:${horizon}`;
+      const exists=await sql`
+        select id from audit_events
+        where event_type='institutional_playbook_outcome' and entity_id=${id}
+        limit 1
+      `;
+      if((exists as any[]).length)continue;
+      const outcome=await outcomeFor(symbol,new Date(row.created_at),days);
+      if(!outcome){skipped++;continue;}
+      const signed=signedReturn(String(p.direction||"neutral"),Number(outcome.returnPct));
+      const directional=["bullish","bearish"].includes(String(p.direction));
+      const success=directional?signed>0:Math.abs(Number(outcome.returnPct))<1;
+      const payload={
+        playbookId:p.id,label:p.label,symbol,direction:p.direction,score:p.score,
+        horizon,days,returnPct:outcome.returnPct,signedReturnPct:+signed.toFixed(3),success,
+        maxUpPct:outcome.maxUpPct,maxDownPct:outcome.maxDownPct,
+        resolvedAt:new Date().toISOString()
+      };
+      await sql`
+        insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
+        values('institutional_playbook_outcome','symbol',${id},'institutional-lens-v1',${JSON.stringify(payload)}::jsonb)
+      `;
+      resolved++;details.push(payload);
+    }
+  }
+  return{checked:rows.length,resolved,skipped,details};
+}
+
+export async function institutionalPlaybookScorecard(days=90){
+  const sql=db();
+  const rows=await sql`
+    select payload
+    from audit_events
+    where event_type='institutional_playbook_outcome'
+      and created_at>=now()-(${days} * interval '1 day')
+    order by created_at desc
+    limit 10000
+  ` as any[];
+  const out=rows.map(r=>r.payload).filter(Boolean);
+  const by=new Map<string,any[]>();
+  for(const x of out){
+    const key=String(x.playbookId||x.label||"unknown");
+    by.set(key,[...(by.get(key)||[]),x]);
+  }
+  const playbooks=[...by.entries()].map(([id,xs])=>{
+    const directional=xs.filter(x=>["bullish","bearish"].includes(String(x.direction)));
+    const wins=directional.filter(x=>x.success).length;
+    const byHorizon=["1d","5d","20d"].map(h=>{
+      const hs=directional.filter(x=>x.horizon===h);
+      const hw=hs.filter(x=>x.success).length;
+      return{horizon:h,samples:hs.length,hitRate:hs.length?+(hw/hs.length*100).toFixed(1):null,avgSignedReturn:hs.length?+(hs.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/hs.length).toFixed(3):null};
+    });
+    return{
+      id,label:String(xs[0]?.label||id),samples:directional.length,
+      hitRate:directional.length?+(wins/directional.length*100).toFixed(1):null,
+      avgSignedReturn:directional.length?+(directional.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/directional.length).toFixed(3):null,
+      byHorizon
+    };
+  }).filter(x=>x.samples>0).sort((a,b)=>b.samples-a.samples||Number(b.hitRate??0)-Number(a.hitRate??0));
+  return{windowDays:days,totalOutcomes:out.length,playbooks:playbooks.slice(0,20),generatedAt:new Date().toISOString()};
+}
+
 export async function expertScorecard(days=90){
   const sql=db();
   const rows=await sql`
