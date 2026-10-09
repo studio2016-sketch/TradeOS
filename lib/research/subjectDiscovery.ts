@@ -38,7 +38,7 @@ const themes:Array<[string,RegExp,string[]]>=[
 ];
 
 const expertRole=/\b(chief investment officer|cio|chief market strategist|market strategist|equity strategist|investment strategist|portfolio manager|fund manager|economist|analyst|research director|chief economist)\b/i;
-const viewWords=/\b(expect|forecast|outlook|target|predict|sees|projects|bullish|bearish|overweight|underweight|upgrade|downgrade|recession|soft landing|risk|opportunity)\b/i;
+const viewWords=/\b(expect|forecast|outlook|target|predict|sees|projects|bullish|bearish|overweight|underweight|upgrade|downgrade|recession|soft landing|risk|opportunity)\b/i;\nconst expertInstitution=/\b(goldman sachs|jpmorgan|morgan stanley|blackrock|vanguard|fidelity|charles schwab|bank of america|bofa|citigroup|citi|ubs|barclays|deutsche bank|wells fargo|evercore|bernstein|jefferies|piper sandler|rbc|oppenheimer|morningstar|fundstrat|yardeni|cme|cboe)\b/i;
 const bullish=/\b(bullish|upside|outperform|overweight|upgrade|stronger|accelerat|growth|positive|rally)\b/i;
 const bearish=/\b(bearish|downside|underperform|underweight|downgrade|weaker|slowdown|recession|negative|selloff)\b/i;
 
@@ -73,7 +73,7 @@ export async function historicalResearchProfile(symbol:string){
 export function extractExpertViews(news:any[]){
   return news.filter(n=>{
     const text=(n.headline+" "+(n.summary||""));
-    return expertRole.test(text)&&viewWords.test(text);
+    return (expertRole.test(text)||expertInstitution.test(text))&&viewWords.test(text);
   }).map(n=>{
     const text=(n.headline+" "+(n.summary||""));
     return{
@@ -83,7 +83,7 @@ export function extractExpertViews(news:any[]){
       headline:n.headline,
       symbols:n.symbols??[],
       direction:sentiment(text)>0?"bullish":sentiment(text)<0?"bearish":"neutral",
-      score:+clamp(45+(n.sourceQuality??.6)*30+(n.recency??.5)*20+(n.relevance??.5)*5).toFixed(1),
+      score:+clamp(40+(n.sourceQuality??.6)*28+(n.recency??.5)*18+(n.relevance??.5)*4+(expertInstitution.test(text)?10:0)+(expertRole.test(text)?8:0)).toFixed(1),
       summary:n.summary||""
     };
   });
@@ -92,7 +92,14 @@ export function extractExpertViews(news:any[]){
 export async function discoverResearchSubjects(symbols:string[]){
   const universe=[...new Set(symbols.map(s=>s.toUpperCase()))];
   const profiles=(await Promise.all(universe.map(historicalResearchProfile))).filter(Boolean) as any[];
-  const {news,errors}=await curatedNews(universe,50);
+  const [focused,broad]=await Promise.all([curatedNews(universe,50),curatedNews([],50)]);
+  const seen=new Set<string>();
+  const news=[...focused.news,...broad.news].filter((n:any)=>{
+    const key=(n.headline||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim().slice(0,160);
+    if(!key||seen.has(key))return false;
+    seen.add(key);return true;
+  });
+  const errors=[...(focused.errors??[]),...(broad.errors??[])];
   const experts=extractExpertViews(news);
   const subjects:ResearchSubject[]=[];
 
@@ -146,5 +153,14 @@ export async function discoverResearchSubjects(symbols:string[]){
   }
 
   subjects.sort((a,b)=>(b.novelty+b.score*.35)-(a.novelty+a.score*.35));
-  return{generatedAt:new Date().toISOString(),universeSize:universe.length,profileCount:profiles.length,newsCount:news.length,expertViewCount:experts.length,subjects:subjects.slice(0,24),experts:experts.slice(0,30),errors};
+  const localTerms=(process.env.TRADEOS_LOCAL_NEWS_TERMS||"").split(",").map(x=>x.trim()).filter(Boolean);
+  const escaped=localTerms.map(x=>x.replace(/[.*+?^$(){}|[\]\\]/g,"\\  return{generatedAt:new Date().toISOString(),universeSize:universe.length,profileCount:profiles.length,newsCount:news.length,expertViewCount:experts.length,subjects:subjects.slice(0,24),experts:experts.slice(0,30),errors};"));
+  const localRegex=escaped.length?new RegExp(escaped.join("|"),"i"):null;
+  const geography={
+    configuredLocalTerms:localTerms,
+    localItems:localRegex?news.filter((n:any)=>localRegex.test(n.headline+" "+(n.summary||""))).slice(0,20):[],
+    usDomesticItems:news.filter((n:any)=>/\b(u\.s\.|united states|washington|federal reserve|congress|white house|sec|treasury)\b/i.test(n.headline+" "+(n.summary||""))).slice(0,20),
+    globalItems:news.filter((n:any)=>/\b(china|europe|european|japan|middle east|india|uk|united kingdom|germany|france|taiwan|korea|russia|ukraine|opec|global|world)\b/i.test(n.headline+" "+(n.summary||""))).slice(0,20)
+  };
+  return{generatedAt:new Date().toISOString(),universeSize:universe.length,profileCount:profiles.length,newsCount:news.length,expertViewCount:experts.length,subjects:subjects.slice(0,24),experts:experts.slice(0,30),geography,errors};
 }
