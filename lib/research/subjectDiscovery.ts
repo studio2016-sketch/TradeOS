@@ -1,5 +1,5 @@
-import {historicalBars} from "./features";
-import {curatedNews} from "./news";
+import {historicalBars} from "../market/features";
+import {curatedNews} from "../market/news";
 
 export type SubjectScope="symbol"|"sector"|"macro"|"global"|"regional";
 export interface ResearchSubject{
@@ -154,7 +154,7 @@ export async function discoverResearchSubjects(symbols:string[]){
 
   subjects.sort((a,b)=>(b.novelty+b.score*.35)-(a.novelty+a.score*.35));
   const localTerms=(process.env.TRADEOS_LOCAL_NEWS_TERMS||"").split(",").map(x=>x.trim()).filter(Boolean);
-  const escaped=localTerms.map(x=>x.replace(/[.*+?^$(){}|[\]\\]/g,"\\  return{generatedAt:new Date().toISOString(),universeSize:universe.length,profileCount:profiles.length,newsCount:news.length,expertViewCount:experts.length,subjects:subjects.slice(0,24),experts:experts.slice(0,30),errors};"));
+  const escaped=localTerms.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"));
   const localRegex=escaped.length?new RegExp(escaped.join("|"),"i"):null;
   const geography={
     configuredLocalTerms:localTerms,
