@@ -67,7 +67,7 @@ export async function historicalResearchProfile(symbol:string){
   const trend=[r5,r20,r60].filter((x):x is number=>x!=null);
   const trendScore=trend.length?clamp(50+trend.reduce((s,x,i)=>s+x*[5,2.5,1.2][i],0)):null;
   const direction=trendScore==null?"neutral":trendScore>=62?"bullish":trendScore<=38?"bearish":"mixed";
-  return{symbol,r5,r20,r60,volumeRatio,trendScore,direction,barCount:bars.length};
+  return{symbol,lastPrice:closes[closes.length-1],r5,r20,r60,volumeRatio,trendScore,direction,barCount:bars.length};
 }
 
 export function extractExpertViews(news:any[]){
