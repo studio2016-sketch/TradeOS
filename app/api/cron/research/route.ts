@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {hasDatabase} from "../../../../lib/db";
 import {DEFAULT_RESEARCH_UNIVERSE,discoverResearchSubjects} from "../../../../lib/research/subjectDiscovery";
-import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard} from "../../../../lib/research/ledger";
+import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard,resolveExpertViews,expertScorecard} from "../../../../lib/research/ledger";
 
 export const dynamic="force-dynamic";
 
@@ -16,13 +16,13 @@ export async function GET(req:Request){
   const symbols=universe.filter((_,i)=>i%buckets===bucket);
   const startedAt=new Date().toISOString();
   const errors:any[]=[];
-  let snapshot:any=null,persisted:any=null,resolution:any=null,scorecard:any=null;
+  let snapshot:any=null,persisted:any=null,resolution:any=null,expertResolution:any=null,scorecard:any=null,expertScores:any=null;
   try{
     snapshot=await discoverResearchSubjects(symbols);
     persisted=await persistResearchSnapshot({...snapshot,researchUniverseSize:universe.length,bucket,buckets});
   }catch(error){errors.push({stage:"discovery",error:error instanceof Error?error.message:String(error)});}
   try{resolution=await resolveResearchSubjects(18);}catch(error){errors.push({stage:"resolution",error:error instanceof Error?error.message:String(error)});}
-  try{scorecard=await researchScorecard(90);}catch(error){errors.push({stage:"scorecard",error:error instanceof Error?error.message:String(error)});}
+  try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}\n  try{scorecard=await researchScorecard(90);}catch(error){errors.push({stage:"scorecard",error:error instanceof Error?error.message:String(error)});}\n  try{expertScores=await expertScorecard(90);}catch(error){errors.push({stage:"expert-scorecard",error:error instanceof Error?error.message:String(error)});}
   return NextResponse.json({
     status:errors.length?"degraded":"ok",
     startedAt,finishedAt:new Date().toISOString(),bucket,buckets,symbols,
@@ -32,7 +32,7 @@ export async function GET(req:Request){
       global:snapshot.geography?.globalItems?.length??0,
       localConfigured:Boolean(snapshot.geography?.configuredLocalTerms?.length)
     }}:null,
-    persisted,resolution,scorecard,errors,
+    persisted,resolution,expertResolution,scorecard,expertScores,errors,
     safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"}
   });
 }
