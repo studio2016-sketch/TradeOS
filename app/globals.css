@@ -122,3 +122,21 @@
 .decisionCockpit{display:grid;grid-template-columns:1.05fr 1.25fr .9fr;gap:16px;align-items:stretch;padding:18px;border-color:#ffffff18;background:radial-gradient(circle at 18% 18%,#d6b85e10,transparent 32%),linear-gradient(180deg,#10191d,#0b1216)}.decisionCockpit>div{min-width:0}.decisionCockpit strong{display:block;font-size:34px;letter-spacing:.02em;margin-top:6px}.decisionCockpit p{font-size:11px;margin:7px 0 0}.decisionMetrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.decisionMetrics span{padding:10px;border:1px solid #ffffff0f;border-radius:11px;background:#ffffff04;font-size:9px;letter-spacing:.1em;color:#809097}.decisionMetrics b{display:block;margin-top:5px;color:#f4f7f8;font-size:17px;letter-spacing:0}.decisionBlockers{display:grid;gap:7px}.decisionBlockers>small{margin-bottom:2px}.decisionBlockers span{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #ffffff0b;font-size:10px;color:#adb9bd}.decisionBlockers span b{font-size:11px;color:#f4f7f8}
 @media(max-width:900px){.productPromise,.decisionCockpit{grid-template-columns:1fr}.productPromise>div:last-child{justify-content:flex-start}}
 @media(max-width:700px){.productPromise{padding:16px}.productPromise h2{font-size:19px}.productPromise>div:last-child{overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start}.productPromise span{min-width:108px}.decisionCockpit strong{font-size:29px}}
+
+/* Swiss Movement: rare gold/white ignition only after full governor clearance */
+.movementBuy.fullAlign{
+  background:
+    radial-gradient(circle at center,#fff 0 4%,#f9f2cf 5% 10%,#2a2416 27%,#131b1e 58%,#091014 100%);
+  animation:ignitionPulse 1.05s ease-in-out infinite alternate;
+  box-shadow:0 0 36px #fff8,0 0 85px #efd77988,0 0 150px #c8a74644,inset 0 0 80px #fff1;
+}
+.movementBuy.fullAlign .movementCore{
+  background:radial-gradient(circle,#ffffff 0 9%,#f7edc8 10% 28%,#17140d 63%,#0b1012 100%);
+  border-color:#fff7d3;
+  color:#fff;
+  box-shadow:0 0 28px #fff,0 0 62px #e7cf72,0 0 110px #b8963e88,inset 0 0 30px #fff5;
+}
+.movementBuy.fullAlign .movementCore strong{color:#fff6ca;text-shadow:0 0 12px #fff,0 0 24px #e8c95c}
+.movementBuy.fullAlign .gearNode.aligned{background:#f0d56e;box-shadow:0 0 8px #fff,0 0 18px #e5c34f,0 0 28px #fff5}
+.movementBuy.fullAlign .movementHalo{border-color:#e9cc6644;box-shadow:0 0 24px #fff4,inset 0 0 42px #d9ba4d25}
+@keyframes ignitionPulse{from{filter:brightness(.96)}to{filter:brightness(1.12)}}
