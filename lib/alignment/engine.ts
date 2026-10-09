@@ -186,7 +186,9 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
     }
     if(label==="Quote freshness quality"){
       if(!marketSnap)return [null,"Market provider","unavailable","No current quote snapshot"];
-      const age=Number(marketSnap.ageMs);
+      const explicitAge=Number(marketSnap.ageMs);
+      const ts=marketSnap.timestamp?new Date(marketSnap.timestamp).getTime():NaN;
+      const age=Number.isFinite(explicitAge)?explicitAge:Number.isFinite(ts)?Math.max(0,Date.now()-ts):NaN;
       const s=!Number.isFinite(age)?null:age<=15000?95:age<=60000?82:age<=300000?60:35;
       return [s,marketSnap.source,marketSnap.freshness,Number.isFinite(age)?`Quote age ${Math.round(age/1000)}s`:"Quote age unavailable"];
     }
