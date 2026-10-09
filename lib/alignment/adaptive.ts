@@ -53,7 +53,7 @@ export function evaluateAdaptiveIntelligence(
   const driftValues=models.map((m:any)=>Number(m.drift_score)).filter(Number.isFinite);
   const driftAvg=driftValues.length?avg(driftValues as number[]):null;
   const hasPromoted=models.some((m:any)=>/promoted|production|validated/i.test(String(m.status??"")));
-  const hasDegraded=models.some((m:any)=>/degrad|drift|watch|retire/i.test(String(m.status??"")));
+  const hasDegraded=models.some((m:any)=>/degrad|drift|retire/i.test(String(m.status??"")));
 
   const regimeFit=marketRegime?.buyScore??null;
   const factorImportanceConfidence=resolved>=100
@@ -70,7 +70,7 @@ export function evaluateAdaptiveIntelligence(
     ?clamp(50+(weightedWin==null?0:(weightedWin-.5)*80)+(historicalCalibration==null?0:(historicalCalibration-60)*.25))
     :null;
   const driftControl=driftAvg!=null
-    ?clamp(100-driftAvg)
+    ?clamp(hasDegraded?Math.min(55,100-driftAvg):100-driftAvg)
     :modelSamples>=50?(hasDegraded?45:75):null;
   const executionRealism=execution?.score??null;
   const uncertaintyControl=uncertainty?.score??null;
