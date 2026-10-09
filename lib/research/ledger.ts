@@ -104,6 +104,81 @@ export async function resolveResearchSubjects(limit=18){
   return{checked:rows.length,resolved,skipped,details};
 }
 
+export async function resolveExpertViews(limit=24){
+  const sql=db();
+  const rows=await sql`
+    select entity_id,payload,created_at
+    from audit_events
+    where event_type='expert_view_observed'
+      and created_at <= now()-interval '1 day'
+    order by created_at asc
+    limit ${limit}
+  ` as any[];
+
+  let resolved=0,skipped=0;
+  const details:any[]=[];
+  for(const row of rows){
+    const view=row.payload??{};
+    const symbols=Array.isArray(view.symbols)?view.symbols.filter((s:any)=>typeof s==="string"&&s.length<=10).slice(0,4):[];
+    if(!symbols.length){skipped++;continue;}
+    for(const [horizon,days] of HORIZONS){
+      if(Date.now()<new Date(row.created_at).getTime()+days*DAY)continue;
+      const id=`${row.entity_id}:${horizon}`;
+      const exists=await sql`
+        select id from audit_events
+        where event_type='expert_view_outcome' and entity_id=${id}
+        limit 1
+      `;
+      if((exists as any[]).length)continue;
+      const outcomes=(await Promise.all(symbols.map((s:string)=>outcomeFor(s,new Date(row.created_at),days)))).filter(Boolean) as any[];
+      if(!outcomes.length){skipped++;continue;}
+      const avgRet=outcomes.reduce((sum,x)=>sum+x.returnPct,0)/outcomes.length;
+      const signed=signedReturn(String(view.direction||"neutral"),avgRet);
+      const directional=["bullish","bearish"].includes(String(view.direction));
+      const success=directional?signed>0:Math.abs(avgRet)<1;
+      const payload={
+        expertViewId:row.entity_id,source:view.source,headline:view.headline,direction:view.direction,
+        horizon,days,averageReturnPct:+avgRet.toFixed(3),signedReturnPct:+signed.toFixed(3),success,
+        outcomes,resolvedAt:new Date().toISOString()
+      };
+      await sql`
+        insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
+        values('expert_view_outcome','expert_view',${id},'expert-lens-v1',${JSON.stringify(payload)}::jsonb)
+      `;
+      resolved++;details.push(payload);
+    }
+  }
+  return{checked:rows.length,resolved,skipped,details};
+}
+
+export async function expertScorecard(days=90){
+  const sql=db();
+  const rows=await sql`
+    select payload
+    from audit_events
+    where event_type='expert_view_outcome'
+      and created_at>=now()-(${days} * interval '1 day')
+    order by created_at desc
+    limit 5000
+  ` as any[];
+  const out=rows.map(r=>r.payload).filter(Boolean);
+  const bySource=new Map<string,any[]>();
+  for(const x of out){
+    const source=String(x.source||"Unknown");
+    bySource.set(source,[...(bySource.get(source)||[]),x]);
+  }
+  const sources=[...bySource.entries()].map(([source,xs])=>{
+    const directional=xs.filter(x=>["bullish","bearish"].includes(String(x.direction)));
+    const wins=directional.filter(x=>x.success).length;
+    return{
+      source,samples:directional.length,
+      hitRate:directional.length?+(wins/directional.length*100).toFixed(1):null,
+      avgSignedReturn:directional.length?+(directional.reduce((s,x)=>s+Number(x.signedReturnPct||0),0)/directional.length).toFixed(3):null
+    };
+  }).filter(x=>x.samples>0).sort((a,b)=>b.samples-a.samples||Number(b.hitRate??0)-Number(a.hitRate??0));
+  return{windowDays:days,totalOutcomes:out.length,sources:sources.slice(0,20),generatedAt:new Date().toISOString()};
+}
+
 export async function researchScorecard(days=60){
   const sql=db();
   const rows=await sql`
