@@ -28,7 +28,13 @@ function avg(xs:Array<number|null|undefined>){
 function state(score:number|null){
   return score==null?"unavailable" as const:score>=80?"strong" as const:score>=55?"watch" as const:"weak" as const;
 }
-function directionalBias(score:number|null):InstitutionalDirection{\n  return score==null?"neutral":score>=68?"bullish":score<=38?"bearish":"mixed";\n}\nfunction pb(id:string,label:string,score:number|null,bias:InstitutionalDirection,target:InstitutionalPlaybook["predictiveTarget"],evidence:string[],caveats:string[]=[]):InstitutionalPlaybook{\n  const s=score==null?null:+clamp(score).toFixed(1);\n  return{id,label,score:s,direction:bias,state:state(s),predictiveTarget:target,evidence,caveats,executionEligible:false};\n}
+function directionalBias(score:number|null):InstitutionalDirection{
+  return score==null?"neutral":score>=68?"bullish":score<=38?"bearish":"mixed";
+}
+function pb(id:string,label:string,score:number|null,bias:InstitutionalDirection,target:InstitutionalPlaybook["predictiveTarget"],evidence:string[],caveats:string[]=[]):InstitutionalPlaybook{
+  const s=score==null?null:+clamp(score).toFixed(1);
+  return{id,label,score:s,direction:bias,state:state(s),predictiveTarget:target,evidence,caveats,executionEligible:false};
+}
 
 export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLens{
   const f=ctx.features,mc=ctx.marketContext,ms=ctx.microstructure,opt=ctx.options,nc=ctx.newsContext,nr=ctx.newsReaction;
