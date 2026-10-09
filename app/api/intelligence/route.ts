@@ -17,6 +17,7 @@ export async function GET(){
           (select count(*) from audit_events where event_type='research_subject_observed')::int as research_subjects,
           (select count(*) from audit_events where event_type='expert_view_observed')::int as expert_views,
           (select count(*) from audit_events where event_type='research_subject_outcome')::int as research_outcomes,
+          (select count(*) from audit_events where event_type='expert_view_outcome')::int as expert_outcomes,
           (select max(created_at) from audit_events where event_type='ingestion_run') as last_ingestion,
           (select max(created_at) from audit_events where event_type='calibration_refresh') as last_calibration
       `,
