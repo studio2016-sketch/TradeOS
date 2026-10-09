@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
-import {researchScorecard,expertScorecard} from "../../../lib/research/ledger";
+import {researchScorecard,expertScorecard,institutionalPlaybookScorecard} from "../../../lib/research/ledger";
 
 export const dynamic="force-dynamic";
 
@@ -8,7 +8,7 @@ export async function GET(){
   if(!hasDatabase())return NextResponse.json({status:"database_unconfigured"});
   try{
     const sql=db();
-    const [snapshots,subjects,experts,outcomes,scorecard,expertScores]=await Promise.all([
+    const [snapshots,subjects,experts,outcomes,scorecard,expertScores,playbookScores]=await Promise.all([
       sql`
         select payload,created_at
         from audit_events
@@ -38,7 +38,8 @@ export async function GET(){
         limit 80
       `,
       researchScorecard(90),
-      expertScorecard(90)
+      expertScorecard(90),
+      institutionalPlaybookScorecard(90)
     ]);
     return NextResponse.json({
       status:"ok",
@@ -48,6 +49,7 @@ export async function GET(){
       outcomes,
       scorecard,
       expertScorecard:expertScores,
+      institutionalPlaybookScorecard:playbookScores,
       safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"},
       generatedAt:new Date().toISOString()
     });
