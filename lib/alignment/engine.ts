@@ -20,7 +20,10 @@ export interface AlignmentResult{
   hardSellTriggered:boolean;
   buyState:"NO TRADE"|"WATCH"|"READY"|"HIGH CONVICTION"|"MUST BUY";
   sellState:"HOLD"|"CAUTION"|"REDUCE"|"EXIT BIAS"|"MUST SELL";
-  all100Aligned:boolean;
+  totalGears:number;
+  observedCount:number;
+  all108Aligned:boolean;
+  all100Aligned:boolean; // legacy compatibility: now true only when all primary market gears align
   readings:VariableReading[];
   groups:Array<{group:AlignmentGroup;buyScore:number;sellScore:number;available:number;aligned:number;total:number}>;
 }
@@ -170,6 +173,55 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
       const ch=Number(d?.changePct);
       const s=Number.isFinite(ch)?(ch<=-.25?88:ch<.10?72:ch<.35?55:35):null;
       return [s,"FRED DTWEXBGS","daily",`Broad dollar daily change: ${Number.isFinite(ch)?ch.toFixed(2)+"%":"unknown"}`];
+    }
+    if(label==="Credit-stress condition" && fredLive){
+      const v=Number(ctx.regime?.highYieldSpread?.value);
+      const s=Number.isFinite(v)?(v<3.5?90:v<4.5?75:v<6?52:28):null;
+      return [s,"FRED BAMLH0A0HYM2","daily",Number.isFinite(v)?`High-yield spread ${v.toFixed(2)}%`:"High-yield spread unavailable"];
+    }
+    if(label==="Yield-curve condition" && fredLive){
+      const v=Number(ctx.regime?.curve10y2y?.value);
+      const s=Number.isFinite(v)?(v>=.25?88:v>=0?72:v>=-.5?50:30):null;
+      return [s,"FRED T10Y2Y","daily",Number.isFinite(v)?`10Y-2Y curve ${v.toFixed(2)}%`:"Yield curve unavailable"];
+    }
+    if(label==="Quote freshness quality"){
+      if(!marketSnap)return [null,"Market provider","unavailable","No current quote snapshot"];
+      const age=Number(marketSnap.ageMs);
+      const s=!Number.isFinite(age)?null:age<=15000?95:age<=60000?82:age<=300000?60:35;
+      return [s,marketSnap.source,marketSnap.freshness,Number.isFinite(age)?`Quote age ${Math.round(age/1000)}s`:"Quote age unavailable"];
+    }
+    if(label==="Options skew condition" && ctx.options?.putCallIvSkew!=null){
+      const skew=Math.abs(Number(ctx.options.putCallIvSkew));
+      const s=skew<=.08?88:skew<=.16?74:skew<=.28?58:38;
+      return [s,"Alpaca Options",ctx.options.feed,`Put-call IV skew ${Number(ctx.options.putCallIvSkew).toFixed(3)}`];
+    }
+    if(label==="Quote-depth quality" && marketReady){
+      const bs=Number(marketSnap.bidSize),as=Number(marketSnap.askSize);
+      const total=bs+as;
+      const s=Number.isFinite(total)&&total>0?Math.max(35,Math.min(95,45+Math.log10(Math.max(1,total))*15)):null;
+      return [s,marketSnap.source,marketSnap.freshness,total>0?`Displayed bid+ask size ${Math.round(total)}`:"Displayed quote depth unavailable"];
+    }
+    if(label==="Catalyst recency"){
+      const rows=ctx.catalysts?.catalysts??[];
+      const row=rows.find((x:any)=>x.symbol===symbol)??rows[0];
+      if(!row)return [55,secLive?"SEC EDGAR":"Catalyst engine",secLive?"live authoritative":"unavailable","No recent material filing in the current catalyst window"];
+      const raw=row.filedAt??row.filed_at??row.timestamp??row.date;
+      const t=raw?new Date(raw).getTime():NaN;
+      const ageH=Number.isFinite(t)?Math.max(0,(Date.now()-t)/36e5):null;
+      const s=ageH==null?72:ageH<=24?92:ageH<=72?82:ageH<=168?68:55;
+      return [s,"SEC EDGAR","live authoritative",ageH==null?"Recent catalyst present":`Latest catalyst age ${ageH.toFixed(1)}h`];
+    }
+    if(label==="Buying-power headroom" && ctx.brokerState){
+      const eq=Number(ctx.brokerState.equity??0),bp=Number(ctx.brokerState.buyingPower??0);
+      const ratio=eq>0?bp/eq:null;
+      const s=ratio==null?null:ratio>=2?92:ratio>=1?82:ratio>=.5?68:45;
+      return [s,"Alpaca Trading API","read-only",ratio==null?"Buying-power ratio unavailable":`Buying power is ${ratio.toFixed(2)}x equity`];
+    }
+    if(label==="Cash-reserve condition" && ctx.brokerState){
+      const eq=Number(ctx.brokerState.equity??0),cash=Number(ctx.brokerState.cash??0);
+      const ratio=eq>0?cash/eq:null;
+      const s=ratio==null?null:ratio>=.5?92:ratio>=.25?82:ratio>=.1?68:45;
+      return [s,"Alpaca Trading API","read-only",ratio==null?"Cash-reserve ratio unavailable":`Cash reserve ${(ratio*100).toFixed(1)}% of equity`];
     }
     if(ctx.newsContext){
       const newsMap:Record<string,any>={
@@ -340,11 +392,13 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
   const mixedCount=readings.filter(r=>r.state==="mixed").length;
   const misalignedCount=readings.filter(r=>r.state==="misaligned").length;
   const unavailableCount=readings.filter(r=>r.state==="unavailable").length;
-  const availability=available.length;
+  const observedCount=available.length;
+  const availability=readings.length?+(observedCount/readings.length*100).toFixed(1):0;
 
-  const all100Aligned=alignedCount===100 && unavailableCount===0 && criticalPassed===critical.length;
+  const all108Aligned=alignedCount===readings.length && readings.length===108 && unavailableCount===0 && criticalPassed===critical.length;
+  const all100Aligned=all108Aligned;
   let buyState:AlignmentResult["buyState"]="NO TRADE";
-  if(all100Aligned)buyState="MUST BUY";
+  if(all108Aligned)buyState="MUST BUY";
   else if(availability>=80&&criticalPassed===critical.length&&buyScore>=92)buyState="HIGH CONVICTION";
   else if(availability>=65&&buyScore>=82)buyState="READY";
   else if(availability>=35&&buyScore>=68)buyState="WATCH";
@@ -371,7 +425,8 @@ export function buildAlignment(symbol:string,ctx:Context):AlignmentResult{
     symbol,generatedAt:new Date().toISOString(),
     buyScore:+buyScore.toFixed(1),sellScore:+sellScore.toFixed(1),availability,
     alignedCount,mixedCount,misalignedCount,unavailableCount,
-    criticalPassed,criticalTotal:critical.length,hardSellTriggered,buyState,sellState,all100Aligned,
+    criticalPassed,criticalTotal:critical.length,hardSellTriggered,buyState,sellState,
+    totalGears:readings.length,observedCount,all108Aligned,all100Aligned,
     readings,groups
   };
 }
