@@ -140,3 +140,6 @@
 .movementBuy.fullAlign .gearNode.aligned{background:#f0d56e;box-shadow:0 0 8px #fff,0 0 18px #e5c34f,0 0 28px #fff5}
 .movementBuy.fullAlign .movementHalo{border-color:#e9cc6644;box-shadow:0 0 24px #fff4,inset 0 0 42px #d9ba4d25}
 @keyframes ignitionPulse{from{filter:brightness(.96)}to{filter:brightness(1.12)}}
+
+.proofStrip{display:grid;grid-template-columns:1.05fr 1.5fr;gap:18px;align-items:center;border-color:#d7bd6b2f;background:radial-gradient(circle at 82% 20%,#d6b85e12,transparent 30%),linear-gradient(180deg,#10191d,#0b1216)}.proofStrip h3{margin:5px 0 0}.proofStrip p{grid-column:1/-1;margin:0;font-size:11px;color:#839198}.proofMetrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.proofMetrics span{padding:11px;border-radius:11px;border:1px solid #ffffff10;background:#ffffff04;font-size:9px;letter-spacing:.11em;color:#87959b}.proofMetrics b{display:block;margin-top:5px;font-size:20px;letter-spacing:0;color:#f2f6f7}
+@media(max-width:900px){.proofStrip{grid-template-columns:1fr}.proofMetrics{grid-template-columns:repeat(2,1fr)}}
