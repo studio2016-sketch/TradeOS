@@ -14,6 +14,9 @@ export async function GET(){
           (select count(*) from forecast_outcomes where was_correct is not null)::int as resolved,
           (select count(*) from calibration_buckets)::int as calibration_buckets,
           (select count(*) from audit_events where event_type='catalyst_observed')::int as catalysts,
+          (select count(*) from audit_events where event_type='research_subject_observed')::int as research_subjects,
+          (select count(*) from audit_events where event_type='expert_view_observed')::int as expert_views,
+          (select count(*) from audit_events where event_type='research_subject_outcome')::int as research_outcomes,
           (select max(created_at) from audit_events where event_type='ingestion_run') as last_ingestion,
           (select max(created_at) from audit_events where event_type='calibration_refresh') as last_calibration
       `,
