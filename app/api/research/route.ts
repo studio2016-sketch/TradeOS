@@ -37,7 +37,8 @@ export async function GET(){
         order by created_at desc
         limit 80
       `,
-      researchScorecard(90)
+      researchScorecard(90),
+      expertScorecard(90)
     ]);
     return NextResponse.json({
       status:"ok",
@@ -46,6 +47,7 @@ export async function GET(){
       experts,
       outcomes,
       scorecard,
+      expertScorecard:expertScores,
       safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"},
       generatedAt:new Date().toISOString()
     });
