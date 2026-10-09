@@ -7,6 +7,7 @@ export interface InstitutionalPlaybook{
   state:"strong"|"watch"|"weak"|"unavailable";
   evidence:string[];
   caveats:string[];
+  predictiveTarget:"direction"|"magnitude"|"execution"|"risk";
   executionEligible:false;
 }
 export interface InstitutionalLens{
@@ -27,13 +28,7 @@ function avg(xs:Array<number|null|undefined>){
 function state(score:number|null){
   return score==null?"unavailable" as const:score>=80?"strong" as const:score>=55?"watch" as const:"weak" as const;
 }
-function direction(score:number|null):InstitutionalDirection{
-  return score==null?"neutral":score>=68?"bullish":score<=38?"bearish":"mixed";
-}
-function pb(id:string,label:string,score:number|null,evidence:string[],caveats:string[]=[]):InstitutionalPlaybook{
-  const s=score==null?null:+clamp(score).toFixed(1);
-  return{id,label,score:s,direction:direction(s),state:state(s),evidence,caveats,executionEligible:false};
-}
+function directionalBias(score:number|null):InstitutionalDirection{\n  return score==null?"neutral":score>=68?"bullish":score<=38?"bearish":"mixed";\n}\nfunction pb(id:string,label:string,score:number|null,bias:InstitutionalDirection,target:InstitutionalPlaybook["predictiveTarget"],evidence:string[],caveats:string[]=[]):InstitutionalPlaybook{\n  const s=score==null?null:+clamp(score).toFixed(1);\n  return{id,label,score:s,direction:bias,state:state(s),predictiveTarget:target,evidence,caveats,executionEligible:false};\n}
 
 export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLens{
   const f=ctx.features,mc=ctx.marketContext,ms=ctx.microstructure,opt=ctx.options,nc=ctx.newsContext,nr=ctx.newsReaction;
@@ -53,54 +48,54 @@ export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLe
   const chase=avg([f?.structure?.chaseAvoidanceScore,f?.structure?.entryPrecisionScore,f?.structure?.triggerProximityScore,f?.structure?.rewardRiskScore]);
 
   const playbooks=[
-    pb("vwap-acceptance","VWAP acceptance / reclaim",vwap,[
+    pb("vwap-acceptance","VWAP acceptance / reclaim",vwap,directionalBias(vwap),"direction",[
       `Anchored VWAP ${f?.structure?.anchoredVwapScore??"n/a"}`,
       `Reclaim/hold ${f?.structure?.reclaimHoldScore??"n/a"}`,
       `Confirmation ${f?.structure?.confirmationScore??"n/a"}`
     ],["VWAP is a reference, not intrinsic fair value."]),
-    pb("breakout-acceptance","Breakout acceptance vs trap risk",breakout,[
+    pb("breakout-acceptance","Breakout acceptance vs trap risk",breakout,directionalBias(breakout),"direction",[
       `Breakout quality ${f?.intraday?.breakoutScore??"n/a"}`,
       `Retest ${f?.structure?.retestScore??"n/a"}`,
       `Breakout volume ${f?.intraday?.breakoutVolumeScore??"n/a"}`
     ],["Failed breakouts can reverse quickly; confirmation matters more than the level alone."]),
-    pb("compression-expansion","Volatility compression → expansion",compression,[
+    pb("compression-expansion","Volatility compression → expansion",compression,directionalBias(f?.intraday?.trendScore??null),"magnitude",[
       `Compression score ${f?.intraday?.squeezeScore??"n/a"}`,
       `Volume acceleration ${f?.intraday?.volumeAcceleration??"n/a"}`,
       `Momentum persistence ${f?.intraday?.momentumPersistence??"n/a"}`
     ],["Compression predicts potential expansion, not direction by itself."]),
-    pb("relative-strength-leadership","Relative-strength leadership",leadership,[
+    pb("relative-strength-leadership","Relative-strength leadership",leadership,directionalBias(mc?.sector?.relativeStrengthScore??null),"direction",[
       `Sector-relative strength ${mc?.sector?.relativeStrengthScore??"n/a"}`,
       `Daily trend ${f?.daily?.trendScore??"n/a"}`,
       `20-day symbol ROC ${mc?.sector?.symbolRoc20??"n/a"}%`
     ],["Leadership can mean strength or late-stage crowding; context is required."]),
-    pb("institutional-participation-proxy","Institutional participation proxy",participation,[
+    pb("institutional-participation-proxy","Institutional participation proxy",participation,directionalBias(participation),"direction",[
       `Tape aggression ${ms?.tapeAggressionScore??"n/a"}`,
       `Large-trade participation ${ms?.blockParticipationScore??"n/a"}`,
       `Accumulation proxy ${f?.intraday?.accumulationScore??"n/a"}`
     ],[ms?.feed==="iex"?"IEX-only proxy; not consolidated institutional order flow.":"Trade-size proxies do not identify investor identity."]),
-    pb("liquidity-transaction-cost","Liquidity & transaction-cost quality",liquidity,[
+    pb("liquidity-transaction-cost","Liquidity & transaction-cost quality",liquidity,"neutral","execution",[
       `Relative liquidity ${read("Relative liquidity")??"n/a"}`,
       `Spread quality ${read("Bid-ask spread quality")??"n/a"}`,
       `Quote depth ${read("Quote-depth quality")??"n/a"}`,
       `Options liquidity ${opt?.liquidityScore??"n/a"}`
     ],["Paper fills can look better than real fills; transaction costs must be stress-tested."]),
-    pb("post-event-drift","Post-event drift / information digestion",postEvent,[
+    pb("post-event-drift","Post-event drift / information digestion",postEvent,directionalBias(avg([nr?.reactionScore,nc?.sentimentScore])),"direction",[
       `Headline reaction ${nr?.reactionScore??"n/a"}`,
       `Event asymmetry ${nc?.eventAsymmetryScore??"n/a"}`,
       `Catalyst recency ${read("Catalyst recency")??"n/a"}`
     ],["A price move after news is context, not proof that the headline caused the move."]),
-    pb("cross-asset-confirmation","Cross-asset & breadth confirmation",crossAsset,[
+    pb("cross-asset-confirmation","Cross-asset & breadth confirmation",crossAsset,directionalBias(crossAsset),"direction",[
       `Breadth ${mc?.broad?.breadthScore??"n/a"}`,
       `Market internals ${mc?.broad?.internalsScore??"n/a"}`,
       `Credit stress ${read("Credit-stress condition")??"n/a"}`,
       `Yield curve ${read("Yield-curve condition")??"n/a"}`
     ],["Cross-asset relationships change by regime and should not be treated as permanent laws."]),
-    pb("options-skew-stress","Options skew stress",skew,[
+    pb("options-skew-stress","Options skew stress",skew,opt?.putCallIvSkew==null?"neutral":Number(opt.putCallIvSkew)>.08?"bearish":Number(opt.putCallIvSkew)<-.05?"bullish":"mixed","risk",[
       `Put-call IV skew ${opt?.putCallIvSkew??"n/a"}`,
       `ATM IV ${opt?.atmIv??"n/a"}`,
       `Expected 30d move ${opt?.expectedMovePct30d??"n/a"}%`
     ],[opt?.feed==="indicative"?"Indicative options feed; context only, not execution-quality positioning.":"Skew can reflect hedging demand rather than directional conviction."]),
-    pb("chase-mean-reversion-risk","Chase / mean-reversion risk",chase,[
+    pb("chase-mean-reversion-risk","Chase / mean-reversion risk",chase,"neutral","risk",[
       `Chase avoidance ${f?.structure?.chaseAvoidanceScore??"n/a"}`,
       `Entry precision ${f?.structure?.entryPrecisionScore??"n/a"}`,
       `Trigger proximity ${f?.structure?.triggerProximityScore??"n/a"}`,
