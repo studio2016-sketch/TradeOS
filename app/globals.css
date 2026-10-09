@@ -187,3 +187,6 @@
 @media(max-width:470px){
   .mobileMorePanel{grid-template-columns:repeat(3,1fr)}
 }
+
+.matrixDetails{padding:0;overflow:hidden}.matrixDetails summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:16px;align-items:center;padding:18px 20px}.matrixDetails summary::-webkit-details-marker{display:none}.matrixDetails summary span{display:grid;gap:5px}.matrixDetails summary b{font-size:16px}.matrixDetails summary em{font-style:normal;font-size:11px;color:#8f9da3;padding:7px 9px;border-radius:999px;background:#ffffff05;border:1px solid #ffffff10}.matrixDetails[open] summary{border-bottom:1px solid #ffffff0d}.matrixDetails .variableGrid,.matrixDetails>p{margin-left:20px;margin-right:20px}.matrixDetails .variableGrid{margin-top:18px}.matrixDetails>p{margin-bottom:20px}
+@media(max-width:600px){.matrixDetails summary{align-items:flex-start}.matrixDetails summary b{font-size:14px}.matrixDetails summary em{white-space:nowrap}}
