@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
-import {researchScorecard} from "../../../lib/research/ledger";
+import {researchScorecard,expertScorecard} from "../../../lib/research/ledger";
 
 export const dynamic="force-dynamic";
 
@@ -8,7 +8,7 @@ export async function GET(){
   if(!hasDatabase())return NextResponse.json({status:"database_unconfigured"});
   try{
     const sql=db();
-    const [snapshots,subjects,experts,outcomes,scorecard]=await Promise.all([
+    const [snapshots,subjects,experts,outcomes,scorecard,expertScores]=await Promise.all([
       sql`
         select payload,created_at
         from audit_events
