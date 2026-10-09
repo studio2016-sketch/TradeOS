@@ -44,13 +44,13 @@ function signedReturn(direction:string,raw:number){
 async function outcomeFor(symbol:string,start:Date,days:number){
   const from=new Date(start.getTime()-2*DAY).toISOString();
   const to=new Date(start.getTime()+(days+5)*DAY).toISOString();
-  const bars=await historicalBars(symbol,"1Day",from,60,"sip",undefined,to).catch(()=>[]);
+  const bars=await historicalBars(symbol,"1Day",from,60,"sip",to).catch(()=>[]);
   const eligible=bars.filter(b=>new Date(b.t).getTime()>=start.getTime());
   if(eligible.length<2)return null;
   const first=eligible[0];
   const targetTime=start.getTime()+days*DAY;
   const post=eligible.find(b=>new Date(b.t).getTime()>=targetTime)??eligible[eligible.length-1];
-  if(new Date(post.t).getTime()<targetTime*.999)return null;
+  if(new Date(post.t).getTime()<targetTime)return null;
   const raw=first.c?((post.c-first.c)/first.c)*100:null;
   if(raw==null)return null;
   const path=eligible.filter(b=>new Date(b.t).getTime()<=new Date(post.t).getTime());
@@ -110,7 +110,7 @@ export async function researchScorecard(days=60){
     select payload
     from audit_events
     where event_type='research_subject_outcome'
-      and created_at>=now()-(${String(days)}||' days')::interval
+      and created_at>=now()-(${days} * interval '1 day')
     order by created_at desc
     limit 3000
   ` as any[];
