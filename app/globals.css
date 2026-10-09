@@ -105,3 +105,15 @@
   .blockers b{font-size:15px}
   .blockers small{font-size:9px;line-height:1.35}
 }
+
+/* TradeOS premium provenance + contextual intelligence */
+.provenanceStrip{display:grid;grid-template-columns:.85fr 2fr;gap:18px;align-items:center;border-color:#ffffff16;background:radial-gradient(circle at 12% 18%,#17312f44,transparent 34%),linear-gradient(180deg,#10191d,#0b1216)}
+.provenanceStrip h3{margin:5px 0 0}.provenanceStrip p{grid-column:1/-1;margin:0;font-size:11px;color:#7f8d93}
+.provenanceBadges{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.provenanceBadges span{display:grid;gap:4px;padding:10px 11px;border-radius:11px;border:1px solid #ffffff10;background:#ffffff05;font-size:9px;font-weight:900;letter-spacing:.12em}.provenanceBadges b{font-size:10px;letter-spacing:0;color:#dfe7ea}.provenanceBadges .live{border-color:#59e4c644}.provenanceBadges .official{border-color:#83a8ff44}.provenanceBadges .derived{border-color:#d5b76544}.provenanceBadges .paper{border-color:#b18cff44}.provenanceBadges .historical{border-color:#ffffff24}
+.askPrompts{position:fixed;left:250px;right:30px;bottom:76px;z-index:34;display:flex;gap:7px;justify-content:flex-end;pointer-events:none}.askPrompts button{pointer-events:auto;border:1px solid #ffffff14;background:#0d171bd9;color:#aab7bc;border-radius:999px;padding:7px 10px;font-size:10px;backdrop-filter:blur(16px)}.askPrompts button:hover{color:#fff;border-color:#59e4c655}
+@media(max-width:900px){.provenanceStrip{grid-template-columns:1fr}.provenanceBadges{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){
+  .provenanceBadges{display:flex;overflow-x:auto;padding-bottom:3px;scrollbar-width:none}.provenanceBadges::-webkit-scrollbar{display:none}.provenanceBadges span{min-width:120px}
+  .askPrompts{left:10px;right:10px;bottom:calc(145px + env(safe-area-inset-bottom));justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.askPrompts::-webkit-scrollbar{display:none}.askPrompts button{white-space:nowrap}
+  .sidebar nav{justify-content:flex-start;overflow-x:auto;scrollbar-width:none;padding:0 4px}.sidebar nav::-webkit-scrollbar{display:none}.sidebar nav button{min-width:64px;flex:0 0 64px}
+}
