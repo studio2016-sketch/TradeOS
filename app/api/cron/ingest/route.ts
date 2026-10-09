@@ -13,6 +13,7 @@ import {configuredSourceHealth} from "../../../../lib/market/providers";
 import {buildAlignment} from "../../../../lib/alignment/engine";
 import {globalEventRisk} from "../../../../lib/market/globalRisk";
 import {evaluateSupervisors} from "../../../../lib/alignment/supervisors";
+import {evaluateAdaptiveIntelligence} from "../../../../lib/alignment/adaptive";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
 import {macroRiskContext} from "../../../../lib/market/bls";
 import {featureSet} from "../../../../lib/market/features";
@@ -103,12 +104,26 @@ export async function GET(req:Request){
     const regimeRaw=await latestRegimeContext().catch(()=>null);
     const macro=await macroRiskContext().catch(()=>null);
     const regime=regimeRaw?{mode:regimeRaw.usableCount>0?"official_daily":"unavailable",...regimeRaw}:null;
-    const calibrationRows=await sql`
-      select count(*)::int as sample_count,
-             avg(brier_score)::float as avg_brier
-      from calibration_buckets
-    `;
+    const [calibrationRows,intelligenceCore,modelRows]=await Promise.all([
+      sql`
+        select count(*)::int as sample_count,
+               avg(brier_score)::float as avg_brier
+        from calibration_buckets
+      `,
+      sql`
+        select
+          (select count(*) from forecast_ledger)::int as forecasts,
+          (select count(*) from forecast_outcomes where was_correct is not null)::int as resolved
+      `,
+      sql`
+        select model_version,strategy,regime,sample_count,win_rate,brier_score,drift_score,status,updated_at
+        from model_scorecards
+        order by sample_count desc,updated_at desc
+        limit 12
+      `
+    ]);
     const calibration={sampleCount:Number((calibrationRows as any[])[0]?.sample_count??0),confidenceMultiplier:.65};
+    const intelligence={core:(intelligenceCore as any[])[0]??{},models:modelRows};
     const marketContext={mode:market.provider?"provider_data":"unconfigured",...market};
     const governor=await globalEventRisk(market.snapshots,watchlist).catch(()=>null);
     if(governor){
@@ -131,17 +146,26 @@ export async function GET(req:Request){
         newsContext,
         reactions,
         microstructure,
-        issuer
+        newsReaction,
+        issuer,
+        brokerState
       });
       const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
+      const adaptive=evaluateAdaptiveIntelligence(baseAlignment,supervisors,{calibration,intelligence});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
       if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
+      const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
+      if(adaptiveHardBlock&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
+      const allAdaptiveAligned=adaptive.observedCount===12&&adaptive.alignedCount===12;
+      if(finalBuy==="MUST BUY"&&!allAdaptiveAligned)finalBuy=adaptive.availability>=75&&adaptive.score>=80?"HIGH CONVICTION":adaptive.score>=65?"READY":"WATCH";
+      if(finalBuy==="HIGH CONVICTION"&&(adaptive.availability<50||adaptive.score<65))finalBuy="READY";
+      if(finalBuy==="READY"&&adaptive.score<55)finalBuy="WATCH";
       let finalSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&baseAlignment.sellState==="HOLD"?"CAUTION":baseAlignment.sellState;
       if(supervisors.sellEscalation>=30&&finalSell==="HOLD")finalSell="CAUTION";
-      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,optionSurface,features,marketContext,newsContext,reactions,microstructure,issuer};
+      const alignment={...baseAlignment,buyState:finalBuy,sellState:finalSell,rawBuyState:baseAlignment.buyState,rawSellState:baseAlignment.sellState,governor,supervisors,adaptive,canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:baseAlignment.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:baseAlignment.observedCount+adaptive.observedCount,availability:+((baseAlignment.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(baseAlignment.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer};
       await sql`
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
-        values('alignment_snapshot','symbol',${symbol},'swiss-movement-v1',${JSON.stringify(alignment)}::jsonb)
+        values('alignment_snapshot','symbol',${symbol},'swiss-movement-v2-120',${JSON.stringify(alignment)}::jsonb)
       `;
       results.alignments++;
     }
