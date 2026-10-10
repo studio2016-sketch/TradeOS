@@ -2,6 +2,8 @@ import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {hasDatabase} from "../../../../lib/db";
 import {DEFAULT_RESEARCH_UNIVERSE,discoverResearchSubjects} from "../../../../lib/research/subjectDiscovery";
+import {freeOfficialSnapshot} from "../../../../lib/market/freeOfficial";
+import {db} from "../../../../lib/db";
 import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard,resolveExpertViews,expertScorecard,resolveInstitutionalPlaybooks,institutionalPlaybookScorecard} from "../../../../lib/research/ledger";
 
 export const dynamic="force-dynamic";
@@ -16,11 +18,19 @@ export async function GET(req:Request){
   const symbols=universe.filter((_,i)=>i%buckets===bucket);
   const startedAt=new Date().toISOString();
   const errors:any[]=[];
-  let snapshot:any=null,persisted:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null;
+  let snapshot:any=null,persisted:any=null,official:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null;
   try{
     snapshot=await discoverResearchSubjects(symbols);
     persisted=await persistResearchSnapshot({...snapshot,researchUniverseSize:universe.length,bucket,buckets});
   }catch(error){errors.push({stage:"discovery",error:error instanceof Error?error.message:String(error)});}
+  try{
+    official=await freeOfficialSnapshot(symbols);
+    const sql=db();
+    await sql`
+      insert into audit_events(event_type,entity_type,model_version,payload)
+      values('official_source_snapshot','system','free-official-v1',${JSON.stringify({bucket,buckets,symbols,...official})}::jsonb)
+    `;
+  }catch(error){errors.push({stage:"official-sources",error:error instanceof Error?error.message:String(error)});}
   try{resolution=await resolveResearchSubjects(18);}catch(error){errors.push({stage:"resolution",error:error instanceof Error?error.message:String(error)});}
   try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}
   try{playbookResolution=await resolveInstitutionalPlaybooks(36);}catch(error){errors.push({stage:"playbook-resolution",error:error instanceof Error?error.message:String(error)});}
@@ -36,7 +46,7 @@ export async function GET(req:Request){
       global:snapshot.geography?.globalItems?.length??0,
       localConfigured:Boolean(snapshot.geography?.configuredLocalTerms?.length)
     }}:null,
-    persisted,resolution,expertResolution,playbookResolution,scorecard,expertScores,playbookScores,errors,
+    persisted,official:official?{live:official.live,degraded:official.degraded,unconfigured:official.unconfigured,sources:official.sources.map((s:any)=>({id:s.id,status:s.status,error:s.error??null}))}:null,resolution,expertResolution,playbookResolution,scorecard,expertScores,playbookScores,errors,
     safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"}
   });
 }
