@@ -51,20 +51,27 @@ async function finraPost(dataset:string,body:any){
 export async function finraEquityContext(symbols:string[]):Promise<OfficialSourceResult>{
   try{
     const clean=[...new Set(symbols.map(s=>s.toUpperCase()).filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)))].slice(0,20);
+    const iso=(d:Date)=>d.toISOString().slice(0,10);
+    const regStart=iso(new Date(Date.now()-14*86400000));
+    const siStart=iso(new Date(Date.now()-75*86400000));
     const [regSho,shortInterest]=await Promise.all([
       finraPost("regShoDaily",{
-        limit:500,
+        limit:5000,
         fields:["tradeReportDate","securitiesInformationProcessorSymbolIdentifier","shortParQuantity","shortExemptParQuantity","totalParQuantity","reportingFacilityCode"],
+        compareFilters:[{compareType:"GREATER",fieldName:"tradeReportDate",fieldValue:regStart}],
         domainFilters:clean.length?[{fieldName:"securitiesInformationProcessorSymbolIdentifier",values:clean}]:undefined
       }).catch(()=>[]),
       finraPost("consolidatedShortInterest",{
-        limit:250,
+        limit:1000,
         fields:["settlementDate","symbolCode","currentShortPositionQuantity","previousShortPositionQuantity","averageDailyVolumeQuantity","daysToCoverQuantity","changePercent"],
+        compareFilters:[{compareType:"GREATER",fieldName:"settlementDate",fieldValue:siStart}],
         domainFilters:clean.length?[{fieldName:"symbolCode",values:clean}]:undefined
       }).catch(()=>[])
     ]);
+    const newestRegDate=regSho.reduce((m:string,r:any)=>String(r.tradeReportDate||"")>m?String(r.tradeReportDate):m,"");
+    const latestReg=regSho.filter((r:any)=>String(r.tradeReportDate||"")===newestRegDate);
     const regBy=new Map<string,any[]>();
-    for(const r of regSho){const s=String(r.securitiesInformationProcessorSymbolIdentifier||"");regBy.set(s,[...(regBy.get(s)||[]),r]);}
+    for(const r of latestReg){const s=String(r.securitiesInformationProcessorSymbolIdentifier||"");regBy.set(s,[...(regBy.get(s)||[]),r]);}
     const out=clean.map(symbol=>{
       const rr=regBy.get(symbol)||[];
       const short=rr.reduce((a,r)=>a+(n(r.shortParQuantity)||0),0);
@@ -77,7 +84,7 @@ export async function finraEquityContext(symbols:string[]):Promise<OfficialSourc
         shortInterest:si?{settlementDate:si.settlementDate,current:n(si.currentShortPositionQuantity),previous:n(si.previousShortPositionQuantity),daysToCover:n(si.daysToCoverQuantity),changePercent:n(si.changePercent)}:null
       };
     });
-    const usable=regSho.length||shortInterest.length;
+    const usable=latestReg.length||shortInterest.length;
     return{id:"finra",label:"FINRA Reg SHO + Consolidated Short Interest",status:usable?"live":"degraded",authoritative:true,generatedAt:now(),data:out,note:"Official off-exchange short-sale volume and consolidated short-interest context."};
   }catch(error){return{id:"finra",label:"FINRA Reg SHO + Consolidated Short Interest",status:"degraded",authoritative:true,generatedAt:now(),data:[],note:"Official FINRA equity transparency feed.",error:error instanceof Error?error.message:String(error)}}
 }
