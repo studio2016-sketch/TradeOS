@@ -78,6 +78,8 @@ export async function GET(req:Request){
     brokerRead:brokerReadStatus(),
     humanChecks:{tradeCountOk,tiltOk},
     macro,
-    disclaimer:"MUST BUY / MUST SELL are TradeOS state labels for maximum alignment or capital-protection conditions, not guarantees or personalized investment advice."
+    executionAuthorization:{allowed:false,mode:"research_only",reason:"No validated independent out-of-sample evidence or user authorization to execute live trades."},
+    interpretation:{buy:governedBuy==="MUST BUY"?"Exceptional indicator alignment — research only":governedBuy==="HIGH CONVICTION"?"Strong research candidate":governedBuy==="READY"?"Candidate for manual review":"No trading authorization",sell:governedSell==="MUST SELL"?"Elevated capital-risk review required":"Monitor downside risk"},
+    disclaimer:"Alignment is not a probability of profit. MUST BUY / MUST SELL are internal legacy state labels only; live trading is disabled."
   });
 }
