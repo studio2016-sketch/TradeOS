@@ -1,8 +1,10 @@
 import {NextResponse} from "next/server";
+import {authorizeIngest} from "../../../lib/security";
 import {fredVintageContext,beaContext,eiaContext} from "../../../lib/market/freeOfficial";
 import {bestSnapshots} from "../../../lib/market/live";
 export const dynamic="force-dynamic";
-export async function GET(){
+export async function GET(req:Request){
+ if(!authorizeIngest(req))return NextResponse.json({error:"unauthorized",message:"Provider verification requires an authorized operator token."},{status:401});
  const started=Date.now();
  const ids=["fred","bea","eia","massive","alpaca"];
  const status:Record<string,any>={};
