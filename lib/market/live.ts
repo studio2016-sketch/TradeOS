@@ -23,7 +23,7 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
     const updated=nsToMs(Number(x.updated??0));
     return {
       symbol:String(x.ticker),
-      timestamp:new Date(updated||Date.now()).toISOString(),
+      timestamp:updated>0?new Date(updated).toISOString():"",
       price:Number(x.lastTrade?.p??x.min?.c??x.day?.c??0),
       volume:Number(x.day?.v??0),
       vwap:x.day?.vw==null?undefined:Number(x.day.vw),
@@ -55,7 +55,7 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
   const bars=(await barsRes.json() as any).bars??{};
   return clean.map(symbol=>{
     const q=quotes[symbol], b=bars[symbol];
-    const ts=q?.t??b?.t??new Date().toISOString();
+    const ts=q?.t??b?.t??"";
     const bid=q?.bp==null?undefined:Number(q.bp), ask=q?.ap==null?undefined:Number(q.ap), bidSize=q?.bs==null?undefined:Number(q.bs), askSize=q?.as==null?undefined:Number(q.as);
     return {
       symbol,
