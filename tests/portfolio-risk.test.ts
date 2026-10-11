@@ -1,0 +1,10 @@
+import {evaluatePaperRisk} from "../lib/paper/portfolioRisk";
+import assert from "node:assert/strict";
+import test from "node:test";
+const input={equity:10000,cash:5000,dailyRealizedPnl:0,positions:[{symbol:"AAA",sector:"Technology",marketValue:1000}],candidate:{symbol:"BBB",sector:"Technology",notional:500,plannedRisk:30},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}};
+test("allows within risk budgets",()=>assert.equal(evaluatePaperRisk(input).allowed,true));
+test("blocks excessive symbol exposure",()=>assert.ok(evaluatePaperRisk({...input,candidate:{...input.candidate,notional:2000}}).blockers.includes("Per-symbol position cap exceeded")));
+test("blocks daily loss breach",()=>assert.ok(evaluatePaperRisk({...input,dailyRealizedPnl:-100}).blockers.includes("Daily maximum loss already reached")));
+test("blocks sector concentration",()=>assert.ok(evaluatePaperRisk({...input,limits:{...input.limits,maxSectorPct:12}}).blockers.includes("Sector exposure cap exceeded")));
+test("blocks insufficient cash",()=>assert.ok(evaluatePaperRisk({...input,cash:100}).blockers.includes("Insufficient simulated available cash")));
+test("rejects malformed input",()=>assert.equal(evaluatePaperRisk({...input,equity:NaN}).allowed,false));
