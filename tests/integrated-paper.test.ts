@@ -1,0 +1,11 @@
+import {evaluatePaperCandidate} from "../lib/paper/integrated";
+import assert from "node:assert/strict";
+import test from "node:test";
+const now=Date.parse("2026-10-11T16:00:00Z");
+const order={side:"buy" as const,symbol:"SPY",quantity:5,limitPrice:100,stopPrice:98,targetPrice:104,maxRisk:20};
+const quote={symbol:"SPY",bid:99.98,ask:100,observedAt:"2026-10-11T15:59:40Z",source:"SYNTHETIC_TEST"};
+const portfolio={equity:10000,cash:10000,dailyRealizedPnl:0,positions:[],candidate:{symbol:"SPY",sector:"ETF",notional:500,plannedRisk:10},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}};
+test("integrated happy path returns simulation only",()=>assert.equal(evaluatePaperCandidate(order,quote,portfolio,now).status,"simulated_fill"));
+test("blocks mismatched portfolio notional",()=>assert.equal(evaluatePaperCandidate(order,quote,{...portfolio,candidate:{...portfolio.candidate,notional:100}},now).status,"blocked"));
+test("risk failure short circuits execution",()=>assert.equal(evaluatePaperCandidate(order,quote,{...portfolio,cash:0},now).execution,null));
+test("stale quote never simulates fill",()=>assert.equal(evaluatePaperCandidate(order,{...quote,observedAt:"2026-10-11T15:50:00Z"},portfolio,now).status,"blocked"));
