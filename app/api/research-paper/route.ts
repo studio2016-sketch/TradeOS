@@ -20,7 +20,7 @@ export async function GET(req:Request){
   const price=validQuote?Number(ask):null;
   const order={side:"buy" as const,symbol,quantity:1,limitPrice:price??1,stopPrice:price?+(price*.98).toFixed(4):0.98,targetPrice:price?+(price*1.04).toFixed(4):1.04,maxRisk:100};
   const portfolio={equity:10000,cash:10000,dailyRealizedPnl:0,positions:[],candidate:{symbol,sector:"Unclassified",notional:order.limitPrice,plannedRisk:order.limitPrice-order.stopPrice},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}};
-  const result=researchToPaper({alignment:a,quote:validQuote?{symbol,bid,ask,observedAt:s.timestamp,source:String(s.source||m.provider)}:null,order,portfolio,marketAgeMs:validQuote?age:null,dataProvenance:validQuote?"verified_observation":"unverified"});
+  const result=researchToPaper({alignment:a,quote:validQuote&&s?{symbol,bid:Number(bid),ask:Number(ask),observedAt:s.timestamp,source:String(s.source||m?.provider)}:null,order,portfolio,marketAgeMs:validQuote?age:null,dataProvenance:validQuote?"verified_observation":"unverified"});
   return NextResponse.json({symbol,generatedAt:new Date().toISOString(),source:m?.provider||null,quoteTime:s?.timestamp||null,quoteVerifiedForSimulation:validQuote,decision:result,warning:"Research-only diagnostic with illustrative one-share risk assumptions. Quote recency alone does not establish official real-time entitlement or validated predictive performance."},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"unavailable",message:"Research assessment failed closed"},{status:503});}
 }
