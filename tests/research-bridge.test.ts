@@ -1,0 +1,10 @@
+import {researchToPaper} from "../lib/paper/researchBridge";
+import assert from "node:assert/strict";
+import test from "node:test";
+const now=Date.parse("2026-10-11T16:00:00Z");
+const sample={alignment:{buyState:"READY",canonical:{availability:80},supervisors:{buyVeto:false}},dataProvenance:"verified_observation" as const,marketAgeMs:10000,quote:{symbol:"SPY",bid:99.99,ask:100,observedAt:"2026-10-11T15:59:50Z",source:"TEST"},order:{side:"buy" as const,symbol:"SPY",quantity:2,limitPrice:100,stopPrice:98,targetPrice:104,maxRisk:10},portfolio:{equity:10000,cash:10000,dailyRealizedPnl:0,positions:[],candidate:{symbol:"SPY",sector:"ETF",notional:200,plannedRisk:4},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}}};
+test("alignment through execution produces paper simulation only",()=>{const r=researchToPaper(sample,now);assert.equal(r.status,"paper_simulated");assert.equal(r.liveAuthorized,false);});
+test("synthetic evidence cannot pass research bridge",()=>assert.equal(researchToPaper({...sample,dataProvenance:"synthetic"},now).status,"research_blocked"));
+test("alignment veto blocks simulation",()=>assert.equal(researchToPaper({...sample,alignment:{...sample.alignment,supervisors:{buyVeto:true}}},now).status,"research_blocked"));
+test("missing factor coverage blocks simulation",()=>assert.equal(researchToPaper({...sample,alignment:{...sample.alignment,canonical:{availability:40}}},now).status,"research_blocked"));
+test("expired observations block simulation",()=>assert.equal(researchToPaper({...sample,marketAgeMs:61000},now).status,"research_blocked"));
