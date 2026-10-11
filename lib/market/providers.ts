@@ -19,6 +19,6 @@ export function configuredSourceHealth():SourceHealth[]{
   const configured=p.id==="alpaca"?Boolean(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET):p.env?Boolean(process.env[p.env]):false;
   const publicAvailable=!p.env;
   const adapterActive=["sec","fred","macro","cftc","finra","treasury","bls-data","cboe"].includes(p.id);
-  return{id:p.id,label:p.label,state:configured?"live":adapterActive?"live":publicAvailable?"available":"unconfigured",quality:configured?85:adapterActive?90:publicAvailable?70:0,authoritative:["sec","cboe","fred","macro","cftc","finra","treasury","bls-data","alfred","bea","eia"].includes(p.id),note:configured?p.role:adapterActive?p.role:publicAvailable?"Public source available; live adapter not yet activated":"Credential required before live ingestion"};
+  return{id:p.id,label:p.label,state:configured?"available":adapterActive?"available":publicAvailable?"available":"unconfigured",quality:configured?85:adapterActive?90:publicAvailable?70:0,authoritative:["sec","cboe","fred","macro","cftc","finra","treasury","bls-data","alfred","bea","eia"].includes(p.id),note:configured?"Credentials configured; upstream response and freshness not verified. "+p.role:adapterActive?"Public adapter implemented; latest response not verified. "+p.role:publicAvailable?"Public source available; live adapter not yet activated":"Credential required before ingestion"};
  });
 }
