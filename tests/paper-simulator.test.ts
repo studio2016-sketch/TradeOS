@@ -1,0 +1,12 @@
+import {simulatePaperBuy} from "../lib/paper/simulator";
+import assert from "node:assert/strict";
+import test from "node:test";
+const now=Date.parse("2026-10-11T16:00:00Z");
+const quote={symbol:"SPY",bid:99.98,ask:100,observedAt:"2026-10-11T15:59:45Z",source:"synthetic_test"};
+const order={side:"buy" as const,symbol:"SPY",quantity:10,limitPrice:100.1,stopPrice:98,targetPrice:104,maxRisk:25};
+test("uses ask rather than midpoint for buy fill",()=>{const r=simulatePaperBuy(order,quote,now);assert.equal(r.status,"filled");assert.equal(r.fillPrice,100);assert.ok(r.estimatedSpreadCost>0);});
+test("rejects stale quote",()=>assert.equal(simulatePaperBuy(order,{...quote,observedAt:"2026-10-11T15:56:00Z"},now).status,"rejected"));
+test("rejects inverted quotes",()=>assert.equal(simulatePaperBuy(order,{...quote,bid:101},now).status,"rejected"));
+test("rejects insufficient risk budget",()=>assert.equal(simulatePaperBuy({...order,maxRisk:1},quote,now).status,"rejected"));
+test("limit order does not fill above limit",()=>assert.equal(simulatePaperBuy({...order,limitPrice:99.99},quote,now).status,"unfilled"));
+test("requires quote",()=>assert.equal(simulatePaperBuy(order,null,now).status,"rejected"));
