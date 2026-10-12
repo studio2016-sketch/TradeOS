@@ -10,9 +10,9 @@ export async function GET(req:Request){
     const now=Date.now();
     const snapshots=result.snapshots.map(s=>({
       ...s,
-      ageMs:Math.max(0,now-new Date(s.timestamp).getTime()),
-      freshness:new Date(s.timestamp).getTime()>0
-        ? (now-new Date(s.timestamp).getTime()<5000?"live":now-new Date(s.timestamp).getTime()<20*60*1000?"delayed":"stale")
+      ageMs:Number.isFinite(Date.parse(s.timestamp))?now-Date.parse(s.timestamp):null,
+      freshness:Number.isFinite(Date.parse(s.timestamp))&&Date.parse(s.timestamp)<=now
+        ? (now-Date.parse(s.timestamp)<60*1000?"recent_observation":now-Date.parse(s.timestamp)<20*60*1000?"delayed_observation":"stale")
         : "unknown"
     }));
     return NextResponse.json({
