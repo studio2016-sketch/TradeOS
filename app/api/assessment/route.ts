@@ -15,11 +15,7 @@ export async function GET(){
      generatedAt:new Date().toISOString()
    });
  }
- const evidence:Evidence[]=[
-  {id:"trend",label:"Trend structure",value:78,direction:"bullish",quality:.94,freshness:.98,independence:.9,sourceIds:["demo"],explanation:"Illustrative trend evidence used only until enough real observations exist."},
-  {id:"breadth",label:"Market breadth",value:61,direction:"bullish",quality:.88,freshness:.96,independence:.85,sourceIds:["demo"],explanation:"Illustrative breadth evidence used only until enough real observations exist."},
-  {id:"vol",label:"Volatility structure",value:54,direction:"neutral",quality:.7,freshness:.8,independence:.95,sourceIds:["demo"],explanation:"Illustrative volatility context; no live volatility feed is connected yet."}
- ];
+ const evidence:Evidence[]=[];
  const fallback=assess(evidence);
- return NextResponse.json({mode:"fallback_demo",assessment:{...fallback,confidence:0,uncertainty:100,decision:"pass",warnings:[...fallback.warnings,"No live intraday market feed is connected; fallback evidence is non-actionable."]},sources:configuredSourceHealth(),generatedAt:new Date().toISOString()});
+ return NextResponse.json({mode:"unavailable",assessment:{...fallback,confidence:0,uncertainty:100,decision:"pass",warnings:[...fallback.warnings,"Independent measured evidence unavailable; assessment remains PASS."]},sources:configuredSourceHealth(),generatedAt:new Date().toISOString()});
 }
