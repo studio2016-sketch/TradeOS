@@ -4,7 +4,7 @@ export const dynamic="force-dynamic";
 export async function GET(req:Request){
   const u=new URL(req.url);
   const symbol=(u.searchParams.get("symbol")||"NVDA").toUpperCase();
-  const minutes=Math.max(60,Math.min(4320,Number(u.searchParams.get("minutes")||1440)));
+  const minutes=Math.max(60,Math.min(10080,Number(u.searchParams.get("minutes")||10080)));
   const end=new Date();
   const start=new Date(end.getTime()-minutes*60_000);
   try{
