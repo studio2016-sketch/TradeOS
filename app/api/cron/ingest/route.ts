@@ -60,6 +60,7 @@ export async function GET(req:Request){
     market=await bestSnapshots(watchlist);
     for(const s of market.snapshots){
       const eventTime=new Date(s.timestamp);
+      if(!Number.isFinite(eventTime.getTime())||eventTime.getTime()>Date.now()+60000||!Number.isFinite(s.price)||s.price<=0){results.errors.push({source:"market",symbol:s.symbol,error:"Invalid price or source timestamp — skipped"});continue;}
       const ageMs=Math.max(0,Date.now()-eventTime.getTime());
       const freshness=Math.max(0,Math.min(1,1-ageMs/(20*60*1000)));
       await sql`
@@ -101,7 +102,7 @@ export async function GET(req:Request){
     const observed=await observedMarketEvidence();
     const assessmentData=observed
       ? {mode:"observed_market_data",assessment:assess(observed.evidence),sources:configuredSourceHealth()}
-      : {mode:"fallback_demo",assessment:null,sources:configuredSourceHealth()};
+      : {mode:"unavailable",assessment:null,sources:configuredSourceHealth()};
     const regimeRaw=await latestRegimeContext().catch(()=>null);
     const macro=await macroRiskContext().catch(()=>null);
     const regime=regimeRaw?{mode:regimeRaw.usableCount>0?"official_daily":"unavailable",...regimeRaw}:null;
