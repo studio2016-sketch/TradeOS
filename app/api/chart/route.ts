@@ -1,0 +1,26 @@
+import {NextResponse} from "next/server";
+import {historicalBars} from "../../../lib/market/features";
+export const dynamic="force-dynamic";
+export async function GET(req:Request){
+  const u=new URL(req.url);
+  const symbol=(u.searchParams.get("symbol")||"NVDA").toUpperCase();
+  const minutes=Math.max(60,Math.min(4320,Number(u.searchParams.get("minutes")||1440)));
+  const end=new Date();
+  const start=new Date(end.getTime()-minutes*60_000);
+  try{
+    const bars=await historicalBars(symbol,"5Min",start.toISOString(),1000,process.env.ALPACA_FEED||"iex");
+    const points=bars.slice(-180).map(b=>({t:b.t,o:b.o,h:b.h,l:b.l,c:b.c,v:b.v,vw:b.vw??null}));
+    const last=points[points.length-1]??null;
+    const ageMs=last?Math.max(0,Date.now()-new Date(last.t).getTime()):null;
+    return NextResponse.json({
+      symbol,mode:points.length?"provider_history":"unavailable",
+      source:"Alpaca:"+(process.env.ALPACA_FEED||"iex"),
+      coverage:(process.env.ALPACA_FEED||"iex")==="iex"?"IEX only":"Configured feed",
+      points,lastUpdated:last?.t??null,ageMs,
+      freshness:ageMs==null?"unavailable":ageMs<120000?"live":ageMs<1200000?"delayed":"stale",
+      generatedAt:new Date().toISOString()
+    });
+  }catch(error){
+    return NextResponse.json({symbol,mode:"degraded",points:[],error:error instanceof Error?error.message:String(error),generatedAt:new Date().toISOString()},{status:502});
+  }
+}
