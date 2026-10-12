@@ -31,7 +31,7 @@ export default function Home(){const[active,setActive]=useState("Today");const[g
       fetch("/api/alignment?symbol=AMD",{cache:"no-store"}).then(r=>r.json()).then(d=>alive&&setLiveAlignments((x:any)=>({...x,AMD:d}))),
       fetch("/api/alignment?symbol=PLTR",{cache:"no-store"}).then(r=>r.json()).then(d=>alive&&setLiveAlignments((x:any)=>({...x,PLTR:d}))),
       fetch("/api/health",{cache:"no-store"}).then(r=>r.json()).then(d=>alive&&setHealthData(d)),
-      fetch("/api/chart?symbol="+encodeURIComponent(sym)+"&minutes=1440",{cache:"no-store"}).then(r=>r.json()).then(d=>alive&&setChartData(d))
+      fetch("/api/chart?symbol="+encodeURIComponent(sym)+"&minutes=10080",{cache:"no-store"}).then(r=>r.json()).then(d=>alive&&setChartData(d))
     ]);
     if(alive){setLoaded(true);setRefreshing(false);setLastRefresh(new Date().toISOString())}
   };
