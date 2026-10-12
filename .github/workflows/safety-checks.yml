@@ -17,6 +17,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npx --yes tsx --test tests/*.test.ts
+      - run: node scripts/check-no-demo-ui.mjs
       - run: npx tsc --noEmit
       - run: npm run build
         env:
