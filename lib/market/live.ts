@@ -103,3 +103,22 @@ export async function bestSnapshots(symbols:string[]){
   const providers=[...new Set(snapshots.map(s=>s.source.split(":")[0]))];
   return {provider:providers.length===0?null:providers.length===1?providers[0]:"Mixed",snapshots,attempts};
 }
+
+export async function alpacaMarketClock(){
+  const key=process.env.ALPACA_API_KEY;
+  const secret=process.env.ALPACA_API_SECRET;
+  if(!key||!secret)return null;
+  const env=process.env.ALPACA_TRADING_ENV==="live"?"live":"paper";
+  const base=env==="live"?"https://api.alpaca.markets":"https://paper-api.alpaca.markets";
+  const res=await fetch(base+"/v2/clock",{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret,"Accept":"application/json"},cache:"no-store"});
+  if(!res.ok)throw new Error(`Alpaca clock HTTP ${res.status}`);
+  const j=await res.json() as any;
+  return{
+    source:"Alpaca Market Clock",
+    environment:env,
+    timestamp:String(j.timestamp??new Date().toISOString()),
+    isOpen:Boolean(j.is_open),
+    nextOpen:String(j.next_open??""),
+    nextClose:String(j.next_close??"")
+  };
+}
