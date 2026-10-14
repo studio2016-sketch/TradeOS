@@ -38,19 +38,18 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
   });
 }
 
-export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]>{
+async function alpacaSnapshotsForFeed(symbols:string[],feed:string):Promise<MarketSnapshot[]>{
   const key=process.env.ALPACA_API_KEY;
   const secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret) return [];
   const clean=cleanSymbols(symbols);
   if(!clean.length) return [];
-  const feed=process.env.ALPACA_FEED||"iex";
   const headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret};
   const [quotesRes,barsRes]=await Promise.all([
     fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${encodeURIComponent(clean.join(","))}&feed=${encodeURIComponent(feed)}`,{headers,cache:"no-store"}),
     fetch(`https://data.alpaca.markets/v2/stocks/bars/latest?symbols=${encodeURIComponent(clean.join(","))}&feed=${encodeURIComponent(feed)}`,{headers,cache:"no-store"})
   ]);
-  if(!quotesRes.ok||!barsRes.ok) throw new Error(`Alpaca market data HTTP ${quotesRes.status}/${barsRes.status}`);
+  if(!quotesRes.ok||!barsRes.ok) throw new Error(`Alpaca ${feed} market data HTTP ${quotesRes.status}/${barsRes.status}`);
   const quotes=(await quotesRes.json() as any).quotes??{};
   const bars=(await barsRes.json() as any).bars??{};
   return clean.map(symbol=>{
@@ -69,6 +68,14 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
       entitlement:feed==="sip"?"full-market":feed==="iex"?"partial-real-time":"delayed-or-specialized"
     } satisfies MarketSnapshot;
   });
+}
+
+export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]>{
+  return alpacaSnapshotsForFeed(symbols,process.env.ALPACA_FEED||"iex");
+}
+
+export async function alpacaDelayedSipSnapshots(symbols:string[]):Promise<MarketSnapshot[]>{
+  return alpacaSnapshotsForFeed(symbols,"delayed_sip");
 }
 
 /**
