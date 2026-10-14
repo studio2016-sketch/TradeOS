@@ -161,10 +161,10 @@ export async function fredVintageContext():Promise<OfficialSourceResult>{
     const out:any[]=[];
     for(const id of series){
       const url=new URL("https://api.stlouisfed.org/fred/series/observations");
-      url.searchParams.set("series_id",id);url.searchParams.set("api_key",key);url.searchParams.set("file_type","json");url.searchParams.set("output_type","4");
+      url.searchParams.set("series_id",id);url.searchParams.set("api_key",key);url.searchParams.set("file_type","json");url.searchParams.set("output_type","4");url.searchParams.set("realtime_start","1776-07-04");url.searchParams.set("realtime_end","9999-12-31");url.searchParams.set("sort_order","desc");url.searchParams.set("limit","24");
       const res=await fetch(url,{cache:"no-store"});if(!res.ok)throw new Error(`${id} HTTP ${res.status}`);
       const j=await res.json() as any; const obs=(j.observations??[]).filter((x:any)=>x.value!==".");
-      out.push({series:id,initialReleases:obs.slice(-24)});
+      out.push({series:id,initialReleases:obs.slice(0,24).reverse()});
     }
     return{id:"alfred",label:"FRED / ALFRED Vintage Data",status:"live",authoritative:true,generatedAt:now(),data:out,note:"Initial-release/vintage-aware macro data for look-ahead-safe historical testing."};
   }catch(error){return{id:"alfred",label:"FRED / ALFRED Vintage Data",status:"degraded",authoritative:true,generatedAt:now(),data:null,note:"Vintage-aware FRED/ALFRED feed.",error:error instanceof Error?error.message:String(error)}}
