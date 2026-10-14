@@ -3,19 +3,37 @@ import {db,hasDatabase} from "../../../lib/db";
 import {configuredSourceHealth} from "../../../lib/market/providers";
 import {freeOfficialSnapshot} from "../../../lib/market/freeOfficial";
 import {bestSnapshots} from "../../../lib/market/live";
+import {latestRegimeContext} from "../../../lib/market/fred";
+import {macroRiskContext} from "../../../lib/market/bls";
+import {latestSecCatalysts} from "../../../lib/market/sec";
 
 export const dynamic="force-dynamic";
 
 export async function GET(){
   const configured=configuredSourceHealth();
-  const [official,marketProbe]=await Promise.all([
+  const [official,marketProbe,fredProbe,macroProbe,secProbe]=await Promise.all([
     freeOfficialSnapshot(["NVDA","SPY","QQQ"]).catch(()=>null),
-    bestSnapshots(["SPY"]).catch(()=>({provider:null,snapshots:[],attempts:[]}))
+    bestSnapshots(["SPY"]).catch(()=>({provider:null,snapshots:[],attempts:[]})),
+    latestRegimeContext().catch(()=>null),
+    macroRiskContext().catch(()=>null),
+    latestSecCatalysts(["NVDA"],1).catch(()=>null)
   ]);
   const runtime=new Map((official?.sources??[]).map((s:any)=>[s.id,s]));
   const sources=configured.map((s:any)=>{
     const r=runtime.get(s.id) as any;
     if(r)return {...s,state:r.status==="live"?"live":r.status==="degraded"?"degraded":"unconfigured",quality:r.status==="live"?95:r.status==="degraded"?45:0,note:r.error?r.note+" Runtime: "+r.error:r.note,runtimeVerified:true,generatedAt:r.generatedAt};
+    if(s.id==="fred"){
+      const ok=Boolean((fredProbe as any)?.usableCount>0);
+      return {...s,state:ok?"live":"degraded",quality:ok?95:40,note:ok?"Runtime verified: "+(fredProbe as any).usableCount+" official FRED series usable.":s.note,runtimeVerified:true,generatedAt:(fredProbe as any)?.generatedAt??new Date().toISOString()};
+    }
+    if(s.id==="macro"){
+      const ok=Boolean((macroProbe as any)?.source==="BLS");
+      return {...s,state:ok?"live":"degraded",quality:ok?95:40,note:ok?"Runtime verified: BLS macro calendar reachable.":s.note,runtimeVerified:true,generatedAt:(macroProbe as any)?.generatedAt??new Date().toISOString()};
+    }
+    if(s.id==="sec"){
+      const ok=Array.isArray(secProbe);
+      return {...s,state:ok?"live":"degraded",quality:ok?100:40,note:ok?"Runtime verified: SEC EDGAR reachable; "+(secProbe as any[]).length+" current catalyst(s) returned for probe symbol.":s.note,runtimeVerified:true,generatedAt:new Date().toISOString()};
+    }
     if(s.id==="alpaca"||s.id==="massive"){
       const hit=(marketProbe as any)?.attempts?.find((a:any)=>a.source.toLowerCase().includes(s.id));
       const chosen=(marketProbe as any)?.provider?.toLowerCase().includes(s.id);
@@ -40,7 +58,7 @@ export async function GET(){
       status:"ok",
       database:"connected",
       sources,
-      runtime:{marketProvider:(marketProbe as any)?.provider??null,marketAttempts:(marketProbe as any)?.attempts??[],official:{live:official?.live??0,degraded:official?.degraded??0,unconfigured:official?.unconfigured??0}},
+      runtime:{marketProvider:(marketProbe as any)?.provider??null,marketAttempts:(marketProbe as any)?.attempts??[],official:{live:official?.live??0,degraded:official?.degraded??0,unconfigured:official?.unconfigured??0},fredUsable:(fredProbe as any)?.usableCount??0,macroState:(macroProbe as any)?.state??null,secReachable:Array.isArray(secProbe)},
       metrics:rows[0],
       generatedAt:new Date().toISOString()
     });
