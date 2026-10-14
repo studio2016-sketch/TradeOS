@@ -71,15 +71,35 @@ export async function alpacaSnapshots(symbols:string[]):Promise<MarketSnapshot[]
   });
 }
 
+/**
+ * Prefer the freshest valid provider observation per symbol rather than stopping
+ * at the first successful (possibly stale) snapshot response.
+ * A valid observation is not a certified real-time feed.
+ */
 export async function bestSnapshots(symbols:string[]){
+  const clean=cleanSymbols(symbols);
   const attempts:{source:string,error?:string,count?:number}[]=[];
-  if(process.env.MASSIVE_API_KEY){
-    try{const data=await massiveSnapshots(symbols); if(data.length)return {provider:"Massive",snapshots:data,attempts:[{source:"Massive",count:data.length}]};}
-    catch(e){attempts.push({source:"Massive",error:e instanceof Error?e.message:String(e)});}
+  const responses=await Promise.all([
+    process.env.MASSIVE_API_KEY
+      ? massiveSnapshots(clean).then(data=>({name:"Massive",data,error:""})).catch((e:unknown)=>({name:"Massive",data:[] as MarketSnapshot[],error:e instanceof Error?e.message:String(e)}))
+      : Promise.resolve({name:"Massive",data:[] as MarketSnapshot[],error:"unconfigured"}),
+    process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET
+      ? alpacaSnapshots(clean).then(data=>({name:"Alpaca",data,error:""})).catch((e:unknown)=>({name:"Alpaca",data:[] as MarketSnapshot[],error:e instanceof Error?e.message:String(e)}))
+      : Promise.resolve({name:"Alpaca",data:[] as MarketSnapshot[],error:"unconfigured"})
+  ]);
+  const picks=new Map<string,MarketSnapshot>();
+  for(const response of responses){
+    attempts.push({source:response.name,...(response.error?{error:response.error}:{}),count:response.data.length});
+    for(const snapshot of response.data){
+      if(!clean.includes(snapshot.symbol)||!Number.isFinite(snapshot.price)||snapshot.price<=0)continue;
+      const stamp=Date.parse(snapshot.timestamp);
+      if(!Number.isFinite(stamp)||stamp<=0||stamp>Date.now()+60_000)continue;
+      const prev=picks.get(snapshot.symbol);
+      const prevTime=prev?Date.parse(prev.timestamp):0;
+      if(!prev||stamp>prevTime)picks.set(snapshot.symbol,snapshot);
+    }
   }
-  if(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET){
-    try{const data=await alpacaSnapshots(symbols); if(data.length)return {provider:"Alpaca",snapshots:data,attempts:[...attempts,{source:"Alpaca",count:data.length}]};}
-    catch(e){attempts.push({source:"Alpaca",error:e instanceof Error?e.message:String(e)});}
-  }
-  return {provider:null,snapshots:[],attempts};
+  const snapshots=clean.map(s=>picks.get(s)).filter((s):s is MarketSnapshot=>Boolean(s));
+  const providers=[...new Set(snapshots.map(s=>s.source.split(":")[0]))];
+  return {provider:providers.length===0?null:providers.length===1?providers[0]:"Mixed",snapshots,attempts};
 }
