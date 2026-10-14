@@ -17,6 +17,7 @@ import {latestNewsReaction} from "../../../lib/market/newsReaction";
 import {secIssuerContext} from "../../../lib/market/sec";
 import {alpacaBrokerState,brokerReadStatus} from "../../../lib/broker/alpaca";
 import {evaluateInstitutionalLens} from "../../../lib/research/institutionalLens";
+import {freeOfficialSnapshot} from "../../../lib/market/freeOfficial";
 
 export const dynamic="force-dynamic";
 
@@ -28,14 +29,15 @@ export async function GET(req:Request){
   const base=new URL(req.url);
   const origin=base.origin;
 
-  const [assessmentRes,regime,catalysts,market,calibrationRes,macro,intelligenceRes]=await Promise.all([
+  const [assessmentRes,regime,catalysts,market,calibrationRes,macro,intelligenceRes,official]=await Promise.all([
     fetch(origin+"/api/assessment",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     latestRegimeContext().then(x=>({mode:x.usableCount>0?"official_daily":"unavailable",...x})).catch(()=>null),
     latestSecCatalysts([symbol],8).then(x=>({mode:"live_authoritative",catalysts:x})).catch(()=>null),
     bestSnapshots([symbol]).then(x=>({mode:x.provider?"provider_data":"unconfigured",...x})).catch(()=>null),
     fetch(origin+"/api/calibration",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     macroRiskContext().catch(()=>null),
-    fetch(origin+"/api/intelligence",{cache:"no-store"}).then(r=>r.json()).catch(()=>null)
+    fetch(origin+"/api/intelligence",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+    freeOfficialSnapshot([symbol,"SPY","QQQ","IWM"]).catch(()=>null)
   ]);
 
   const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
@@ -43,7 +45,7 @@ export async function GET(req:Request){
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes});
-  const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction});
+  const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction,official});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
   const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
@@ -66,6 +68,7 @@ export async function GET(req:Request){
     supervisors,
     adaptive,
     institutional,
+    officialSources:official,
     canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:result.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:result.observedCount+adaptive.observedCount,availability:+((result.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(result.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},
     optionSurface,
     features,
