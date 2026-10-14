@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
-import {alpacaMarketClock,bestSnapshots} from "../../../lib/market/live";
+import {alpacaMarketClock,bestSnapshots,alpacaDelayedSipSnapshots} from "../../../lib/market/live";
 
 export const dynamic="force-dynamic";
 
@@ -10,9 +10,10 @@ function ageMs(ts:any){
 }
 
 export async function GET(){
-  const [clock,market]=await Promise.all([
+  const [clock,market,delayedSip]=await Promise.all([
     alpacaMarketClock().catch(()=>null),
-    bestSnapshots(["SPY"]).catch(()=>({provider:null,snapshots:[],attempts:[]}))
+    bestSnapshots(["SPY"]).catch(()=>({provider:null,snapshots:[],attempts:[]})),
+    alpacaDelayedSipSnapshots(["SPY"]).catch(()=>[])
   ]);
   let dbTimes:any={};
   if(hasDatabase()){
@@ -30,6 +31,10 @@ export async function GET(){
   }
 
   const snap=(market as any)?.snapshots?.[0]??null;
+  const delayed=(delayedSip as any[])?.[0]??null;
+  const primaryPrice=Number(snap?.price),delayedPrice=Number(delayed?.price);
+  const delayedSipDivergencePct=Number.isFinite(primaryPrice)&&primaryPrice>0&&Number.isFinite(delayedPrice)&&delayedPrice>0
+    ?+(((primaryPrice-delayedPrice)/delayedPrice)*100).toFixed(4):null;
   const quoteAge=ageMs(snap?.timestamp);
   const ingestionAge=ageMs(dbTimes.last_ingestion);
   const researchAge=ageMs(dbTimes.last_research);
@@ -72,6 +77,17 @@ export async function GET(){
       source:snap?.source??null,
       coverage:snap?.coverage??null,
       entitlement:snap?.entitlement??null
+    },
+    confirmation:{
+      delayedSipAvailable:Boolean(delayed),
+      source:delayed?.source??null,
+      coverage:delayed?.coverage??null,
+      entitlement:delayed?.entitlement??null,
+      observation:delayed?.timestamp??null,
+      observationAgeMs:ageMs(delayed?.timestamp),
+      price:delayed?.price??null,
+      primaryVsDelayedSipPct:delayedSipDivergencePct,
+      note:"Delayed SIP is full-US-exchange confirmation only. It is not a substitute for real-time consolidated SIP."
     },
     safety:{executionEligible:false,ordersAllowed:false,mode:"monitoring-only"},
     generatedAt:new Date().toISOString()
