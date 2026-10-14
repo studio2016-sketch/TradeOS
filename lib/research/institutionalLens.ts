@@ -37,7 +37,13 @@ function pb(id:string,label:string,score:number|null,bias:InstitutionalDirection
 }
 
 export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLens{
-  const f=ctx.features,mc=ctx.marketContext,ms=ctx.microstructure,opt=ctx.options,nc=ctx.newsContext,nr=ctx.newsReaction;
+  const f=ctx.features,mc=ctx.marketContext,ms=ctx.microstructure,opt=ctx.options,nc=ctx.newsContext,nr=ctx.newsReaction,official=ctx.official;
+  const officialSource=(id:string)=>official?.sources?.find((s:any)=>s.id===id);
+  const finra=officialSource("finra")?.data?.find((x:any)=>x.symbol===symbol);
+  const treasury=officialSource("treasury")?.data;
+  const cboe=officialSource("cboe")?.data;
+  const cftc=officialSource("cftc")?.data??[];
+  const bls=officialSource("bls-data")?.data??[];
   const readings=ctx.alignment?.readings??[];
   const read=(label:string)=>readings.find((r:any)=>r.label===label)?.buyScore??null;
 
@@ -48,9 +54,13 @@ export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLe
   const participation=avg([ms?.tapeAggressionScore,ms?.blockParticipationScore,f?.intraday?.accumulationScore]);
   const liquidity=avg([read("Relative liquidity"),read("Bid-ask spread quality"),read("Quote-depth quality"),f?.daily?.tradeability,opt?.liquidityScore]);
   const postEvent=avg([nr?.reactionScore,nc?.eventAsymmetryScore,nc?.sentimentScore,read("Catalyst recency")]);
-  const crossAsset=avg([mc?.broad?.breadthScore,mc?.broad?.internalsScore,mc?.sector?.relativeStrengthScore,read("Credit-stress condition"),read("Yield-curve condition")]);
-  const skew=opt?.putCallIvSkew==null?null:
-    clamp(72-Math.min(50,Math.abs(Number(opt.putCallIvSkew))*180)+(opt?.liquidityScore==null?0:(Number(opt.liquidityScore)-50)*.2));
+  const treasuryCurveScore=treasury?.curve10y2y==null?null:treasury.curve10y2y>=.25?85:treasury.curve10y2y>=0?70:treasury.curve10y2y>=-.5?50:30;
+  const cftcRiskRows=cftc.filter((x:any)=>/S&P|NASDAQ|RUSSELL|DOW/i.test(String(x.market||"")));
+  const cftcLevAvg=avg(cftcRiskRows.map((x:any)=>x.leveragedMoneyNetPct));
+  const positioningScore=cftcLevAvg==null?null:clamp(50+cftcLevAvg*1.5);
+  const crossAsset=avg([mc?.broad?.breadthScore,mc?.broad?.internalsScore,mc?.sector?.relativeStrengthScore,read("Credit-stress condition"),read("Yield-curve condition"),treasuryCurveScore,positioningScore]);
+  const cboeRisk=cboe?.totalPutCall==null?null:clamp(85-Math.abs(Number(cboe.totalPutCall)-.85)*45);
+  const skew=avg([opt?.putCallIvSkew==null?null:clamp(72-Math.min(50,Math.abs(Number(opt.putCallIvSkew))*180)+(opt?.liquidityScore==null?0:(Number(opt.liquidityScore)-50)*.2)),cboeRisk]);
   const chase=avg([f?.structure?.chaseAvoidanceScore,f?.structure?.entryPrecisionScore,f?.structure?.triggerProximityScore,f?.structure?.rewardRiskScore]);
 
   const playbooks=[
@@ -77,8 +87,10 @@ export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLe
     pb("institutional-participation-proxy","Institutional participation proxy",participation,directionalBias(participation),"direction",[
       `Tape aggression ${ms?.tapeAggressionScore??"n/a"}`,
       `Large-trade participation ${ms?.blockParticipationScore??"n/a"}`,
-      `Accumulation proxy ${f?.intraday?.accumulationScore??"n/a"}`
-    ],[ms?.feed==="iex"?"IEX-only proxy; not consolidated institutional order flow.":"Trade-size proxies do not identify investor identity."]),
+      `Accumulation proxy ${f?.intraday?.accumulationScore??"n/a"}`,
+      `FINRA short-volume ratio ${finra?.shortVolumeRatio??"n/a"}%`,
+      `FINRA days to cover ${finra?.shortInterest?.daysToCover??"n/a"}`
+    ],[ms?.feed==="iex"?"IEX-only tape proxy; FINRA short-volume data adds official context but does not identify investor identity.":"Trade-size and short-volume proxies do not identify investor identity."]),
     pb("liquidity-transaction-cost","Liquidity & transaction-cost quality",liquidity,"neutral","execution",[
       `Relative liquidity ${read("Relative liquidity")??"n/a"}`,
       `Spread quality ${read("Bid-ask spread quality")??"n/a"}`,
@@ -88,19 +100,24 @@ export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLe
     pb("post-event-drift","Post-event drift / information digestion",postEvent,directionalBias(avg([nr?.reactionScore,nc?.sentimentScore])),"direction",[
       `Headline reaction ${nr?.reactionScore??"n/a"}`,
       `Event asymmetry ${nc?.eventAsymmetryScore??"n/a"}`,
-      `Catalyst recency ${read("Catalyst recency")??"n/a"}`
-    ],["A price move after news is context, not proof that the headline caused the move."]),
+      `Catalyst recency ${read("Catalyst recency")??"n/a"}`,
+      `BLS series observed ${bls.length}`
+    ],["A price move after news is context, not proof that the headline caused the move. Official BLS data is macro context, not issuer-specific causality."]),
     pb("cross-asset-confirmation","Cross-asset & breadth confirmation",crossAsset,directionalBias(crossAsset),"direction",[
       `Breadth ${mc?.broad?.breadthScore??"n/a"}`,
       `Market internals ${mc?.broad?.internalsScore??"n/a"}`,
       `Credit stress ${read("Credit-stress condition")??"n/a"}`,
-      `Yield curve ${read("Yield-curve condition")??"n/a"}`
-    ],["Cross-asset relationships change by regime and should not be treated as permanent laws."]),
+      `Yield curve ${read("Yield-curve condition")??"n/a"}`,
+      `Treasury 10Y-2Y ${treasury?.curve10y2y??"n/a"} pts`,
+      `CFTC leveraged-money net ${cftcLevAvg==null?"n/a":cftcLevAvg.toFixed(2)+"% of OI"}`
+    ],["Treasury and CFTC observations are official but slower-moving; cross-asset relationships change by regime."]),
     pb("options-skew-stress","Options skew stress",skew,opt?.putCallIvSkew==null?"neutral":Number(opt.putCallIvSkew)>.08?"bearish":Number(opt.putCallIvSkew)<-.05?"bullish":"mixed","risk",[
       `Put-call IV skew ${opt?.putCallIvSkew??"n/a"}`,
       `ATM IV ${opt?.atmIv??"n/a"}`,
-      `Expected 30d move ${opt?.expectedMovePct30d??"n/a"}%`
-    ],[opt?.feed==="indicative"?"Indicative options feed; context only, not execution-quality positioning.":"Skew can reflect hedging demand rather than directional conviction."]),
+      `Expected 30d move ${opt?.expectedMovePct30d??"n/a"}%`,
+      `Cboe total put/call ${cboe?.totalPutCall??"n/a"}`,
+      `Cboe equity put/call ${cboe?.equityPutCall??"n/a"}`
+    ],[opt?.feed==="indicative"?"Indicative contract feed plus official Cboe aggregate context; neither is direct dealer positioning.":"Skew and put/call ratios can reflect hedging demand rather than directional conviction."]),
     pb("chase-mean-reversion-risk","Chase / mean-reversion risk",chase,"neutral","risk",[
       `Chase avoidance ${f?.structure?.chaseAvoidanceScore??"n/a"}`,
       `Entry precision ${f?.structure?.entryPrecisionScore??"n/a"}`,
