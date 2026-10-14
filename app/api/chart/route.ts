@@ -17,7 +17,7 @@ export async function GET(req:Request){
       source:"Alpaca:"+(process.env.ALPACA_FEED||"iex"),
       coverage:(process.env.ALPACA_FEED||"iex")==="iex"?"IEX only":"Configured feed",
       points,lastUpdated:last?.t??null,ageMs,
-      freshness:ageMs==null?"unavailable":ageMs<120000?"live":ageMs<1200000?"delayed":"stale",
+      freshness:ageMs==null?"unavailable":ageMs<120000?"recent_observation":ageMs<1200000?"delayed_observation":"stale",
       generatedAt:new Date().toISOString()
     });
   }catch(error){
