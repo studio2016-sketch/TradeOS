@@ -120,10 +120,7 @@ create table if not exists immutable_decision_records (
  model_fingerprint text not null,
  policy_status text not null default 'research_only' check(policy_status='research_only'),
  forecast_id bigint unique references forecast_ledger(id),
- created_checksum text generated always as (encode(digest(
- model_version || ':' || symbol || ':' || horizon || ':' || prediction::text || ':' ||
- observed_at::text || ':' || source_type || ':' || source_identity || ':' ||
- features::text || ':' || input_fingerprint || ':' || model_fingerprint, 'sha256'),'hex')) stored,
+ created_checksum text not null,
  constraint observation_not_after_record check (observed_at<=recorded_at+interval '1 minute')
 );
 create or replace function tradeos_reject_decision_mutation() returns trigger language plpgsql as $$
