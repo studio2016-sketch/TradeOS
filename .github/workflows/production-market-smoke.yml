@@ -1,0 +1,64 @@
+name: Production market-data smoke verification
+on:
+  pull_request:
+    paths:
+      - .github/workflows/production-market-smoke.yml
+  workflow_dispatch:
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Test deployed symbol directory and selected chart observations
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, datetime
+          base="https://tradeos-lac.vercel.app"
+          paths=[
+            "/api/assets?q=AAPL",
+            "/api/assets?q=MSFT",
+            "/api/market?symbols=AAPL,MSFT,NVDA",
+            "/api/chart?symbol=AAPL&minutes=4320",
+            "/api/chart?symbol=MSFT&minutes=4320",
+            "/api/historical-bars?symbol=AAPL",
+            "/api/source-audit"
+          ]
+          def get(path):
+            req=urllib.request.Request(base+path,headers={"User-Agent":"TradeOS-Production-Smoke/1.0"})
+            try:
+              with urllib.request.urlopen(req,timeout=25) as res:return res.status,json.load(res)
+            except urllib.error.HTTPError as e:
+              print("HTTP failure",path,e.code)
+              return e.code,{}
+            except Exception as e:
+              print("Request exception",path,type(e).__name__,str(e)[:160])
+              return 0,{}
+          results={}
+          for path in paths:
+            status,data=get(path)
+            result={"http":status,"mode":data.get("mode",data.get("status"))}
+            if "/api/assets" in path:
+              result["symbols"]=[a.get("symbol") for a in data.get("assets",[])[:8]]
+              result["matching"]=any(a.get("symbol")==path.split("q=")[-1] for a in data.get("assets",[]))
+            elif "/api/market" in path:
+              result["observations"]=[{"symbol":s.get("symbol"),"source":s.get("source"),"timestamp":s.get("timestamp"),"freshness":s.get("freshness"),"priceAvailable":bool(s.get("price",0)>0)} for s in data.get("snapshots",[])]
+              result["providerAttempts"]=data.get("attempts",[])
+            elif "/api/chart" in path:
+              result["symbol"]=data.get("symbol")
+              result["points"]=len(data.get("points",[]))
+              result["lastUpdated"]=data.get("lastUpdated")
+              result["freshness"]=data.get("freshness")
+            elif "/api/historical-bars" in path:
+              result["symbol"]=data.get("symbol")
+              result["bars"]=len(data.get("bars",[]))
+            else:result["certification"]=data.get("productionCertification")
+            results[path]=result
+            print(json.dumps({"path":path,**result},default=str))
+          assert all(x["http"]==200 for x in results.values()),"Production API requests failed; live market functionality NOT VERIFIED"
+          assert results["/api/assets?q=AAPL"]["matching"],"AAPL not in searchable symbol directory"
+          assert results["/api/assets?q=MSFT"]["matching"],"MSFT not in searchable symbol directory"
+          for sym in ("AAPL","MSFT"):
+            chart=results[f"/api/chart?symbol={sym}&minutes=4320"]
+            assert chart["symbol"]==sym and chart["points"]>1,f"{sym} chart did not return symbol-specific recorded bars"
+          print("PASS: Symbol directory and selected-chart runtime requests. This does not certify exchange realtime feed or all dashboard derived values.")
+          PY
