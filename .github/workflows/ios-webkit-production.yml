@@ -1,0 +1,23 @@
+name: iPhone WebKit production smoke
+on:
+  pull_request:
+    paths:
+      - e2e/ios.spec.js
+      - .github/workflows/ios-webkit-production.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "40 15 * * 1-5"
+jobs:
+  safari-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund @playwright/test
+      - run: npx playwright install --with-deps webkit
+      - name: Verify iPhone-sized WebKit production screens
+        run: npx playwright test e2e/ios.spec.js --browser=webkit --workers=1 --reporter=line
