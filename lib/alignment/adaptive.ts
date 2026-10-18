@@ -66,7 +66,14 @@ export function evaluateAdaptiveIntelligence(
     ?clamp(Number(calibration.confidenceMultiplier??0)*100)
     :null;
   const sampleSufficiency=resolved>0?clamp(25+Math.log10(Math.max(1,resolved))*22):null;
-  const outOfSample=hasPromoted&&modelSamples>=100
+  // A database status string or apparent historical win rate is not independent evidence.
+  // Refuse to score the OOS gear unless an external frozen model-validation gate
+  // verifies point-in-time inputs, held-out predictions, costs and independent replay.
+  const independentlyValidated=Boolean(ctx.validationGate?.validation?.pointInTimeVerified===true
+    &&ctx.validationGate?.validation?.outOfSampleVerified===true
+    &&ctx.validationGate?.validation?.costsVerified===true
+    &&ctx.validationGate?.validation?.independentReplayVerified===true);
+  const outOfSample=independentlyValidated&&hasPromoted&&modelSamples>=100
     ?clamp(50+(weightedWin==null?0:(weightedWin-.5)*80)+(historicalCalibration==null?0:(historicalCalibration-60)*.25))
     :null;
   const driftControl=driftAvg!=null
