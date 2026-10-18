@@ -39,5 +39,11 @@ jobs:
           except urllib.error.HTTPError as e:
             print("ACCOUNT ACCESS HTTP",e.code)
             assert e.code==401,"Private account endpoint did not enforce admin authorization"
+          try:
+            get("/api/broker-state")
+            raise AssertionError("SECURITY FAILURE: Broker positions are publicly accessible")
+          except urllib.error.HTTPError as e:
+            assert e.code==401,"Broker account endpoint must require administrator authorization"
+            print("BROKER ACCOUNT ACCESS HTTP",e.code)
           print("PASS: Historical model evidence reported; point-in-time paper simulator responded; private account data remained protected.")
           PY

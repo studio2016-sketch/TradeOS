@@ -37,3 +37,15 @@ test("Point-in-time replay rejects candles that extend beyond selected cutoff",a
  await expect(page.getByText(/SPY · 5Min recorded observations/)).toBeVisible({timeout:30000});
  await expect(page.getByText(/Visible observations:/)).toBeVisible({timeout:30000});
 });
+
+test("Mobile browser can select a supported stock without reusing the previous ticker chart",async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(base+"/live-board",{waitUntil:"domcontentloaded"});
+ const box=page.getByRole("combobox");
+ await expect(box).toBeVisible();
+ await box.fill("AAPL");
+ const aapl=page.getByRole("option",{name:/^AAPL\s*·/i});
+ await expect(aapl).toBeVisible({timeout:25000});
+ await aapl.click();
+ await expect(page.getByText("AAPL · 5-minute historical market bars")).toBeVisible({timeout:30000});
+});
