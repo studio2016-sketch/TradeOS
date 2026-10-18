@@ -19,6 +19,7 @@ test("Mobile WebKit stock search selects an actual provider-supported security",
  const response=await responsePromise;
  const payload=await response.json();
  console.log("WEBKIT SEARCH RESPONSE",response.status(),payload.status,payload.assets?.slice(0,6).map(x=>x.symbol));
+ expect(payload.assets?.[0]?.symbol).toBe("AAPL");
  console.log("WEBKIT OPTIONS",await page.locator("#tradeos-stock-options").innerText().catch(()=>"dropdown missing"));
  const option=page.getByRole("option",{name:/^AAPL\s*·/i});
  await expect(option).toBeVisible({timeout:25000});
