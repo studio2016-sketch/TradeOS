@@ -1,4 +1,5 @@
 import {NextResponse} from "next/server";
+import {rankAssetMatches} from "../../../lib/market/assetSearch";
 export const dynamic="force-dynamic";
 export async function GET(req:Request){
  const q=(new URL(req.url).searchParams.get("q")||"").trim().toUpperCase().slice(0,60);
@@ -9,7 +10,8 @@ export async function GET(req:Request){
   if(!r.ok)return NextResponse.json({status:"unavailable",assets:[],message:"Provider asset directory HTTP "+r.status},{status:502});
   const raw=await r.json() as any[];
   const sourceCount=Array.isArray(raw)?raw.length:0;
-  const assets=(Array.isArray(raw)?raw:[]).filter(x=>x.status==="active"&&(x.class==="us_equity"||x.asset_class==="us_equity")&&x.tradable===true&&typeof x.symbol==="string"&&/^[A-Z][A-Z0-9.-]{0,9}$/.test(x.symbol)).filter(x=>!q||x.symbol.includes(q)||String(x.name||"").toUpperCase().includes(q)).slice(0,100).map(x=>({symbol:x.symbol,name:String(x.name||""),exchange:String(x.exchange||""),fractionable:Boolean(x.fractionable)}));
+  const active=(Array.isArray(raw)?raw:[]).filter(x=>x.status==="active"&&(x.class==="us_equity"||x.asset_class==="us_equity")&&x.tradable===true&&typeof x.symbol==="string"&&/^[A-Z][A-Z0-9.-]{0,9}$/.test(x.symbol)).map(x=>({symbol:String(x.symbol),name:String(x.name||""),exchange:String(x.exchange||""),fractionable:Boolean(x.fractionable)}));
+  const assets=rankAssetMatches(active,q).slice(0,100);
   return NextResponse.json({status:"provider_directory",query:q,assets,sourceCount,limitedTo:100,scope:"Active tradable US equities supported by connected Alpaca account; not every global security.",asOf:new Date().toISOString()},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"unavailable",assets:[],message:"Provider asset directory request failed."},{status:502})}
 }
