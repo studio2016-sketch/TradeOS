@@ -100,3 +100,40 @@ create index if not exists idx_forecast_symbol_created on forecast_ledger(symbol
 create index if not exists idx_forecast_model_created on forecast_ledger(model_version, created_at desc);
 create index if not exists idx_source_observed on source_observations(source_id, observed_at desc);
 create index if not exists idx_regime_observed on regime_snapshots(observed_at desc);
+
+
+-- Source-grounded research decisions. Append-only enforcement is at the database layer.
+-- The recorded hash provides an audit checksum, not independent proof of origin or tamper resistance.
+create extension if not exists pgcrypto;
+create table if not exists immutable_decision_records (
+ id bigserial primary key,
+ recorded_at timestamptz not null default clock_timestamp(),
+ model_version text not null,
+ symbol text not null,
+ horizon text not null,
+ prediction jsonb not null,
+ observed_at timestamptz not null,
+ source_type text not null,
+ source_identity text not null,
+ features jsonb not null,
+ input_fingerprint text not null,
+ model_fingerprint text not null,
+ policy_status text not null default 'research_only' check(policy_status='research_only'),
+ forecast_id bigint unique references forecast_ledger(id),
+ created_checksum text generated always as (encode(digest(
+ model_version || ':' || symbol || ':' || horizon || ':' || prediction::text || ':' ||
+ observed_at::text || ':' || source_type || ':' || source_identity || ':' ||
+ features::text || ':' || input_fingerprint || ':' || model_fingerprint, 'sha256'),'hex')) stored,
+ constraint observation_not_after_record check (observed_at<=recorded_at+interval '1 minute')
+);
+create or replace function tradeos_reject_decision_mutation() returns trigger language plpgsql as $$
+ begin
+  raise exception 'Research decision records are append-only; use separate audit or resolution records';
+ end;
+$$;
+drop trigger if exists immutable_decision_records_protect on immutable_decision_records;
+create trigger immutable_decision_records_protect
+ before update or delete on immutable_decision_records
+ for each row execute function tradeos_reject_decision_mutation();
+create index if not exists immutable_decision_records_by_model_time
+ on immutable_decision_records(model_version,recorded_at,id);
