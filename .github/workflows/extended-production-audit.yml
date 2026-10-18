@@ -1,0 +1,41 @@
+name: Extended production source audit
+on:
+  pull_request:
+    paths:
+      - .github/workflows/extended-production-audit.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "30 15 * * 1-5"
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Independently inspect running TradeOS sources
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,datetime
+          base="https://tradeos-lac.vercel.app"
+          paths=["/api/extended-source-audit","/api/source-audit","/api/monitoring-status"]
+          for path in paths:
+            try:
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers={"User-Agent":"TradeOS-external-production-audit"}),timeout=100) as r:
+                data=json.load(r)
+                print("ENDPOINT",path,"HTTP",r.status,"generatedAt",data.get("generatedAt"))
+                if path.endswith("extended-source-audit"):
+                  checks=data.get("checks",[])
+                  for c in checks:
+                    print(json.dumps({"category":c.get("category"),"source":c.get("source"),"status":c.get("status"),"observationTime":c.get("observationTime"),"sampleCount":c.get("sampleCount")}))
+                  print("COUNTS",data.get("statusCounts",{}))
+                  assert checks,"Extended audit returned no checks"
+                elif path.endswith("source-audit"):
+                  print("MARKET CERTIFICATION",data.get("productionCertification"))
+                  print("QUOTES",json.dumps(data.get("snapshots",[])))
+                  print("BARS",json.dumps(data.get("barChecks",[])))
+                else:
+                  print("MONITORING",data.get("state"),"MARKET",json.dumps(data.get("market",{})))
+            except Exception as e:
+              print("FAIL",path,type(e).__name__,str(e)[:220])
+              raise
+          print("PASS: External runtime audit endpoints returned structured responses. Unavailable statuses remain uncertified.")
+          PY
