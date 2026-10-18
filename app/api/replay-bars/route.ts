@@ -11,7 +11,18 @@ export async function GET(req:Request){
  try{
   const feed=process.env.ALPACA_FEED||"iex";
   const start=new Date(cutoff-10*86400000).toISOString();
-  const bars=knownAtCutoff(await historicalBars(symbol,"5Min",start,1000,feed,new Date(cutoff).toISOString()),cutoff,5);
-  return NextResponse.json({symbol,requestedAsOf:new Date(cutoff).toISOString(),source:"Alpaca:"+feed,timeframe:"5Min",mode:bars.length?"recorded_bars_only":"unavailable",points:bars.slice(-120),latestRecordedAt:bars.at(-1)?.t??null,limitations:["Only price and volume bars are reproduced. This is not yet a fully point-in-time news, filings, or macro simulation.","No broker orders are placed.","Historical replay must not be mistaken for a backtested strategy return."]},{headers:{"Cache-Control":"no-store"}});
- }catch(e){return NextResponse.json({mode:"unavailable",symbol,error:e instanceof Error?e.message:"Source unavailable"},{status:502})}
+  let bars:Awaited<ReturnType<typeof historicalBars>>=[];
+  let usedFeed=feed;
+  let providerWarning:string|null=null;
+  try{
+   bars=await historicalBars(symbol,"5Min",start,1000,feed,new Date(cutoff).toISOString());
+  }catch(err){
+   if(feed==="iex")throw err;
+   usedFeed="iex";
+   providerWarning="Configured historical feed unavailable; fell back to Alpaca IEX, which can have different market coverage.";
+   bars=await historicalBars(symbol,"5Min",start,1000,"iex",new Date(cutoff).toISOString());
+  }
+  bars=knownAtCutoff(bars,cutoff,5);
+  return NextResponse.json({symbol,requestedAsOf:new Date(cutoff).toISOString(),source:"Alpaca:"+usedFeed,providerWarning,timeframe:"5Min",mode:bars.length?"recorded_bars_only":"unavailable",points:bars.slice(-120),latestRecordedAt:bars.at(-1)?.t??null,limitations:["Only price and volume bars are reproduced. This is not yet a fully point-in-time news, filings, or macro simulation.","No broker orders are placed.","Historical replay must not be mistaken for a backtested strategy return."]},{headers:{"Cache-Control":"no-store"}});
+ }catch(e){return NextResponse.json({mode:"unavailable",symbol,error:e instanceof Error?e.message:"Source unavailable",message:"Historical provider retrieval failed. No simulated price observations substituted."},{status:502,headers:{"Cache-Control":"no-store"}})}
 }

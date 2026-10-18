@@ -24,7 +24,7 @@ export async function historicalBars(symbol:string,timeframe:string,start:string
   const feed=feedOverride||(process.env.ALPACA_FEED||"iex");
   const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
   url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","desc");if(endOverride)url.searchParams.set("end",endOverride);
-  const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store"});
+  const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(15000)});
   if(!res.ok)throw new Error(`Alpaca ${timeframe} bars HTTP ${res.status}`);
   const j=await res.json() as any;const bars=Array.isArray(j.bars)?j.bars as Bar[]:[];
   // Alpaca sorts newest-first, ensuring limit=1000 returns the latest bars. 
