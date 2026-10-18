@@ -1,0 +1,23 @@
+name: Production browser end-to-end verification
+on:
+  pull_request:
+    paths:
+      - e2e/**
+      - .github/workflows/production-browser-e2e.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "20 15 * * 1-5"
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund @playwright/test
+      - run: npx playwright install --with-deps chromium
+      - name: Verify real browser flows on production
+        run: npx playwright test e2e/production.spec.ts --project=chromium --workers=1 --reporter=line
