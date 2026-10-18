@@ -1,4 +1,5 @@
 import {createHash} from "node:crypto";
+import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
 
 type Obs={event_time:string;metadata:any;freshness_score:number|null;quality_score:number|null};
@@ -109,6 +110,51 @@ export async function generateShadowForecasts(symbols:string[]){
       `;
       recorded=applied.length===1;
     }catch(_){recorded=false;}
+    // Prospective challenger only: never backfill historical predictions.
+    if(recorded && Date.now()>=Date.parse(TRIAL_ACTIVATION)){
+      const cProbability=challengerProbability({return75m:ret,vwapAligned:alignedVwap,spreadRatio:spread,quality:avgQuality});
+      if(cProbability!==null){
+        const duplicateChallenger=await sql`
+          select id from forecast_ledger where symbol=${symbol}
+            and model_version=${CHALLENGER_VERSION} and horizon='30m'
+            and created_at >= now()-interval '25 minutes' limit 1
+        `;
+        if(!duplicateChallenger.length){
+          const challenger=await sql`
+            insert into forecast_ledger
+              (symbol,horizon,model_version,regime,direction,probability,decision,score,uncertainty,agreement,data_quality,evidence,warnings,source_snapshot)
+            values
+              (${symbol},'30m',${CHALLENGER_VERSION},'prospective-shadow-trial',${direction},${cProbability},'wait',
+               ${cProbability*100},${(1-cProbability)*100},${alignedVwap===true?75:55},
+               ${avgQuality*avgFreshness*100},
+               ${JSON.stringify(evidence)}::jsonb,
+               ${JSON.stringify(["Frozen prospective challenger","Paper research only","Never eligible for automatic trade authorization"])}::jsonb,
+               ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,
+                observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),
+                trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified"})}::jsonb)
+             returning id
+          `;
+          const challengerFingerprint=createHash("sha256").update("shadow-trend-v2|2.5 return cap .075|VWAP +.025 -.035|spread -.035|quality -.025|20261018").digest("hex");
+          const challengerChecksum=createHash("sha256").update(JSON.stringify({
+            modelVersion:CHALLENGER_VERSION,symbol,horizon:"30m",prediction:{probability:cProbability,direction},
+            observedAt:new Date(last.t).toISOString(),sourceIdentity,
+            sourceType:"stored_observation_event_time",frozenFeatures,inputFingerprint,modelFingerprint:challengerFingerprint
+          })).digest("hex");
+          const insertedChallenger=await sql`
+            insert into immutable_decision_records
+              (model_version,symbol,horizon,prediction,observed_at,source_type,source_identity,features,
+               input_fingerprint,model_fingerprint,created_checksum,policy_status,forecast_id)
+             values
+              (${CHALLENGER_VERSION},${symbol},'30m',${JSON.stringify({probability:cProbability,direction})}::jsonb,
+               ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
+               ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${challengerFingerprint},
+               ${challengerChecksum},'research_only',${challenger[0].id})
+             on conflict(forecast_id) do nothing returning id
+          `;
+          results.push({symbol,status:insertedChallenger.length?"prospective_challenger_recorded":"prospective_challenger_missing_immutable_record",version:CHALLENGER_VERSION});
+        }
+      }
+    }
     results.push({symbol,status:recorded?"created_immutable_record":"created_legacy_only_not_immutable",
       forecast,direction,probability,immutableDecisionRecorded:recorded});
   }
