@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
 
-type Obs={event_time:string;metadata:any;freshness_score:number|null;quality_score:number|null};
+type Obs={event_time:string;source_id:string;metadata:any;freshness_score:number|null;quality_score:number|null};
 
 function clamp(n:number,min:number,max:number){return Math.max(min,Math.min(max,n));}
 
@@ -12,7 +12,7 @@ export async function generateShadowForecasts(symbols:string[]){
 
   for(const symbol of symbols.filter(s=>!["VIX"].includes(s))){
     const recent=await sql`
-      select event_time,metadata,freshness_score,quality_score
+      select event_time,source_id,metadata,freshness_score,quality_score
       from source_observations
       where data_class='market_snapshot'
         and symbol=${symbol}
@@ -25,6 +25,8 @@ export async function generateShadowForecasts(symbols:string[]){
 
     const rows=recent.map(r=>({
       t:new Date(r.event_time).getTime(),
+      sourceId:String(r.source_id??"unknown"),
+      quoteObservedAt:typeof r.metadata?.quoteTimestamp==="string"?r.metadata.quoteTimestamp:null,
       p:Number(r.metadata?.price??0),
       vwap:r.metadata?.vwap==null?null:Number(r.metadata.vwap),
       bid:r.metadata?.bid==null?null:Number(r.metadata.bid),
@@ -84,8 +86,9 @@ export async function generateShadowForecasts(symbols:string[]){
     `;
 
     const forecast=(inserted as any[])[0];
-    const sourceIdentity="source_observations:market_snapshot:"+symbol;
-    const frozenFeatures={ret,alignedVwap,spread,avgFreshness,avgQuality,samples:rows.length,firstObservedAt:new Date(first.t).toISOString(),observedAt:new Date(last.t).toISOString()};
+    const sourceIdentity="source_observations:market_snapshot:"+symbol+":"+last.sourceId;
+    const frozenFeatures={ret,alignedVwap,spread,avgFreshness,avgQuality,samples:rows.length,firstObservedAt:new Date(first.t).toISOString(),observedAt:new Date(last.t).toISOString(),
+      quoteObservedAt:last.quoteObservedAt,sourceId:last.sourceId};
     const inputFingerprint=createHash("sha256").update(JSON.stringify(frozenFeatures)).digest("hex");
     const modelFingerprint=createHash("sha256").update("shadow-trend-v1|75m trend|VWAP|spread|quality|probability-v1").digest("hex");
     const decisionChecksum=createHash("sha256").update(JSON.stringify({
