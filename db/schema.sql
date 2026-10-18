@@ -136,3 +136,26 @@ do $ begin
 end $;
 create index if not exists immutable_decision_records_by_model_time
  on immutable_decision_records(model_version,recorded_at,id);
+
+
+-- Evidence-backed financial entity relationships. No inference becomes a stored fact.
+create table if not exists financial_relationship_evidence (
+ id bigserial primary key,
+ subject_kind text not null check(subject_kind in ('company','instrument','industry','commodity','currency','economic_event')),
+ subject_id text not null,
+ relation text not null check(relation in ('SUPPLIES','CUSTOMER_OF','COMPETES_WITH','MEMBER_OF','EXPOSED_TO','REFERENCES')),
+ object_kind text not null check(object_kind in ('company','instrument','industry','commodity','currency','economic_event')),
+ object_id text not null,
+ source_url text not null,
+ source_name text not null,
+ source_publication_at timestamptz not null,
+ source_observed_at timestamptz not null,
+ collected_at timestamptz not null default now(),
+ evidence_excerpt text not null,
+ evidence_sha256 text not null,
+ verification_status text not null default 'SOURCE_RECORDED' check(verification_status in ('SOURCE_RECORDED','INDEPENDENTLY_VERIFIED')),
+ check(source_publication_at<=collected_at+interval '1 minute'),
+ check(source_observed_at<=collected_at+interval '1 minute')
+);
+create index if not exists financial_relationship_subject_idx on financial_relationship_evidence(subject_kind,subject_id);
+create index if not exists financial_relationship_object_idx on financial_relationship_evidence(object_kind,object_id);

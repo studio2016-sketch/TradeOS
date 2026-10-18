@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {alignmentVariables} from "../../../lib/alignment/registry";
 import {evaluateFactorAssociation} from "../../../lib/research/factorIntelligence";
+import {certifyResearch} from "../../../lib/research/certificationAuthority";
 export const dynamic="force-dynamic";
 export async function GET(){
  const registry=alignmentVariables.map(x=>({id:x.id,label:x.label,group:x.group,weight:x.weight,criticalBuy:Boolean(x.criticalBuy),hardSell:Boolean(x.hardSell),independentlyValidated:false}));
@@ -27,6 +28,6 @@ export async function GET(){
     if(value!==null&&Number.isFinite(value))records.push({time:new Date(row.forecast_time).toISOString(),outcome:Number(row.outcome) as 0|1,label:factor.label,value});
    }
   }
-  return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),registryCount:registry.length,recordedFactors:registry,forecastCount:(rows as any[]).length,forecastsWithEvidence:eligible,associations:evaluateFactorAssociation(records),promotionAllowed:false,warning:"These forecast evidence labels do not establish independent point-in-time histories for all registry gears. Associations cannot be promoted to predictive factors without frozen held-out independent testing, multiple-comparison control and cost realism."},{headers:{"Cache-Control":"no-store"}});
+  return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),registryCount:registry.length,recordedFactors:registry,forecastCount:(rows as any[]).length,forecastsWithEvidence:eligible,associations:evaluateFactorAssociation(records),promotionAllowed:false,researchCertification:certifyResearch({total:(rows as any[]).length,immutableRecords:0,sourceTimeVerified:0,publicationTimeVerified:0,outOfSamplePaired:0,independentSessionDates:0,predictiveSkillLowerBound:null,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false}),knowledgeGraphEndpoint:"/api/knowledge-graph",warning:"These forecast evidence labels do not establish independent point-in-time histories for all registry gears. Associations cannot be promoted to predictive factors without frozen held-out independent testing, multiple-comparison control and cost realism."},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",registryCount:registry.length,associations:[],error:"Historical factor evidence could not be safely evaluated"},{status:503})}
 }
