@@ -11,6 +11,8 @@ export async function GET(req:Request){
     const snapshots=result.snapshots.map(s=>({
       ...s,
       ageMs:Number.isFinite(Date.parse(s.timestamp))?now-Date.parse(s.timestamp):null,
+      quoteAgeMs:s.quoteTimestamp&&Number.isFinite(Date.parse(s.quoteTimestamp))?now-Date.parse(s.quoteTimestamp):null,
+      exchangeRealtimeCertified:false,
       freshness:Number.isFinite(Date.parse(s.timestamp))&&Date.parse(s.timestamp)<=now
         ? (now-Date.parse(s.timestamp)<60000?"recent_observation":now-Date.parse(s.timestamp)<20*60000?"delayed_observation":"stale")
         : "unknown"
