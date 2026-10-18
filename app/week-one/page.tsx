@@ -61,14 +61,14 @@ export default function WeekOne(){
  const lo=lows.length?Math.min(...lows):0,hi=highs.length?Math.max(...highs):1;
  const chart=displayed.map((v,i)=>`${18+(i*390/Math.max(1,displayed.length-1)).toFixed(1)},${(145-105*(v.close-lo)/(hi-lo||1)).toFixed(1)}`).join(" ");
  const observation=quoteData?.snapshots?.find((v:any)=>v.symbol===symbol.trim().toUpperCase());
- const quoteAge=observation?.timestamp?Date.now()-Date.parse(observation.timestamp):Infinity;
+ const quoteAge=observation?.timestamp?Date.now()-Date.parse(observation.quoteTimestamp):Infinity;
  const verifiedQuote=Boolean(observation&&Number.isFinite(quoteAge)&&quoteAge>=0&&quoteAge<=60000&&Number.isFinite(observation.bid)&&Number.isFinite(observation.ask)&&observation.bid>0&&observation.ask>=observation.bid);
  const checkPaper=()=>{
   if(!valid||!shares||!verifiedQuote){setSimulation({status:"blocked",message:"Current valid provider bid/ask unavailable or trade values invalid. No execution simulation."});return;}
   const sym=symbol.trim().toUpperCase();const amount=e*shares;
   const order={side:"buy" as const,symbol:sym,quantity:shares,limitPrice:e,stopPrice:s,targetPrice:t,maxRisk:b};
   const portfolio={equity:10000,cash:10000,dailyRealizedPnl:0,positions:[],candidate:{symbol:sym,sector:"Unclassified",notional:amount,plannedRisk:(e-s)*shares},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}};
-  const quote={symbol:sym,bid:Number(observation.bid),ask:Number(observation.ask),observedAt:String(observation.timestamp),source:String(observation.source||quoteData?.provider||"Unknown")};
+  const quote={symbol:sym,bid:Number(observation.bid),ask:Number(observation.ask),observedAt:String(observation.quoteTimestamp),source:String(observation.source||quoteData?.provider||"Unknown")};
   setSimulation(evaluatePaperCandidate(order,quote,portfolio));
  };
  const toggle=(id:string)=>setP(old=>({...old,done:old.done.includes(id)?old.done.filter(x=>x!==id):[...old.done,id]}));
@@ -86,7 +86,7 @@ export default function WeekOne(){
  <article className={styles.card}><small>LEARN AS YOU GO</small><h2>Trading terminology, translated</h2><div className={styles.chips}>{Object.keys(glossary).map(g=><button className={term===g?styles.selectedChip:""} key={g} onClick={()=>setTerm(g)}>{g}</button>)}</div><div className={styles.definition}><h3>{term}</h3><p>{glossary[term]}</p></div></article>
  <article className={styles.card}><SymbolPicker value={symbol} onChange={setSymbol}/><small>INTERACTIVE HISTORICAL CHART LESSON</small><h2>{symbol.trim().toUpperCase()} · dated price history</h2><p>Chart uses the same Alpaca historical-bar endpoint as TradeOS Market Board; it never invents stock prices. Daily history is not streaming.</p>
  <div className={styles.controls}><button type="button" onClick={()=>setMarketRevision(n=>n+1)} disabled={marketBusy}>{marketBusy?"Fetching…":"Refresh source data"}</button><Link href={"/live-board"}>Open Market Board →</Link></div>
- <p className={styles.note}>Source: {history?.source||"Unavailable"} · Last historical candle: {bars.length?new Date(bars[bars.length-1].time).toLocaleString():"none"} · Provider quote: {observation?.source||"Unavailable"} · {observation?.timestamp?new Date(observation.timestamp).toLocaleString():"No observation"} · {verifiedQuote?"recent bid/ask observed":"no recent valid bid/ask"}</p>
+ <p className={styles.note}>Source: {history?.source||"Unavailable"} · Last historical candle: {bars.length?new Date(bars[bars.length-1].time).toLocaleString():"none"} · Provider quote: {observation?.source||"Unavailable"} · {observation?.quoteTimestamp?new Date(observation.quoteTimestamp).toLocaleString():"No quote observation"} · {verifiedQuote?"recent bid/ask observed":"no recent valid bid/ask"}</p>
  {marketError&&<p className={styles.error} role="status">{marketError}</p>}
  {bars.length>1?<><svg className={styles.chart} viewBox="0 0 430 180" role="img" aria-label={"Historical daily closing-price line for "+symbol.trim().toUpperCase()+" with "+displayed.length+" dated observations"}><polyline points={chart} fill="none" stroke="#63d7c4" strokeWidth="3" strokeLinejoin="round"/><text x="14" y="171" fill="#b5c5d5" fontSize="12">Historical replay · {displayed.length}/{bars.length} daily bars</text></svg><label className={styles.slider}>Advance recorded daily history <input type="range" min="1" max={bars.length-1} value={Math.min(step,bars.length-1)} onChange={v=>setStep(Number(v.target.value))}/></label><p className={styles.note}>Last visible candle: {displayed.at(-1)?.time.slice(0,10)} · Close ${displayed.at(-1)?.close.toFixed(2)}. This historical progression is not a prediction or a current quote.</p></>:<p className={styles.note}>No real historical candles available. The chart is withheld rather than replaced with a fabricated path.</p>}
  </article>
