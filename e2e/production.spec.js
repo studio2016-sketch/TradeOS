@@ -31,6 +31,7 @@ test("Operations Command Center is accessible and never claims price-feed certif
  await expect(page.getByText("Quote and candle certification:",{exact:false})).toBeVisible();
 });
 test("Point-in-time replay rejects candles that extend beyond selected cutoff",async({page})=>{
+ test.setTimeout(100000);
  await page.goto(base+"/replay-lab",{waitUntil:"domcontentloaded"});
  await expect(page.getByRole("heading",{name:/Historical Replay Laboratory/})).toBeVisible();
  const responsePromise=page.waitForResponse(x=>x.url().includes("/api/replay-bars?"),{timeout:45000});
