@@ -27,6 +27,9 @@ jobs:
           provenance=get("/api/forecast-provenance")
           print("PROVENANCE",json.dumps(provenance.get("audit",{})))
           assert provenance.get("certification")=="BLOCKED_UNTIL_POINT_IN_TIME_SOURCE_AND_PAIRED_MODEL_EVIDENCE","Unproven model unexpectedly certified"
+          trial=get("/api/prospective-trial")
+          print("PROSPECTIVE TRIAL",json.dumps(trial.get("trial",{})))
+          assert trial.get("status")=="RESEARCH_ONLY" and trial.get("noAutomaticPromotion") is True,"Prospective experiment unexpectedly promoted"
           factors=get("/api/factor-lab")
           print("FACTOR LAB",factors.get("status"),"registered",factors.get("registryCount"),"forecasts",factors.get("forecastCount"))
           for factor in factors.get("associations",[]):
@@ -48,5 +51,11 @@ jobs:
           except urllib.error.HTTPError as e:
             assert e.code==401,"Broker account endpoint must require administrator authorization"
             print("BROKER ACCOUNT ACCESS HTTP",e.code)
+          try:
+            get("/api/private-broker-activity-audit")
+            raise AssertionError("SECURITY FAILURE: Brokerage transaction audit accessible publicly")
+          except urllib.error.HTTPError as e:
+            assert e.code==401,"Broker activity audit must require administrator authorization"
+            print("PRIVATE BROKER ACTIVITIES HTTP",e.code)
           print("PASS: Historical model evidence reported; point-in-time paper simulator responded; private account data remained protected.")
           PY
