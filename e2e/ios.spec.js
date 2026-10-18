@@ -14,7 +14,12 @@ test("iPhone-sized WebKit layout preserves the header and stock search separatio
 test("Mobile WebKit stock search selects an actual provider-supported security",async({page})=>{
  await page.goto(base+"/live-board",{waitUntil:"domcontentloaded"});
  const input=page.getByRole("combobox");
+ const responsePromise=page.waitForResponse(x=>x.url().includes("/api/assets?q=AAPL"),{timeout:25000});
  await input.fill("AAPL");
+ const response=await responsePromise;
+ const payload=await response.json();
+ console.log("WEBKIT SEARCH RESPONSE",response.status(),payload.status,payload.assets?.slice(0,6).map(x=>x.symbol));
+ console.log("WEBKIT OPTIONS",await page.locator("#tradeos-stock-options").innerText().catch(()=>"dropdown missing"));
  const option=page.getByRole("option",{name:/^AAPL\s*·/i});
  await expect(option).toBeVisible({timeout:25000});
  await option.click();
