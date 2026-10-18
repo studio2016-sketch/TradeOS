@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {db} from "../db";
 
 type Obs={event_time:string;metadata:any;freshness_score:number|null;quality_score:number|null};
@@ -81,7 +82,30 @@ export async function generateShadowForecasts(symbols:string[]){
       returning id,created_at
     `;
 
-    results.push({symbol,status:"created",forecast:(inserted as any[])[0],direction,probability});
+    const forecast=(inserted as any[])[0];
+    const sourceIdentity="source_observations:market_snapshot:"+symbol;
+    const frozenFeatures={ret,alignedVwap,spread,avgFreshness,avgQuality,samples:rows.length,firstObservedAt:new Date(first.t).toISOString(),observedAt:new Date(last.t).toISOString()};
+    const inputFingerprint=createHash("sha256").update(JSON.stringify(frozenFeatures)).digest("hex");
+    const modelFingerprint=createHash("sha256").update("shadow-trend-v1|75m trend|VWAP|spread|quality|probability-v1").digest("hex");
+    let recorded=false;
+    // Existing databases must execute db/schema.sql before this insert-only ledger becomes active.
+    // Never invent a record on failure, and never interpret the older forecast ledger as immutable.
+    try{
+      const applied=await sql`
+        insert into immutable_decision_records
+          (model_version,symbol,horizon,prediction,observed_at,source_type,source_identity,features,
+           input_fingerprint,model_fingerprint,policy_status,forecast_id)
+        values
+          ('shadow-trend-v1',${symbol},'30m',${JSON.stringify({probability,direction})}::jsonb,
+           ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
+           ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${modelFingerprint},
+           'research_only',${forecast.id})
+        on conflict(forecast_id) do nothing returning id
+      `;
+      recorded=applied.length===1;
+    }catch(_){recorded=false;}
+    results.push({symbol,status:recorded?"created_immutable_record":"created_legacy_only_not_immutable",
+      forecast,direction,probability,immutableDecisionRecorded:recorded});
   }
 
   return results;
