@@ -10,7 +10,7 @@ export interface FeatureSet{
     failedMoveRiskScore:number|null;cleanInvalidationScore:number|null;timeOfDayScore:number|null;confirmationScore:number|null;reclaimHoldScore:number|null;
     retestScore:number|null;triggerProximityScore:number|null;chaseAvoidanceScore:number|null;entryPrecisionScore:number|null
   };
-  quality:{barCount:number;coverageScore:number;note:string};
+  quality:{barCount:number;coverageScore:number;note:string;latestDailyBar:string|null;latestHourlyBar:string|null;latestIntradayBar:string|null;intradayAgeMs:number|null;underlyingDataCurrent:boolean};
 }
 function ema(xs:number[],p:number){if(xs.length<p)return null;const k=2/(p+1);let e=xs.slice(0,p).reduce((a,b)=>a+b,0)/p;for(const x of xs.slice(p))e=x*k+e*(1-k);return e}
 function sma(xs:number[],p:number){return xs.length<p?null:xs.slice(-p).reduce((a,b)=>a+b,0)/p}
@@ -23,10 +23,13 @@ export async function historicalBars(symbol:string,timeframe:string,start:string
   if(!key||!secret)return[];
   const feed=feedOverride||(process.env.ALPACA_FEED||"iex");
   const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
-  url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","asc");if(endOverride)url.searchParams.set("end",endOverride);
+  url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","desc");if(endOverride)url.searchParams.set("end",endOverride);
   const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store"});
   if(!res.ok)throw new Error(`Alpaca ${timeframe} bars HTTP ${res.status}`);
-  const j=await res.json() as any; return j.bars??[];
+  const j=await res.json() as any;const bars=Array.isArray(j.bars)?j.bars as Bar[]:[];
+  // Alpaca sorts newest-first, ensuring limit=1000 returns the latest bars. 
+  // Restore oldest-first for all indicator calculations and chart consumers.
+  return bars.filter(b=>Number.isFinite(Date.parse(b.t))&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>Date.parse(a.t)-Date.parse(b.t));
 }
 function trendScore(b:Bar[],fast=9,slow=20){
   const c=b.map(x=>x.c),f=ema(c,fast),s=ema(c,slow);if(f==null||s==null)return null;
@@ -171,6 +174,6 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
     hourly:{trendScore:trendScore(hourly,9,20),rocPct:roc(hourly,12)},
     intraday:intradayFeatures(intra),
     structure:structureFeatures(intra,daily,intradayFeatures(intra)),
-    quality:{barCount:total,coverageScore:clamp(total/12),note:"Daily/hourly structure uses consolidated SIP history ending at least 16 minutes ago; immediate intraday timing uses the configured real-time feed."}
+    quality:{barCount:total,coverageScore:clamp(total/12),latestDailyBar:daily.at(-1)?.t??null,latestHourlyBar:hourly.at(-1)?.t??null,latestIntradayBar:intra.at(-1)?.t??null,intradayAgeMs:intra.length?Math.max(0,Date.now()-Date.parse(intra[intra.length-1].t)):null,underlyingDataCurrent:Boolean(intra.length&&Date.now()-Date.parse(intra[intra.length-1].t)<20*60_000),note:"Daily/hourly structure uses consolidated SIP history ending at least 16 minutes ago; immediate intraday timing uses the configured real-time feed. Current flag measures observation age and does not certify exchange entitlement."}
   };
 }
