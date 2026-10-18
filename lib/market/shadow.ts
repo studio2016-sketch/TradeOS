@@ -87,6 +87,11 @@ export async function generateShadowForecasts(symbols:string[]){
     const frozenFeatures={ret,alignedVwap,spread,avgFreshness,avgQuality,samples:rows.length,firstObservedAt:new Date(first.t).toISOString(),observedAt:new Date(last.t).toISOString()};
     const inputFingerprint=createHash("sha256").update(JSON.stringify(frozenFeatures)).digest("hex");
     const modelFingerprint=createHash("sha256").update("shadow-trend-v1|75m trend|VWAP|spread|quality|probability-v1").digest("hex");
+    const decisionChecksum=createHash("sha256").update(JSON.stringify({
+      modelVersion:"shadow-trend-v1",symbol,horizon:"30m",prediction:{probability,direction},
+      observedAt:new Date(last.t).toISOString(),sourceIdentity,
+      sourceType:"stored_observation_event_time",frozenFeatures,inputFingerprint,modelFingerprint
+    })).digest("hex");
     let recorded=false;
     // Existing databases must execute db/schema.sql before this insert-only ledger becomes active.
     // Never invent a record on failure, and never interpret the older forecast ledger as immutable.
@@ -94,12 +99,12 @@ export async function generateShadowForecasts(symbols:string[]){
       const applied=await sql`
         insert into immutable_decision_records
           (model_version,symbol,horizon,prediction,observed_at,source_type,source_identity,features,
-           input_fingerprint,model_fingerprint,policy_status,forecast_id)
+           input_fingerprint,model_fingerprint,created_checksum,policy_status,forecast_id)
         values
           ('shadow-trend-v1',${symbol},'30m',${JSON.stringify({probability,direction})}::jsonb,
            ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
            ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${modelFingerprint},
-           'research_only',${forecast.id})
+           ${decisionChecksum},'research_only',${forecast.id})
         on conflict(forecast_id) do nothing returning id
       `;
       recorded=applied.length===1;
