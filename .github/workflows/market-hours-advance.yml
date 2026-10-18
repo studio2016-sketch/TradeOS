@@ -1,0 +1,54 @@
+name: Verify market-hours observation advancement
+on:
+  pull_request:
+    paths:
+      - .github/workflows/market-hours-advance.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "15 16 * * 1-5"
+jobs:
+  quote-advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Independently verify fresh provider observations while the US market is open
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,datetime,time
+          base="https://tradeos-lac.vercel.app"
+          def get(p):
+            r=urllib.request.Request(base+p,headers={"User-Agent":"TradeOS-Market-Session-Audit/1.0"})
+            with urllib.request.urlopen(r,timeout=30) as f:return json.load(f)
+          clock=get("/api/monitoring-status")
+          market=clock.get("market",{})
+          print("Provider clock",market.get("clockSource"),"open",market.get("isOpen"),"timestamp",market.get("clockTimestamp"),"nextOpen",market.get("nextOpen"))
+          if market.get("isOpen") is not True:
+            print("SKIP: Official Alpaca clock says the market is closed, so advancing prices cannot be verified.")
+            raise SystemExit(0)
+          def observation():
+            data=get("/api/market?symbols=SPY,QQQ")
+            items={x["symbol"]:x for x in data.get("snapshots",[])}
+            print("MARKET OBSERVATIONS",json.dumps([{k:x.get(k) for k in ["symbol","source","timestamp","quoteTimestamp","freshness","ageMs"]} for x in items.values()]))
+            return items
+          first=observation()
+          time.sleep(90)
+          second=observation()
+          now=datetime.datetime.now(datetime.timezone.utc)
+          advances=[]
+          for sym in ["SPY","QQQ"]:
+            a,b=first.get(sym),second.get(sym)
+            if not a or not b:
+              print("FAIL",sym,"no provider observation on one or both attempts")
+              continue
+            ts=b.get("timestamp")
+            try:age=(now-datetime.datetime.fromisoformat(ts.replace("Z","+00:00"))).total_seconds()
+            except Exception:age=float("inf")
+            updated=(a.get("timestamp")!=b.get("timestamp")) and b.get("timestamp","")>a.get("timestamp","")
+            print("OBSERVATION RESULT",sym,"advance",updated,"priceAgeSeconds",int(age) if age!=float("inf") else "unavailable")
+            advances.append(updated and 0<=age<=180)
+          assert advances and all(advances),"CRITICAL: Active-session market observation did not advance or is older than 3 minutes."
+          chart=get("/api/chart?symbol=SPY&minutes=480&timeframe=5Min")
+          print("CHART",chart.get("mode"),chart.get("lastUpdated"),chart.get("freshness"))
+          assert chart.get("points") and chart.get("source"),"No provider chart data during active market."
+          print("PASS: Active-session price observations advanced from their source timestamps. Not proof of consolidated SIP entitlement.")
+          PY
