@@ -1,0 +1,43 @@
+name: Knowledge graph and certification production audit
+on:
+  pull_request:
+    paths:
+      - .github/workflows/knowledge-graph-production.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "25 16 * * 1-5"
+jobs:
+  verify-graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Independently inspect live research evidence graph and fail-closed certificate
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          BASE="https://tradeos-lac.vercel.app"
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request(BASE+path,headers={"User-Agent":"TradeOS-Independent-Graph-Audit"}),timeout=45) as r:return json.load(r)
+          graph=get("/api/knowledge-graph?symbol=NVDA")
+          print("GRAPH",json.dumps({k:graph.get(k) for k in ["status","symbolFilter","corporateStatus","certifiedCorporateRelationships","certifiedPredictiveRelationships"]}))
+          print("GRAPH_SIZE",len(graph.get("nodes",[])),len(graph.get("edges",[])),len(graph.get("corporateRelationships",[])))
+          assert graph.get("status")=="RESEARCH_LINEAGE_ONLY"
+          assert graph.get("certifiedPredictiveRelationships") is False
+          for e in graph.get("corporateRelationships",[]):
+            assert e.get("publishedAt") and e.get("sourceUrl") and e.get("verificationStatus"),"Unsourced corporate link"
+          cert=get("/api/research-certification")
+          print("CERTIFICATION",json.dumps({k:cert.get(k) for k in ["status","certified","modelPromotionAllowed","liveExecutionAllowed","failedChecks"]}))
+          assert cert.get("modelPromotionAllowed") is False and cert.get("liveExecutionAllowed") is False
+          lab=get("/api/factor-lab")
+          assert lab.get("promotionAllowed") is False
+          assert lab.get("researchCertification",{}).get("modelPromotionAllowed") is False
+          print("FACTORS",lab.get("registryCount"),lab.get("forecastsWithEvidence"),"promotable",lab.get("promotionAllowed"))
+          request=urllib.request.Request(BASE+"/api/private-graph-evidence",method="POST",data=b'{}',headers={"Content-Type":"application/json"})
+          try:
+            urllib.request.urlopen(request,timeout=15)
+            raise AssertionError("SECURITY: anonymous graph ingestion allowed")
+          except urllib.error.HTTPError as e:
+            print("GRAPH INGEST AUTH HTTP",e.code)
+            assert e.code==401
+          print("PASS: Verified real graph, factor lab, independent gate and admin-only evidence ingestion.")
+          PY
