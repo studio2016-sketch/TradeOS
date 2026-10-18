@@ -20,4 +20,4 @@ jobs:
       - run: npm install --no-save --no-audit --no-fund @playwright/test
       - run: npx playwright install --with-deps chromium
       - name: Verify real browser flows on production
-        run: npx playwright test e2e/production.spec.ts --project=chromium --workers=1 --reporter=line
+        run: npx playwright test e2e/production.spec.js --browser=chromium --workers=1 --reporter=line
