@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from "react";
 import Link from "next/link";
 import styles from "./week.module.css";
+import SymbolPicker from "../components/SymbolPicker";
 import {evaluatePaperCandidate} from "../../lib/paper/integrated";
 
 type Trade={symbol:string;entry:number;exit:number;shares:number;stop:number;target:number;date:string;followedPlan:boolean};
@@ -83,7 +84,7 @@ export default function WeekOne(){
  </section>
  <section className={styles.two}>
  <article className={styles.card}><small>LEARN AS YOU GO</small><h2>Trading terminology, translated</h2><div className={styles.chips}>{Object.keys(glossary).map(g=><button className={term===g?styles.selectedChip:""} key={g} onClick={()=>setTerm(g)}>{g}</button>)}</div><div className={styles.definition}><h3>{term}</h3><p>{glossary[term]}</p></div></article>
- <article className={styles.card}><small>INTERACTIVE HISTORICAL CHART LESSON</small><h2>{symbol.trim().toUpperCase()} · dated price history</h2><p>Chart uses the same Alpaca historical-bar endpoint as TradeOS Market Board; it never invents stock prices. Daily history is not streaming.</p>
+ <article className={styles.card}><SymbolPicker value={symbol} onChange={setSymbol}/><small>INTERACTIVE HISTORICAL CHART LESSON</small><h2>{symbol.trim().toUpperCase()} · dated price history</h2><p>Chart uses the same Alpaca historical-bar endpoint as TradeOS Market Board; it never invents stock prices. Daily history is not streaming.</p>
  <div className={styles.controls}><button type="button" onClick={()=>setMarketRevision(n=>n+1)} disabled={marketBusy}>{marketBusy?"Fetching…":"Refresh source data"}</button><Link href={"/live-board"}>Open Market Board →</Link></div>
  <p className={styles.note}>Source: {history?.source||"Unavailable"} · Last historical candle: {bars.length?new Date(bars[bars.length-1].time).toLocaleString():"none"} · Provider quote: {observation?.source||"Unavailable"} · {observation?.timestamp?new Date(observation.timestamp).toLocaleString():"No observation"} · {verifiedQuote?"recent bid/ask observed":"no recent valid bid/ask"}</p>
  {marketError&&<p className={styles.error} role="status">{marketError}</p>}
