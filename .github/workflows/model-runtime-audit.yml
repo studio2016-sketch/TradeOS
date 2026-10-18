@@ -24,6 +24,11 @@ jobs:
           for m in research.get("validations",[]):
             print("MODEL",json.dumps({k:m.get(k) for k in ["modelAndHorizon","status","sampleCount","trainCount","holdoutCount","modelBrier","baselineBrier","skillVsFrozenTrainBaseline","bootstrap95PctSkillInterval","evidenceOfImprovement"]}))
           assert research.get("certification")=="RESEARCH_ONLY_NOT_PROMOTED","Unexpected model promotion claim"
+          factors=get("/api/factor-lab")
+          print("FACTOR LAB",factors.get("status"),"registered",factors.get("registryCount"),"forecasts",factors.get("forecastCount"))
+          for factor in factors.get("associations",[]):
+            print("FACTOR",json.dumps({k:factor.get(k) for k in ["label","recorded","holdout","meetsMinimumSamples","observedDifference","validated"]}))
+            assert factor.get("validated") is False,"Undocumented factor validation claim"
           query="?symbol=AAPL&decisionAt=2026-10-16T15%3A00%3A00Z&equity=10000&risk=100&stopPct=2&targetPct=3&bars=20"
           sim=get("/api/replay-simulation"+query)
           print("SIMULATION",sim.get("certification"),sim.get("simulation",{}).get("status"),sim.get("simulation",{}).get("exitReason"),sim.get("marketHistoryLatestAt"))
