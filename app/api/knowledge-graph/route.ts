@@ -23,8 +23,32 @@ export async function GET(req:Request){
     factorLabels:evidence.filter((v:any)=>typeof v?.label==="string").map((v:any)=>String(v.label)),
     forecastId:String(x.id)};
   });
+  const graph=graphFromResearch(mapped);
+  let corporateStatus:"AVAILABLE"|"UNAVAILABLE"="UNAVAILABLE";
+  let corporateRelationships:any[]=[];
+  try{
+   const corporateRows=await sql`
+    select id,subject_kind,subject_id,relation,object_kind,object_id,source_url,source_name,
+     source_publication_at,source_observed_at,collected_at,verification_status
+    from financial_relationship_evidence
+    where (${symbol}='' or subject_id=${symbol} or object_id=${symbol})
+    order by collected_at desc limit 300
+   `;
+   corporateStatus="AVAILABLE";
+   corporateRelationships=(corporateRows as any[]).map(x=>({
+    id:String(x.id),from:String(x.subject_kind)+":"+String(x.subject_id),
+    to:String(x.object_kind)+":"+String(x.object_id),relation:String(x.relation),
+    sourceName:String(x.source_name),sourceUrl:String(x.source_url),
+    publishedAt:new Date(x.source_publication_at).toISOString(),
+    sourceObservedAt:new Date(x.source_observed_at).toISOString(),
+    collectedAt:new Date(x.collected_at).toISOString(),
+    verificationStatus:String(x.verification_status)
+   }));
+  }catch{}
   return NextResponse.json({status:"RESEARCH_LINEAGE_ONLY",generatedAt:new Date().toISOString(),symbolFilter:symbol||null,
-   ...graphFromResearch(mapped),certifiedCorporateRelationships:false,certifiedPredictiveRelationships:false},
+   ...graph,corporateStatus,corporateRelationships,
+   certifiedCorporateRelationships:corporateRelationships.length>0&&corporateRelationships.every(x=>x.verificationStatus==="INDEPENDENTLY_VERIFIED"),
+   certifiedPredictiveRelationships:false},
    {headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",message:"Evidence graph unavailable"},{status:503})}
 }
