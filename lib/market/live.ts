@@ -20,11 +20,21 @@ export async function massiveSnapshots(symbols:string[]):Promise<MarketSnapshot[
   if(!res.ok) throw new Error(`Massive snapshot HTTP ${res.status}`);
   const data=await res.json() as any;
   return (data.tickers??[]).map((x:any)=>{
-    const updated=nsToMs(Number(x.updated??0));
+    const tradeTime=nsToMs(Number(x.lastTrade?.t??0));
+    const minuteTime=nsToMs(Number(x.min?.t??0));
+    const dayTime=nsToMs(Number(x.day?.t??0));
+    const tradePrice=Number(x.lastTrade?.p),minutePrice=Number(x.min?.c),dayPrice=Number(x.day?.c);
+    const tradeValid=tradeTime>0&&Number.isFinite(tradePrice)&&tradePrice>0;
+    const minuteValid=minuteTime>0&&Number.isFinite(minutePrice)&&minutePrice>0;
+    const dayValid=dayTime>0&&Number.isFinite(dayPrice)&&dayPrice>0;
+    const priceTime=tradeValid?tradeTime:minuteValid?minuteTime:dayValid?dayTime:0;
+    const observedPrice=tradeValid?tradePrice:minuteValid?minutePrice:dayValid?dayPrice:0;
     return {
       symbol:String(x.ticker),
-      timestamp:updated>0?new Date(updated).toISOString():"",
-      price:Number(x.lastTrade?.p??x.min?.c??x.day?.c??0),
+      timestamp:priceTime>0?new Date(priceTime).toISOString():"",
+      price:observedPrice,
+      quoteTimestamp:x.lastQuote?.t?new Date(nsToMs(Number(x.lastQuote.t))).toISOString():undefined,
+      priceKind:tradeValid?"last_trade":minuteValid?"minute_close":"day_close",
       volume:Number(x.day?.v??0),
       vwap:x.day?.vw==null?undefined:Number(x.day.vw),
       bid:x.lastQuote?.p==null?undefined:Number(x.lastQuote.p),
@@ -54,12 +64,18 @@ async function alpacaSnapshotsForFeed(symbols:string[],feed:string):Promise<Mark
   const bars=(await barsRes.json() as any).bars??{};
   return clean.map(symbol=>{
     const q=quotes[symbol], b=bars[symbol];
-    const ts=q?.t??b?.t??"";
+    // Bar closing price and its timestamp must originate from the SAME observation.
+    // A newer quote cannot make an older bar price appear freshly traded.
+    const barPrice=Number(b?.c);
+    const hasBar=b?.t&&Number.isFinite(barPrice)&&barPrice>0;
+    const ts=hasBar?String(b.t):"";
     const bid=q?.bp==null?undefined:Number(q.bp), ask=q?.ap==null?undefined:Number(q.ap), bidSize=q?.bs==null?undefined:Number(q.bs), askSize=q?.as==null?undefined:Number(q.as);
     return {
       symbol,
       timestamp:String(ts),
-      price:b?.c!=null?Number(b.c):(bid!=null&&ask!=null?(bid+ask)/2:0),
+      price:hasBar?barPrice:0,
+      priceKind:"bar_close",
+      quoteTimestamp:q?.t?String(q.t):undefined,
       volume:Number(b?.v??0),
       vwap:b?.vw==null?undefined:Number(b.vw),
       bid,ask,bidSize,askSize,
