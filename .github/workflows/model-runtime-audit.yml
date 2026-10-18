@@ -24,6 +24,9 @@ jobs:
           for m in research.get("validations",[]):
             print("MODEL",json.dumps({k:m.get(k) for k in ["modelAndHorizon","status","sampleCount","trainCount","holdoutCount","modelBrier","baselineBrier","skillVsFrozenTrainBaseline","bootstrap95PctSkillInterval","evidenceOfImprovement"]}))
           assert research.get("certification")=="RESEARCH_ONLY_NOT_PROMOTED","Unexpected model promotion claim"
+          provenance=get("/api/forecast-provenance")
+          print("PROVENANCE",json.dumps(provenance.get("audit",{})))
+          assert provenance.get("certification")=="BLOCKED_UNTIL_POINT_IN_TIME_SOURCE_AND_PAIRED_MODEL_EVIDENCE","Unproven model unexpectedly certified"
           factors=get("/api/factor-lab")
           print("FACTOR LAB",factors.get("status"),"registered",factors.get("registryCount"),"forecasts",factors.get("forecastCount"))
           for factor in factors.get("associations",[]):
