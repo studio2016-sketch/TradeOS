@@ -10,14 +10,14 @@ test("Production live board changes the selected ticker and corresponding histor
  const responseBody=await assetResponse.json();
  console.log("Browser AAPL directory",assetResponse.status(),responseBody.status,responseBody.assets?.slice(0,10).map(x=>x.symbol));
  console.log("Browser selector contents",await page.locator("#tradeos-stock-options").innerText().catch(()=>"missing dropdown"));
- const aapl=page.getByRole("option",{name:/^AAPL\\s*·/i});
+ const aapl=page.getByRole("option",{name:/^AAPL\s*·/i});
  await expect(aapl).toBeVisible({timeout:20000});
  await aapl.click();
  await expect(page.getByText("Selected: AAPL",{exact:false})).toBeVisible();
  await expect(page.getByText("AAPL · 5-minute historical market bars")).toBeVisible({timeout:25000});
  await expect(page.getByRole("img",{name:/Five-minute historical price chart for AAPL/})).toBeVisible({timeout:25000});
  await box.fill("MSFT");
- const msft=page.getByRole("option",{name:/^MSFT\\s*·/i});
+ const msft=page.getByRole("option",{name:/^MSFT\s*·/i});
  await expect(msft).toBeVisible({timeout:20000});
  await msft.click();
  await expect(page.getByText("MSFT · 5-minute historical market bars")).toBeVisible({timeout:25000});
