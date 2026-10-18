@@ -131,9 +131,11 @@ create or replace function tradeos_reject_decision_mutation() returns trigger la
   raise exception 'Research decision records are append-only; use separate audit or resolution records';
  end;
 $$;
-drop trigger if exists immutable_decision_records_protect on immutable_decision_records;
-create trigger immutable_decision_records_protect
- before update or delete on immutable_decision_records
- for each row execute function tradeos_reject_decision_mutation();
+do $ begin
+ if not exists(select 1 from pg_trigger where tgname = 'immutable_decision_records_protect' and tgrelid = 'immutable_decision_records'::regclass) then
+  create trigger immutable_decision_records_protect before update or delete on immutable_decision_records
+   for each row execute function tradeos_reject_decision_mutation();
+ end if;
+end $;
 create index if not exists immutable_decision_records_by_model_time
  on immutable_decision_records(model_version,recorded_at,id);
