@@ -34,6 +34,8 @@ export async function generateShadowForecasts(symbols:string[]){
     if(rows.length<6){results.push({symbol,status:"invalid_prices"});continue;}
 
     const last=rows[rows.length-1], first=rows[0];
+    // Stored observation event times are traceable ingestion times; they do not independently establish exchange publication times.
+    if(last.t>Date.now()+60000){results.push({symbol,status:"future_dated_observation"});continue;}
     const ret=(last.p-first.p)/first.p;
     if(Math.abs(ret)<0.002){results.push({symbol,status:"no_edge",return:ret});continue;}
 
@@ -75,7 +77,7 @@ export async function generateShadowForecasts(symbols:string[]){
          ${avgQuality*avgFreshness*100},
          ${JSON.stringify(evidence)}::jsonb,
          ${JSON.stringify(["Shadow research only","Not eligible for execution"])}::jsonb,
-         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality})}::jsonb)
+         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString()})}::jsonb)
       returning id,created_at
     `;
 
