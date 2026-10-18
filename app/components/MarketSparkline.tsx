@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
+import {observedAgeMs,validHistoricalPoint} from "../../lib/market/freshness";
 
 export default function MarketSparkline({symbol}:{symbol:string}){
   const [series,setSeries]=useState<any>(null);
@@ -28,12 +29,13 @@ export default function MarketSparkline({symbol}:{symbol:string}){
   },[symbol]);
 
   const g=useMemo(()=>{
-    const raw=(series?.points??[]).map((p:any)=>({t:p.t,c:Number(p.c)})).filter((p:any)=>Number.isFinite(p.c)&&p.c>0);
-    if(quote?.price>0&&quote?.timestamp){
+    const raw=(series?.points??[]).map((p:any)=>({t:p.t,c:Number(p.c)})).filter((p:any)=>validHistoricalPoint(p));
+    if(quote?.price>0&&observedAgeMs(quote?.timestamp)!==null&&quote?.timestamp&&quote?.symbol===symbol){
       const last=raw[raw.length-1];
-      if(!last||Date.parse(quote.timestamp)>Date.parse(last.t))raw.push({t:quote.timestamp,c:Number(quote.price)});
+      if(last&&Date.parse(quote.timestamp)>Date.parse(last.t)&&Date.parse(quote.timestamp)-Date.parse(last.t)<=20*60000)raw.push({t:quote.timestamp,c:Number(quote.price)});
     }
     if(raw.length<2)return null;
+    raw.sort((a:any,b:any)=>Date.parse(a.t)-Date.parse(b.t));
     const pts=raw.slice(-120);
     const lo=Math.min(...pts.map((p:any)=>p.c)),hi=Math.max(...pts.map((p:any)=>p.c)),span=Math.max(.0001,hi-lo);
     const xy=pts.map((p:any,i:number)=>({x:(i/(pts.length-1))*100,y:88-((p.c-lo)/span)*76}));
@@ -41,11 +43,12 @@ export default function MarketSparkline({symbol}:{symbol:string}){
     return{points:xy.map((p:any)=>p.x.toFixed(2)+","+p.y.toFixed(2)).join(" "),first,last,change:first?((last-first)/first)*100:0,lastTime:pts[pts.length-1].t};
   },[series,quote]);
 
-  const freshness=quote?.freshness||series?.freshness||"unavailable";
+  const freshness=series?.freshness||quote?.freshness||"unavailable";
+  const chartOld=observedAgeMs(g?.lastTime)===null||observedAgeMs(g?.lastTime)!>20*60000;
   return <article className="card sparkCard" aria-label={symbol+" intraday market chart"}>
     <div><b>{symbol}</b><strong>{g?"$"+g.last.toFixed(2):busy?"Loading…":"—"}</strong></div>
     {g?<svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{width:"100%",height:64,display:"block",margin:"8px 0 6px"}} role="img" aria-label={symbol+" one minute price trend"}><polyline points={g.points} fill="none" stroke="currentColor" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/></svg>:<div style={{height:64,display:"grid",placeItems:"center",color:"#81939d",fontSize:11}}>No intraday series available</div>}
-    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"baseline"}}><span style={{fontSize:11,fontWeight:800}}>{g?(g.change>=0?"+":"")+g.change.toFixed(2)+"%":"—"}</span><small>{freshness.replaceAll("_"," ")}</small></div>
-    <small style={{display:"block",marginTop:5}}>{g?new Date(g.lastTime).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):seenAt?"Checked "+new Date(seenAt).toLocaleTimeString():"Waiting"} · {series?.source||quote?.source||"provider pending"}</small>
+    <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"baseline"}}><span style={{fontSize:11,fontWeight:800}}>{g?(g.change>=0?"+":"")+g.change.toFixed(2)+"%":"—"}</span><small>{chartOld?"historical / stale":freshness.replaceAll("_"," ")}</small></div>
+    <small style={{display:"block",marginTop:5}}>{g?new Date(g.lastTime).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):seenAt?"Checked "+new Date(seenAt).toLocaleTimeString():"Waiting"} · {series?.source||quote?.source||"provider pending"} · window change, not daily %</small>
   </article>;
 }
