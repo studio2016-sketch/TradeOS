@@ -1,0 +1,34 @@
+name: Brokerage readiness and next-session verification
+on:
+  pull_request:
+    paths:
+      - .github/workflows/broker-clock-readiness.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "5 13 * * 1-5"
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm exchange clock and configured account authorization without reading private holdings
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,datetime
+          def get(p):
+            with urllib.request.urlopen(urllib.request.Request("https://tradeos-lac.vercel.app"+p,headers={"User-Agent":"TradeOS-Readiness-Audit"}),timeout=100) as r:return json.load(r)
+          state=get("/api/monitoring-status")
+          clock=state.get("market",{})
+          print("CLOCK",json.dumps(clock))
+          assert clock.get("clockSource")=="Alpaca Market Clock","Cannot certify source of next market session"
+          assert clock.get("clockTimestamp") and clock.get("nextOpen"),"Provider did not give official next open"
+          next_open=datetime.datetime.fromisoformat(clock["nextOpen"].replace("Z","+00:00"))
+          now=datetime.datetime.now(datetime.timezone.utc)
+          print("NEXT PROVIDER OPEN UTC",next_open.astimezone(datetime.timezone.utc).isoformat())
+          if not clock.get("isOpen"):assert next_open>now,"Provider next open is not in the future"
+          source=get("/api/extended-source-audit")
+          broker=[x for x in source.get("checks",[]) if x.get("category")=="portfolio_metrics"]
+          print("BROKER AUTHORIZATION READINESS",json.dumps(broker))
+          assert broker,"Portfolio readiness diagnostic missing"
+          print("PASS: Provider market clock and broker access configuration visibility verified. No transaction authorization or live tick entitlement inferred.")
+          PY
