@@ -1,5 +1,6 @@
 import {NextResponse} from "next/server";
 import {buildAlignment} from "../../../lib/alignment/engine";
+import {evaluateDecisionCouncil} from "../../../lib/market/decisionCouncil";
 import {latestRegimeContext} from "../../../lib/market/fred";
 import {latestSecCatalysts} from "../../../lib/market/sec";
 import {bestSnapshots} from "../../../lib/market/live";
@@ -58,8 +59,11 @@ export async function GET(req:Request){
   if(governedBuy==="READY"&&adaptive.score<55) governedBuy="WATCH";
   let governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
   if(supervisors.sellEscalation>=30&&governedSell==="HOLD")governedSell="CAUTION";
+  const decisionCouncil=evaluateDecisionCouncil({alignment:result,supervisors,marketSnapshot:market?.snapshots?.[0],intradayLastObserved:features?.quality?.latestIntradayBar,independentOutOfSampleVerified:false});
+  if(decisionCouncil.vetoes.length&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy))governedBuy="WATCH";
   return NextResponse.json({
     ...result,
+    decisionCouncil,
     buyState:governedBuy,
     sellState:governedSell,
     rawBuyState:result.buyState,
