@@ -49,3 +49,16 @@ test("Mobile browser can select a supported stock without reusing the previous t
  await aapl.click();
  await expect(page.getByText("AAPL · 5-minute historical market bars")).toBeVisible({timeout:30000});
 });
+
+test("Mobile dashboard header does not overlap the stock search and warning",async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(base+"/",{waitUntil:"domcontentloaded"});
+ const title=page.locator(".tradeosMobileHeader");
+ const search=page.locator(".tradeosSymbolSection");
+ await expect(title).toBeVisible();
+ await expect(search).toBeVisible();
+ const header=await title.boundingBox(),selector=await search.boundingBox();
+ expect(header&&selector).toBeTruthy();
+ expect(header.y+header.height).toBeLessThanOrEqual(selector.y+2);
+ await expect(page.getByRole("combobox")).toBeVisible();
+});
