@@ -1,0 +1,38 @@
+name: Production model and portfolio security audit
+on:
+  pull_request:
+    paths:
+      - .github/workflows/model-runtime-audit.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "45 16 * * 1-5"
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inspect real research sample size and reject public portfolio account access
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,datetime
+          base="https://tradeos-lac.vercel.app"
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request(base+path,headers={"User-Agent":"TradeOS-Research-Validation/1.0"}),timeout=80) as r:return json.load(r)
+          research=get("/api/model-validation")
+          print("RESEARCH CERTIFICATION",research.get("certification"))
+          print("RESEARCH METHOD",research.get("method"))
+          for m in research.get("validations",[]):
+            print("MODEL",json.dumps({k:m.get(k) for k in ["modelAndHorizon","status","sampleCount","trainCount","holdoutCount","modelBrier","baselineBrier","skillVsFrozenTrainBaseline","bootstrap95PctSkillInterval","evidenceOfImprovement"]}))
+          assert research.get("certification")=="RESEARCH_ONLY_NOT_PROMOTED","Unexpected model promotion claim"
+          query="?symbol=AAPL&decisionAt=2026-10-16T15%3A00%3A00Z&equity=10000&risk=100&stopPct=2&targetPct=3&bars=20"
+          sim=get("/api/replay-simulation"+query)
+          print("SIMULATION",sim.get("certification"),sim.get("simulation",{}).get("status"),sim.get("simulation",{}).get("exitReason"),sim.get("marketHistoryLatestAt"))
+          assert sim.get("certification")=="RESEARCH_ONLY" and sim.get("simulation",{}).get("mode")=="HISTORICAL_PAPER_ONLY","Provider-backed paper simulation unavailable"
+          try:
+            get("/api/private-portfolio-reconciliation")
+            raise AssertionError("SECURITY FAILURE: Private account reconciliation is publicly accessible")
+          except urllib.error.HTTPError as e:
+            print("ACCOUNT ACCESS HTTP",e.code)
+            assert e.code==401,"Private account endpoint did not enforce admin authorization"
+          print("PASS: Historical model evidence reported; point-in-time paper simulator responded; private account data remained protected.")
+          PY
