@@ -55,31 +55,41 @@ async function alpacaSnapshotsForFeed(symbols:string[],feed:string):Promise<Mark
   const clean=cleanSymbols(symbols);
   if(!clean.length) return [];
   const headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret};
-  const [quotesRes,barsRes]=await Promise.all([
-    fetch(`https://data.alpaca.markets/v2/stocks/quotes/latest?symbols=${encodeURIComponent(clean.join(","))}&feed=${encodeURIComponent(feed)}`,{headers,cache:"no-store"}),
-    fetch(`https://data.alpaca.markets/v2/stocks/bars/latest?symbols=${encodeURIComponent(clean.join(","))}&feed=${encodeURIComponent(feed)}`,{headers,cache:"no-store"})
-  ]);
-  if(!quotesRes.ok||!barsRes.ok) throw new Error(`Alpaca ${feed} market data HTTP ${quotesRes.status}/${barsRes.status}`);
-  const quotes=(await quotesRes.json() as any).quotes??{};
-  const bars=(await barsRes.json() as any).bars??{};
+  const url=new URL("https://data.alpaca.markets/v2/stocks/snapshots");
+  url.searchParams.set("symbols",clean.join(","));
+  url.searchParams.set("feed",feed);
+  const res=await fetch(url,{headers,cache:"no-store"});
+  if(!res.ok){
+    const reset=res.headers.get("x-ratelimit-reset");
+    const remaining=res.headers.get("x-ratelimit-remaining");
+    throw new Error("Alpaca "+feed+" snapshots HTTP "+res.status+(remaining!=null?" remaining="+remaining:"")+(reset?" reset="+reset:""));
+  }
+  const data=await res.json() as any;
   return clean.map(symbol=>{
-    const q=quotes[symbol], b=bars[symbol];
-    // Bar closing price and its timestamp must originate from the SAME observation.
-    // A newer quote cannot make an older bar price appear freshly traded.
-    const barPrice=Number(b?.c);
-    const hasBar=b?.t&&Number.isFinite(barPrice)&&barPrice>0;
-    const ts=hasBar?String(b.t):"";
-    const bid=q?.bp==null?undefined:Number(q.bp), ask=q?.ap==null?undefined:Number(q.ap), bidSize=q?.bs==null?undefined:Number(q.bs), askSize=q?.as==null?undefined:Number(q.as);
+    const snap=data?.[symbol]??{};
+    const q=snap.latestQuote;
+    const trade=snap.latestTrade;
+    const minute=snap.minuteBar;
+    const daily=snap.dailyBar;
+    const tradePrice=Number(trade?.p);
+    const minutePrice=Number(minute?.c);
+    const dailyPrice=Number(daily?.c);
+    const tradeValid=trade?.t&&Number.isFinite(tradePrice)&&tradePrice>0;
+    const minuteValid=minute?.t&&Number.isFinite(minutePrice)&&minutePrice>0;
+    const dailyValid=daily?.t&&Number.isFinite(dailyPrice)&&dailyPrice>0;
+    const price=tradeValid?tradePrice:minuteValid?minutePrice:dailyValid?dailyPrice:0;
+    const ts=tradeValid?String(trade.t):minuteValid?String(minute.t):dailyValid?String(daily.t):"";
+    const bid=q?.bp==null?undefined:Number(q.bp),ask=q?.ap==null?undefined:Number(q.ap),bidSize=q?.bs==null?undefined:Number(q.bs),askSize=q?.as==null?undefined:Number(q.as);
     return {
       symbol,
-      timestamp:String(ts),
-      price:hasBar?barPrice:0,
-      priceKind:"bar_close",
+      timestamp:ts,
+      price,
+      priceKind:tradeValid?"last_trade":minuteValid?"minute_close":"day_close",
       quoteTimestamp:q?.t?String(q.t):undefined,
-      volume:Number(b?.v??0),
-      vwap:b?.vw==null?undefined:Number(b.vw),
+      volume:Number(daily?.v??minute?.v??0),
+      vwap:minute?.vw==null?(daily?.vw==null?undefined:Number(daily.vw)):Number(minute.vw),
       bid,ask,bidSize,askSize,
-      source:`Alpaca:${feed}`,
+      source:"Alpaca:"+feed,
       coverage:feed==="sip"?"All US exchanges":feed==="iex"?"IEX only":feed==="delayed_sip"?"All US exchanges / delayed":"Provider-specific",
       entitlement:feed==="sip"?"full-market":feed==="iex"?"partial-real-time":"delayed-or-specialized"
     } satisfies MarketSnapshot;
