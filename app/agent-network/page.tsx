@@ -8,6 +8,7 @@ type Data={external:{share:number;connected:number;agents:Agent[]};internal:{sha
 export default function AgentNetwork(){
  const [data,setData]=useState<Data|null>(null);
  const [ledgerStatus,setLedgerStatus]=useState("checking");
+ const [researchStorage,setResearchStorage]=useState<{status?:string;artifactsRegistered?:number|null;registeredBytes?:number|null;uploadsEnabled?:boolean}|null>(null);
  const [ledgerParts,setLedgerParts]=useState<{hypothesisLedger?:boolean;investigationLedger?:boolean;eventsLedger?:boolean}>({});
  const [error,setError]=useState("");
  const [inboxFilter,setInboxFilter]=useState<"all"|"unverified"|"shortlisted"|"rejected">("all");
@@ -18,6 +19,7 @@ export default function AgentNetwork(){
  const [loading,setLoading]=useState(false);
  const [idea,setIdea]=useState("");const [source,setSource]=useState("");const [inbox,setInbox]=useState<Array<{id:string;idea:string;source:string;createdAt:string;reviewStatus?:"unverified"|"shortlisted"|"rejected"}>>([]);
  useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem("tradeos-agent-inbox-v1")??"[]");if(Array.isArray(saved))setInbox(saved.slice(0,30));}catch{}},[]);
+ useEffect(()=>{fetch("/api/research-storage-status",{cache:"no-store"}).then(r=>r.json()).then(setResearchStorage).catch(()=>setResearchStorage({status:"unavailable"}));},[]);
  useEffect(()=>{fetch("/api/agent-ledger-health",{cache:"no-store"}).then(r=>r.json()).then(d=>{setLedgerStatus(String(d.status??"unavailable"));setLedgerParts(d)}).catch(()=>setLedgerStatus("unavailable"));},[]);
  useEffect(()=>{fetch("/api/agent-network",{cache:"no-store"}).then(r=>r.json()).then(setData).catch(()=>setError("Agent registry unavailable"));},[]);
  useEffect(()=>{
@@ -69,7 +71,7 @@ export default function AgentNetwork(){
  {item.evidence.map((ev,i)=><p key={i} style={{fontSize:12,borderTop:"1px solid #ffffff18",paddingTop:7}}>{ev.factor??"Unspecified"}<br/><small>{ev.source??"Source unavailable"}</small></p>)}
  <small style={{color:"#efcc83"}}>{item.status.replaceAll("_"," ")}</small></article>)}
  </div></section>
- <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Research Storage</h2><p>Private Neon Object Storage bucket configured for TradeOS research. Artifact manifest available for database-backed file metadata. File upload and download require an authenticated gateway before activation.</p><a style={{color:"#e8c87e"}} href="/api/research-storage-status" target="_blank" rel="noopener noreferrer">Check live storage connection and metadata status ↗</a></section>
+ <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Research Storage</h2><p>Storage status: <strong>{researchStorage?.status?.replaceAll("_"," ")??"Checking"}</strong> · Registered artifacts: <strong>{researchStorage?.artifactsRegistered??"Not available"}</strong> · Recorded data: <strong>{typeof researchStorage?.registeredBytes==="number"?(researchStorage.registeredBytes/1024/1024).toFixed(2)+" MiB":"Not available"}</strong></p><p>Neon private bucket configuration and PostgreSQL artifact metadata are tracked separately. Recorded size excludes unregistered object files and does not represent provider billing.</p><p style={{color:"#e8c87e"}}>File transfers: {researchStorage?.uploadsEnabled?"Enabled":"Disabled pending authenticated gateway"}</p><a style={{color:"#e8c87e"}} href="/api/research-storage-status" target="_blank" rel="noopener noreferrer">Check live storage connection and metadata status ↗</a></section>
  <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Safety and certification</h2><p>Persistent ledger schema: <strong>{ledgerStatus.replaceAll("_"," ")}</strong> · Anonymous database changes disabled.</p><p style={{color:"#9ad5e4"}}>Hypotheses: {ledgerParts.hypothesisLedger?"Ready":"Not verified"} · Investigations: {ledgerParts.investigationLedger?"Ready":"Not verified"} · Audit events: {ledgerParts.eventsLedger?"Ready":"Not verified"}</p><p>Database availability does not grant access. Browser research remains local until authenticated storage is implemented.</p><p>No external agent accounts are connected yet; agent profiles are controlled development roles.</p>{(data?.policy.controls??[]).map(x=><p key={x}>✓ {x}</p>)}</section>
  </main>;
 }
