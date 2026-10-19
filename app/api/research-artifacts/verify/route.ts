@@ -25,8 +25,9 @@ export async function POST(request:Request){
   const actual=createHash("sha256").update(bytes).digest("hex");
   if(actual!==sha)return NextResponse.json({error:"Object checksum mismatch; not registered"},{status:422,headers});
   const contentType=typeof body.contentType==="string"?body.contentType.slice(0,100):"application/octet-stream";
-  const records=await actor.sql`insert into research_artifact_manifest(owner_id,artifact_kind,storage_tier,sha256_hex,byte_size,object_key,content_type) values(${actor.id},${kind},'warm_object',${sha},${bytes.byteLength},${key},${contentType}) on conflict(owner_id,sha256_hex) do update set sha256_hex=excluded.sha256_hex returning id::text`;
-  return NextResponse.json({verified:true,registered:true,id:records[0]?.id,sha256:actual,bytes:bytes.byteLength},{headers});
+  if(!["text/csv","application/json","application/pdf","text/plain","application/octet-stream","application/vnd.apache.parquet"].includes(contentType))return NextResponse.json({error:"Unsupported content type"},{status:400,headers});
+  const records=await actor.sql`insert into research_artifact_manifest(owner_id,artifact_kind,storage_tier,sha256_hex,byte_size,object_key,content_type) values(${actor.id},${kind},'warm_object',${sha},${bytes.byteLength},${key},${contentType}) on conflict(owner_id,sha256_hex) do nothing returning id::text`;
+  return NextResponse.json({verified:true,registered:true,id:records[0]?.id??null,alreadyRegistered:records.length===0,sha256:actual,bytes:bytes.byteLength},{headers});
  }catch{return NextResponse.json({error:"Upload verification failed; nothing certified"},{status:503,headers});}
 }
 export async function GET(request:Request){
