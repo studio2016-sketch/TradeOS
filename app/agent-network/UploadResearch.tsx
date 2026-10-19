@@ -8,7 +8,7 @@ export default function UploadResearch(){
  const [lastHash,setLastHash]=useState("");
  const [downloadStatus,setDownloadStatus]=useState("");
  async function upload(selected:File|null=file){
-  if(!selected)return;setBusy(true);setStatus("Calculating file fingerprint…");
+  if(!selected)return;setBusy(true);setDownloadStatus("");setStatus("Calculating file fingerprint…");
   try{
    if(selected.size<1||selected.size>25*1024*1024)throw Error("File size must be 1 byte to 25 MiB");
    const mime=selected.type||"application/octet-stream";
@@ -16,7 +16,13 @@ export default function UploadResearch(){
    const sha256=Array.from(new Uint8Array(digest)).map(n=>n.toString(16).padStart(2,"0")).join("");
    setStatus("Requesting short-lived upload permission…");
    const permit=await fetch("/api/research-artifacts/sign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:selected.name,contentType:mime,bytes:selected.size,sha256})});
-   const signed=await permit.json();if(!permit.ok)throw Error(signed.status||"Upload not authorized");
+   const signed=await permit.json();
+   if(permit.status===409&&signed.status==="already_registered"){
+    setLastHash(sha256);
+    setStatus("Already registered in Neon. No second upload is needed. Use Verify secure retrieval below.");
+    return;
+   }
+   if(!permit.ok)throw Error(signed.status||"Upload not authorized");
    setStatus("Uploading into private Neon research storage…");
    const sent=await fetch(signed.url,{method:"PUT",headers:{"Content-Type":mime},body:data});
    if(!sent.ok)throw Error("Storage rejected upload ("+sent.status+"). Check bucket credentials and CORS.");
