@@ -92,6 +92,8 @@ export interface SecIssuerContext{
   ownershipFilingCount365d:number;
   institutionalParticipationScore:number|null;
   latestOwnershipFilingDate:string|null;
+  sic:string|null;
+  sicDescription:string|null;
   note:string;
   generatedAt:string;
 }
@@ -140,6 +142,7 @@ export async function secIssuerContext(symbol:string):Promise<SecIssuerContext|n
   return{
     symbol:symbol.toUpperCase(),company:company.title,cik:company.cik,publicFloatUsd,sharesOutstanding,floatStructureScore,
     ownershipFilingCount365d,institutionalParticipationScore,latestOwnershipFilingDate,
+    sic:sub?.sic==null?null:String(sub.sic),sicDescription:sub?.sicDescription==null?null:String(sub.sicDescription),
     note:"SEC public-float/company-facts plus recent 13D/13G filing activity. Ownership filing activity is a participation proxy, not complete institutional ownership.",
     generatedAt:new Date().toISOString()
   };
