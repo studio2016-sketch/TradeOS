@@ -13,7 +13,7 @@ export default function AlignmentVault({symbol,data,onExpand}:{symbol:string;dat
  const state=matched?data?.buyState??"UNAVAILABLE":"UNAVAILABLE";
  const eligible=matched&&Boolean(data?.canonical?.all120Aligned)&&state==="MUST BUY"&&!hardVeto&&groups.length===10&&groups.every(g=>g.available===g.total&&Boolean(g.total));
  const stage=eligible?"UNLOCKED":!matched?"WAIT":state==="NO TRADE"?"PASS":state==="WATCH"?"WATCH":state==="READY"||state==="HIGH CONVICTION"?"PREPARE":"WAIT";
- const valid=score!==null&&groups.some(g=>g.available>0);
+ const valid=score!==null&&groups.some(g=>(g.available??0)>0);
  return <section className="av-shell" aria-label="TradeOS animated trade alignment engine">
   <header className="av-heading"><div><span className="av-eyebrow">TRADEOS PRECISION MOVEMENT · PAPER RESEARCH</span><h2>Trade alignment vault</h2><p>Measured category alignment powers the gears. Verified, risk-approved conditions control the lock.</p></div><span className="av-stamp">No live orders · Not a probability</span></header>
   <div className="av-layout">
@@ -35,7 +35,7 @@ export default function AlignmentVault({symbol,data,onExpand}:{symbol:string;dat
     <div className="av-door"><div className="av-door-ribs"/><div className="av-door-lock">✦</div></div>
    </div>
    <aside className="av-panel"><span className="av-eyebrow">CURRENT RESEARCH DECISION</span><h3>{symbol}</h3><div className={"av-state av-state-"+stage.toLowerCase()}>{stage}</div><p>{eligible?"All canonical alignment conditions are reported met; independently confirm the full safety gate before any paper-trade action.":!valid?"Awaiting scored group evidence. This vault stays locked.":hardVeto?"Decision Council objections are active. The vault remains locked.":"Gear movement indicates research alignment only. A strong score cannot bypass hard risk, data quality, or model certification."}</p>
-    <div className="av-statgrid"><div><span>Measured score</span><b>{score===null?"Unavailable":Math.round(score)+"/100"}</b></div><div><span>Groups reported</span><b>{groups.filter(g=>g.available>0).length}</b></div><div><span>Critical checks</span><b>{data?.criticalTotal?String(data.criticalPassed??0)+"/"+String(data.criticalTotal):"Unavailable"}</b></div><div><span>Vault</span><b>{eligible?"Open":"Locked"}</b></div></div>
+    <div className="av-statgrid"><div><span>Measured score</span><b>{score===null?"Unavailable":Math.round(score)+"/100"}</b></div><div><span>Groups reported</span><b>{groups.filter(g=>(g.available??0)>0).length}</b></div><div><span>Critical checks</span><b>{data?.criticalTotal?String(data.criticalPassed??0)+"/"+String(data.criticalTotal):"Unavailable"}</b></div><div><span>Vault</span><b>{eligible?"Open":"Locked"}</b></div></div>
     <div className="av-stage-track">{["PASS","WATCH","PREPARE","UNLOCKED"].map(s=><span key={s} className={stage===s?"selected":""}>{s}</span>)}</div>
     <small className="av-clarifier">Gears use current research group scores, not illustrative values. Opening the vault represents alignment only; it never authorizes a live order.</small>
     {onExpand&&<button className="av-action" onClick={onExpand}>Inspect all 120 gears →</button>}
