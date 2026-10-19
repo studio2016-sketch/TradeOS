@@ -19,6 +19,8 @@ import {secIssuerContext} from "../../../lib/market/sec";
 import {alpacaBrokerState,brokerReadStatus} from "../../../lib/broker/alpaca";
 import {evaluateInstitutionalLens} from "../../../lib/research/institutionalLens";
 import {freeOfficialSnapshot} from "../../../lib/market/freeOfficial";
+import {configuredSourceHealth} from "../../../lib/market/providers";
+import {evaluateSourceReliability} from "../../../lib/market/sourceReliability";
 
 export const dynamic="force-dynamic";
 
@@ -47,6 +49,7 @@ export async function GET(req:Request){
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes,validationGate:intelligenceRes?.validationGate});
   const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction,official});
+  const sourceReliability=evaluateSourceReliability({configured:configuredSourceHealth(),official,marketProbe:market});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
   const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
@@ -74,6 +77,7 @@ export async function GET(req:Request){
     adaptive,
     institutional,
     officialSources:official,
+    sourceReliability,
     canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:result.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:result.observedCount+adaptive.observedCount,availability:+((result.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(result.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},
     optionSurface,
     features,
@@ -87,7 +91,7 @@ export async function GET(req:Request){
     humanChecks:{tradeCountOk,tiltOk},
     macro,
     certificationGate:intelligenceRes?.validationGate??null,
-    executionAuthorization:{allowed:false,mode:"research_only",reason:independentOosVerified?"Research certification may support analysis, but live execution remains disabled pending separate explicit authorization and operational validation.":"No fully certified independent out-of-sample evidence or live-execution authorization."},
+    executionAuthorization:{allowed:false,mode:"research_only",sourceReliabilityDecisionGrade:sourceReliability.consolidatedRealtimeEquities&&sourceReliability.decisionGradeSources>=6,reason:independentOosVerified?"Research certification may support analysis, but live execution remains disabled pending separate explicit authorization and operational validation.":"No fully certified independent out-of-sample evidence or live-execution authorization."},
     interpretation:{buy:governedBuy==="MUST BUY"?"Exceptional indicator alignment — research only":governedBuy==="HIGH CONVICTION"?"Strong research candidate":governedBuy==="READY"?"Candidate for manual review":"No trading authorization",sell:governedSell==="MUST SELL"?"Elevated capital-risk review required":"Monitor downside risk"},
     disclaimer:"Alignment is not a probability of profit. MUST BUY / MUST SELL are internal legacy state labels only; live trading is disabled."
   });
