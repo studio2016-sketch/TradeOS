@@ -7,6 +7,7 @@ import {db} from "../../../../lib/db";
 import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard,resolveExpertViews,expertScorecard,resolveInstitutionalPlaybooks,institutionalPlaybookScorecard} from "../../../../lib/research/ledger";
 import {buildFinancialKnowledgeGraph} from "../../../../lib/research/knowledgeGraph";
 import {graphHypotheses} from "../../../../lib/research/factorDiscovery";
+import {resolveDecisionMemory,decisionMemoryScorecard} from "../../../../lib/research/decisionMemory";
 
 export const dynamic="force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET(req:Request){
   const symbols=universe.filter((_,i)=>i%buckets===bucket);
   const startedAt=new Date().toISOString();
   const errors:any[]=[];
-  let snapshot:any=null,persisted:any=null,official:any=null,graph:any=null,factors:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null;
+  let snapshot:any=null,persisted:any=null,official:any=null,graph:any=null,factors:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,decisionResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null,decisionScores:any=null;
   try{
     snapshot=await discoverResearchSubjects(symbols);
     persisted=await persistResearchSnapshot({...snapshot,researchUniverseSize:universe.length,bucket,buckets});
@@ -53,9 +54,11 @@ export async function GET(req:Request){
   try{resolution=await resolveResearchSubjects(18);}catch(error){errors.push({stage:"resolution",error:error instanceof Error?error.message:String(error)});}
   try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}
   try{playbookResolution=await resolveInstitutionalPlaybooks(36);}catch(error){errors.push({stage:"playbook-resolution",error:error instanceof Error?error.message:String(error)});}
+  try{decisionResolution=await resolveDecisionMemory(48);}catch(error){errors.push({stage:"decision-memory-resolution",error:error instanceof Error?error.message:String(error)});}
   try{scorecard=await researchScorecard(90);}catch(error){errors.push({stage:"scorecard",error:error instanceof Error?error.message:String(error)});}
   try{expertScores=await expertScorecard(90);}catch(error){errors.push({stage:"expert-scorecard",error:error instanceof Error?error.message:String(error)});}
   try{playbookScores=await institutionalPlaybookScorecard(90);}catch(error){errors.push({stage:"playbook-scorecard",error:error instanceof Error?error.message:String(error)});}
+  try{decisionScores=await decisionMemoryScorecard(120);}catch(error){errors.push({stage:"decision-memory-scorecard",error:error instanceof Error?error.message:String(error)});}
   return NextResponse.json({
     status:errors.length?"degraded":"ok",
     startedAt,finishedAt:new Date().toISOString(),bucket,buckets,symbols,
@@ -65,7 +68,7 @@ export async function GET(req:Request){
       global:snapshot.geography?.globalItems?.length??0,
       localConfigured:Boolean(snapshot.geography?.configuredLocalTerms?.length)
     }}:null,
-    persisted,graph:graph?{nodes:graph.stats.nodes,edges:graph.stats.edges,multiSourceEdges:graph.stats.multiSourceEdges}:null,factors:factors?{hypotheses:factors.hypotheses.length,candidates:factors.hypotheses.filter((h:any)=>h.state==="candidate").length}:null,official:official?{live:official.live,degraded:official.degraded,unconfigured:official.unconfigured,sources:official.sources.map((s:any)=>({id:s.id,status:s.status,error:s.error??null}))}:null,resolution,expertResolution,playbookResolution,scorecard,expertScores,playbookScores,errors,
+    persisted,graph:graph?{nodes:graph.stats.nodes,edges:graph.stats.edges,multiSourceEdges:graph.stats.multiSourceEdges}:null,factors:factors?{hypotheses:factors.hypotheses.length,candidates:factors.hypotheses.filter((h:any)=>h.state==="candidate").length}:null,official:official?{live:official.live,degraded:official.degraded,unconfigured:official.unconfigured,sources:official.sources.map((s:any)=>({id:s.id,status:s.status,error:s.error??null}))}:null,resolution,expertResolution,playbookResolution,decisionResolution,scorecard,expertScores,playbookScores,decisionScores,errors,
     safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"}
   });
 }
