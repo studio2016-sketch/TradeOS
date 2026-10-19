@@ -74,3 +74,59 @@ export async function alpacaBrokerState():Promise<BrokerAccountState|null>{
     generatedAt:new Date().toISOString()
   };
 }
+
+
+export interface BrokerReconciliation{
+  environment:"live"|"paper";
+  accountStatus:string;
+  positionsCount:number;
+  openOrdersCount:number;
+  closedOrdersCount:number;
+  fillActivitiesCount:number;
+  coverage:"complete_empty_account"|"complete_recent_activity"|"partial_activity_history";
+  reconciled:boolean;
+  account:{equity:number|null;cash:number|null;buyingPower:number|null;portfolioValue:number|null};
+  positions:BrokerAccountState["positions"];
+  openOrders:BrokerAccountState["openOrders"];
+  closedOrders:Array<{id:string;symbol:string;side:string;qty:number|null;filledQty:number|null;status:string;filledAt:string|null}>;
+  fills:Array<{id:string;symbol:string;side:string;qty:number|null;price:number|null;transactionTime:string|null;orderId:string|null}>;
+  generatedAt:string;
+  note:string;
+}
+
+export async function alpacaBrokerReconciliation():Promise<BrokerReconciliation|null>{
+  const state=await alpacaBrokerState();
+  if(!state)return null;
+  const env=state.environment;
+  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
+  if(!key||!secret)return null;
+  const headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret,"Accept":"application/json"};
+  const b=base(env);
+  const [closedRes,fillsRes]=await Promise.all([
+    fetch(b+"/v2/orders?status=closed&limit=500&direction=desc",{headers,cache:"no-store"}),
+    fetch(b+"/v2/account/activities/FILL?direction=desc&page_size=100",{headers,cache:"no-store"})
+  ]);
+  if(!closedRes.ok)throw new Error(`Alpaca closed orders HTTP ${closedRes.status}`);
+  if(!fillsRes.ok)throw new Error(`Alpaca fill activities HTTP ${fillsRes.status}`);
+  const closed=await closedRes.json() as any[];
+  const fills=await fillsRes.json() as any[];
+  const closedOrders=(closed??[]).map((o:any)=>({
+    id:String(o.id),symbol:String(o.symbol??""),side:String(o.side??""),qty:n(o.qty),filledQty:n(o.filled_qty),
+    status:String(o.status??""),filledAt:o.filled_at?String(o.filled_at):null
+  }));
+  const fillActivities=(fills??[]).map((a:any)=>({
+    id:String(a.id??""),symbol:String(a.symbol??""),side:String(a.side??""),qty:n(a.qty),price:n(a.price),
+    transactionTime:a.transaction_time?String(a.transaction_time):null,orderId:a.order_id?String(a.order_id):null
+  }));
+  const empty=state.positions.length===0&&state.openOrders.length===0&&closedOrders.length===0&&fillActivities.length===0;
+  const truncated=fillActivities.length>=100;
+  const coverage=empty?"complete_empty_account":truncated?"partial_activity_history":"complete_recent_activity";
+  const reconciled=empty||(!truncated&&state.accountStatus==="ACTIVE");
+  return{
+    environment:env,accountStatus:state.accountStatus,positionsCount:state.positions.length,openOrdersCount:state.openOrders.length,
+    closedOrdersCount:closedOrders.length,fillActivitiesCount:fillActivities.length,coverage,reconciled,
+    account:{equity:state.equity,cash:state.cash,buyingPower:state.buyingPower,portfolioValue:state.portfolioValue},
+    positions:state.positions,openOrders:state.openOrders,closedOrders,fills:fillActivities,generatedAt:new Date().toISOString(),
+    note:truncated?"Fill history reached the page limit; deeper pagination is required before claiming complete transaction-history reconciliation.":"Read-only reconciliation from Alpaca account, positions, open orders, closed orders and fill activities."
+  };
+}
