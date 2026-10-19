@@ -15,7 +15,7 @@ export default function UploadResearch(){
    const data=await selected.arrayBuffer();const digest=await crypto.subtle.digest("SHA-256",data);
    const sha256=Array.from(new Uint8Array(digest)).map(n=>n.toString(16).padStart(2,"0")).join("");
    setStatus("Requesting short-lived upload permission…");
-   const permit=await fetch("/api/research-artifacts/sign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:selected.name,contentType:mime,bytes:selected.size,sha256})});
+   const permit=await fetch("/api/research-artifacts/sign",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({filename:selected.name,contentType:mime,bytes:selected.size,sha256})});
    const signed=await permit.json();
    if(permit.status===409&&signed.status==="already_registered"){
     setLastHash(sha256);
@@ -31,7 +31,7 @@ export default function UploadResearch(){
    const result=await verified.json();if(!verified.ok||!result.verified)throw Error(result.error||"Integrity check failed");
    setLastHash(sha256);
    setStatus("Verified and registered in Neon · SHA-256 "+sha256+" · "+result.bytes+" bytes");
-  }catch(error){setStatus("Not completed: "+(error instanceof Error?error.message:"Unexpected error"));}
+  }catch(error){setStatus("Not completed: "+(error instanceof Error?error.message:"Unexpected error")+". If this says Load failed, retry in Safari or Chrome outside the in-app browser.");}
   finally{setBusy(false);}
  }
  async function testRetrieval(){
