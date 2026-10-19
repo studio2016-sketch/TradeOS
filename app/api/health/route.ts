@@ -39,7 +39,7 @@ export async function GET(){
       const hit=(marketProbe as any)?.attempts?.find((a:any)=>a.source.toLowerCase().includes(s.id));
       const chosen=(marketProbe as any)?.provider?.toLowerCase().includes(s.id);
       const state=chosen?"live":hit?.error?"degraded":s.state;
-      return {...s,state,quality:chosen?90:hit?.error?35:s.quality,note:hit?.error?s.note+" Runtime: "+hit.error:s.note,runtimeVerified:Boolean(chosen||hit),generatedAt:new Date().toISOString()};
+      return {...s,state,quality:chosen?90:hit?.error?35:s.quality,note:hit?.error?s.note+" Runtime: "+hit.error:s.note,runtimeVerified:Boolean(chosen||(hit&&!hit.error)),generatedAt:new Date().toISOString()};
     }
     return {...s,runtimeVerified:false};
   });
