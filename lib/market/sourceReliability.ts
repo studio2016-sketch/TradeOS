@@ -68,7 +68,7 @@ export function evaluateSourceReliability(args:{
     if(s.id==="alpaca"||s.id==="massive"){
       const selected=chosen.includes(s.id);
       const snaps=selected?marketSnapshots:[];
-      runtimeVerified=runtimeVerified||selected;
+      runtimeVerified=selected;
       const latest=snaps.map((x:any)=>ageMs(x.timestamp)).filter((x:any)=>x!=null).sort((a:number,b:number)=>a-b)[0]??null;
       const f=freshnessFromAge(latest,60_000);
       freshness=f.label;freshnessScore=f.score;
@@ -100,7 +100,7 @@ export function evaluateSourceReliability(args:{
 
     const runtimeScore=runtimeVerified?100:connected?55:0;
     const reliability=clamp(runtimeScore*.22+freshnessScore*.25+authority*.20+coverage*.18+redundancy*.15);
-    const decisionGrade=runtimeVerified&&freshness!=="stale"&&freshness!=="unconfigured"&&reliability>=75;
+    const decisionGrade=runtimeVerified&&["live","current","delayed"].includes(freshness)&&reliability>=75;
     return{
       id:s.id,label:s.label,connected,runtimeVerified,freshness,authority,coverage,redundancy,
       reliability:+reliability.toFixed(1),decisionGrade,note
