@@ -8,3 +8,14 @@
 .av-panel{border:1px solid #b4945b70;border-radius:19px;padding:26px;background:linear-gradient(150deg,#101d2ae8,#060b12ed);box-shadow:0 12px 45px #0007}.av-panel h3{font-size:43px;margin:10px 0}.av-panel p{line-height:1.6;font-size:13px;color:#b7c6d1}.av-state{border:1px solid #ccad65;color:#f0c97c;background:#5b3f1130;border-radius:10px;padding:13px;font-size:22px;font-weight:900;letter-spacing:.07em}.av-state-prepare{border-color:#46d9e2;color:#6ce8ee;background:#10455244}.av-state-unlocked{border-color:#60dfb3;color:#79ecc0;background:#12513e55}.av-state-pass{border-color:#b45457;color:#ed9290}.av-statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.av-statgrid div{background:#ffffff08;border:1px solid #ffffff10;border-radius:10px;padding:12px}.av-statgrid span{display:block;font-size:11px;color:#9dabb5}.av-statgrid b{display:block;font-size:16px;margin-top:5px;color:#f4ddac}.av-stage-track{display:flex;justify-content:space-between;gap:4px;margin:20px 0;font-size:10px;color:#798b9c}.av-stage-track span{border-top:3px solid #536473;padding-top:9px}.av-stage-track .selected{color:#e8c176;border-color:#e7bb63}.av-clarifier{display:block;font-size:10px;line-height:1.5;color:#849aa9}.av-panel .av-action{display:block;margin-top:18px;width:100%;background:linear-gradient(120deg,#f4d591,#af8644);color:#151b21;border:0;border-radius:9px;padding:12px;font-weight:850;cursor:pointer}
 @keyframes av-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.av-rotor,.av-gear-teeth{animation:none!important}.av-door{transition:none!important}}
 @media(max-width:1050px){.av-layout{grid-template-columns:1fr}.av-panel{max-width:580px;width:100%;margin:auto}}@media(max-width:560px){.av-shell{padding:14px}.av-heading{display:block}.av-stamp{display:inline-block;margin-top:12px}.av-engine{width:445px;max-width:none;transform:scale(.7);transform-origin:top left;margin-bottom:-145px}.av-layout{gap:0}.av-panel{padding:18px}.av-panel h3{font-size:32px}} 
+
+/* Scale the precision movement as a complete instrument on narrow phones. */
+@media(max-width:560px){
+ .av-layout{display:block}
+ .av-engine{width:445px;height:485px;max-width:none;transform:scale(.67);transform-origin:top left;margin-bottom:-160px}
+ .av-shell{overflow:hidden}
+ .av-panel{width:100%;max-width:100%;position:relative;z-index:2}
+ .av-statgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:400px){.av-engine{transform:scale(.57);margin-bottom:-204px}}
+@media(min-width:561px) and (max-width:700px){.av-engine{margin-inline:auto}}
