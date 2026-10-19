@@ -6,6 +6,7 @@ type Agent={id:string;name:string;purpose:string;state:string};
 type Data={external:{share:number;connected:number;agents:Agent[]};internal:{share:number;agents:Agent[]};policy:{controls:string[]}};
 export default function AgentNetwork(){
  const [data,setData]=useState<Data|null>(null);
+ const [ledgerStatus,setLedgerStatus]=useState("checking");
  const [error,setError]=useState("");
  const [symbol,setSymbol]=useState("NVDA");
  const [ticker,setTicker]=useState("NVDA");
@@ -13,6 +14,7 @@ export default function AgentNetwork(){
  const [loading,setLoading]=useState(false);
  const [idea,setIdea]=useState("");const [source,setSource]=useState("");const [inbox,setInbox]=useState<Array<{id:string;idea:string;source:string;createdAt:string}>>([]);
  useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem("tradeos-agent-inbox-v1")??"[]");if(Array.isArray(saved))setInbox(saved.slice(0,30));}catch{}},[]);
+ useEffect(()=>{fetch("/api/agent-research-status",{cache:"no-store"}).then(r=>r.json()).then(d=>setLedgerStatus(String(d.status??"unavailable"))).catch(()=>setLedgerStatus("unavailable"));},[]);
  useEffect(()=>{fetch("/api/agent-network",{cache:"no-store"}).then(r=>r.json()).then(setData).catch(()=>setError("Agent registry unavailable"));},[]);
  useEffect(()=>{
   let active=true;
@@ -57,6 +59,6 @@ export default function AgentNetwork(){
  {item.evidence.map((ev,i)=><p key={i} style={{fontSize:12,borderTop:"1px solid #ffffff18",paddingTop:7}}>{ev.factor??"Unspecified"}<br/><small>{ev.source??"Source unavailable"}</small></p>)}
  <small style={{color:"#efcc83"}}>{item.status.replaceAll("_"," ")}</small></article>)}
  </div></section>
- <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Safety and certification</h2><p>No external agent accounts are connected yet; agent profiles are controlled development roles.</p>{(data?.policy.controls??[]).map(x=><p key={x}>✓ {x}</p>)}</section>
+ <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Safety and certification</h2><p>Persistent ledger schema: <strong>{ledgerStatus.replaceAll("_"," ")}</strong> · Anonymous database changes disabled.</p><p>No external agent accounts are connected yet; agent profiles are controlled development roles.</p>{(data?.policy.controls??[]).map(x=><p key={x}>✓ {x}</p>)}</section>
  </main>;
 }
