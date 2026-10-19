@@ -11,6 +11,8 @@ export default function AgentNetwork(){
  const [ticker,setTicker]=useState("NVDA");
  const [alignment,setAlignment]=useState<any>(null);
  const [loading,setLoading]=useState(false);
+ const [idea,setIdea]=useState("");const [source,setSource]=useState("");const [inbox,setInbox]=useState<Array<{id:string;idea:string;source:string;createdAt:string}>>([]);
+ useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem("tradeos-agent-inbox-v1")??"[]");if(Array.isArray(saved))setInbox(saved.slice(0,30));}catch{}},[]);
  useEffect(()=>{fetch("/api/agent-network",{cache:"no-store"}).then(r=>r.json()).then(setData).catch(()=>setError("Agent registry unavailable"));},[]);
  useEffect(()=>{
   let active=true;
@@ -32,6 +34,15 @@ export default function AgentNetwork(){
  <p style={{fontSize:13,color:"#acc3d0"}}>{kind==="external"?"Public agent ecosystem · discovery catalog only":"Private research roles · evidence review only"}</p>
  {(data?.[kind].agents??[]).map(a=><article key={a.id} style={{padding:"14px 0",borderTop:"1px solid #ffffff18"}}><b>{a.name}</b><small style={{display:"block",color:"#73cce3",marginTop:5}}>{a.state.replaceAll("_"," ")}</small><p style={{fontSize:13,lineHeight:1.5,color:"#b9cbd6"}}>{a.purpose}</p></article>)}
  </section>)}</div>
+ <section style={{marginTop:24,padding:24,border:"1px solid #b8975e",borderRadius:16,background:"#102436"}}>
+ <h2>External Discovery Inbox</h2><p>Capture an externally discovered hypothesis with a public source. Entries stay in this browser, remain unverified, and cannot influence trading models.</p>
+ <form onSubmit={e=>{e.preventDefault();let u:URL;try{u=new URL(source);}catch{setError("Provide a valid HTTPS research source");return;}if(u.protocol!=="https:"||!idea.trim()){setError("Provide a hypothesis and an HTTPS source");return;}const next=[{id:crypto.randomUUID(),idea:idea.trim().slice(0,500),source:u.toString().slice(0,600),createdAt:new Date().toISOString()},...inbox].slice(0,30);setInbox(next);try{localStorage.setItem("tradeos-agent-inbox-v1",JSON.stringify(next))}catch{}setIdea("");setSource("");setError("")}}>
+ <label htmlFor="agent-hypothesis">Research hypothesis</label><textarea id="agent-hypothesis" value={idea} onChange={e=>setIdea(e.target.value)} maxLength={500} rows={3} style={{display:"block",width:"100%",padding:10,margin:"10px 0",background:"#0b1e2e",color:"#fff",border:"1px solid #6e8899",borderRadius:8}}/>
+ <label htmlFor="agent-source">Original public HTTPS source</label><input id="agent-source" type="url" required value={source} onChange={e=>setSource(e.target.value)} style={{display:"block",width:"100%",padding:10,margin:"10px 0",background:"#0b1e2e",color:"#fff",border:"1px solid #6e8899",borderRadius:8}}/>
+ <button style={{padding:12,background:"#e9c781",color:"#061522",border:0,borderRadius:8,fontWeight:700}}>Register unverified hypothesis</button></form>
+ <p>{inbox.length} locally registered hypotheses · 0 independently validated</p>
+ {inbox.map(x=><article key={x.id} style={{padding:12,marginTop:10,border:"1px solid #ffffff22",borderRadius:10,overflowWrap:"anywhere"}}><strong>UNVERIFIED · {new Date(x.createdAt).toLocaleString()}</strong><p>{x.idea}</p><a href={x.source} target="_blank" rel="noopener noreferrer" style={{color:"#8bdfed"}}>Original source ↗</a><button onClick={()=>{const next=inbox.filter(y=>y.id!==x.id);setInbox(next);try{localStorage.setItem("tradeos-agent-inbox-v1",JSON.stringify(next))}catch{}}} style={{marginLeft:15,padding:7}}>Remove</button></article>)}
+ </section>
  <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}>
  <h2>Evidence-driven Council Preview</h2><p>This view organizes existing TradeOS evidence by research role. These are not autonomous agents or certified independent conclusions.</p>
  <form onSubmit={e=>{e.preventDefault();const x=ticker.trim().toUpperCase();if(/^[A-Z][A-Z0-9.-]{0,9}$/.test(x)){setError("");setSymbol(x)}else setError("Invalid ticker")}}>
