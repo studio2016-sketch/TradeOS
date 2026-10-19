@@ -33,7 +33,7 @@ export default function AgentNetwork(){
  },[symbol]);
  const docket=researchDocket({symbol,readings:alignment?.readings,generatedAt:alignment?.generatedAt});
  return <main style={{minHeight:"100vh",background:"#081320",color:"#e9f1f5",padding:"clamp(16px,4vw,48px)",fontFamily:"system-ui"}}>
- <nav style={{display:"flex",gap:25}}><Link href="/" style={{color:"#e8c98a"}}>← TradeOS</Link><Link href="/live-board" style={{color:"#8cdbec"}}>Live Board</Link></nav>
+ <nav style={{display:"flex",gap:25}}><Link href="/" style={{color:"#e8c98a"}}>← TradeOS</Link><Link href="/live-board" style={{color:"#8cdbec"}}>Live Board</Link><Link href="/sign-in" style={{color:"#e8c98a"}}>Secure Sign In</Link></nav>
  <header style={{maxWidth:850,margin:"38px 0"}}><small style={{color:"#dcc17d",letterSpacing:3}}>TRADEOS AGENT INTELLIGENCE NETWORK</small><h1 style={{fontSize:"clamp(30px,5vw,58px)",margin:"12px 0"}}>Two networks. One research standard.</h1><p style={{lineHeight:1.6,color:"#adc2d0"}}>A 50/50 research foundation: untrusted external discovery and independently governed private analysis.</p></header>
  {error&&<p role="alert">{error}</p>}
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:18}}>
