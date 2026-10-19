@@ -8,7 +8,8 @@ export function assessDiscovery(input:DiscoveryInput):DiscoveryAssessment{
  if(url){
   if(url.protocol!=="https:")flags.push("non_https_source");
   if(url.username||url.password)flags.push("credentials_embedded");
-  if(privateHosts.test(url.hostname)||url.hostname.endsWith(".local")||url.hostname.endsWith(".internal"))flags.push("private_network_source");
+  if(privateHosts.test(url.hostname)||url.hostname.endsWith(".local")||url.hostname.endsWith(".internal")||url.hostname.endsWith(".localhost")||url.hostname.endsWith(".test")||url.hostname.endsWith(".invalid")||url.hostname.endsWith(".example")||url.hostname.endsWith(".onion")||/^(172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|198\.18\.|198\.19\.|192\.0\.|192\.88\.|224\.|2[3-5]\d\.|\[fc|\[fd|\[fe80)/i.test(url.hostname))flags.push("private_network_source");
+  if(url.port&&url.port!=="443")flags.push("nonstandard_port");
   if(input.sourceUrl.length>1000)flags.push("oversized_source");
  }
  if(input.hypothesis.trim().length<10||input.hypothesis.length>1000)flags.push("invalid_hypothesis_length");
