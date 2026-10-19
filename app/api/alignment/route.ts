@@ -3,7 +3,7 @@ import {buildAlignment} from "../../../lib/alignment/engine";
 import {evaluateDecisionCouncil} from "../../../lib/market/decisionCouncil";
 import {latestRegimeContext} from "../../../lib/market/fred";
 import {latestSecCatalysts} from "../../../lib/market/sec";
-import {bestSnapshots} from "../../../lib/market/live";
+import {bestSnapshots,alpacaMarketClock} from "../../../lib/market/live";
 import {globalEventRisk} from "../../../lib/market/globalRisk";
 import {evaluateSupervisors} from "../../../lib/alignment/supervisors";
 import {evaluateAdaptiveIntelligence} from "../../../lib/alignment/adaptive";
@@ -32,7 +32,7 @@ export async function GET(req:Request){
   const base=new URL(req.url);
   const origin=base.origin;
 
-  const [assessmentRes,regime,catalysts,market,calibrationRes,macro,intelligenceRes,official]=await Promise.all([
+  const [assessmentRes,regime,catalysts,market,calibrationRes,macro,intelligenceRes,official,marketClock]=await Promise.all([
     fetch(origin+"/api/assessment",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     latestRegimeContext().then(x=>({mode:x.usableCount>0?"official_daily":"unavailable",...x})).catch(()=>null),
     latestSecCatalysts([symbol],8).then(x=>({mode:"live_authoritative",catalysts:x})).catch(()=>null),
@@ -40,7 +40,8 @@ export async function GET(req:Request){
     fetch(origin+"/api/calibration",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     macroRiskContext().catch(()=>null),
     fetch(origin+"/api/intelligence",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
-    freeOfficialSnapshot([symbol,"SPY","QQQ","IWM"]).catch(()=>null)
+    freeOfficialSnapshot([symbol,"SPY","QQQ","IWM"]).catch(()=>null),
+    alpacaMarketClock().catch(()=>null)
   ]);
 
   const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
@@ -49,7 +50,7 @@ export async function GET(req:Request){
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
   const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes,validationGate:intelligenceRes?.validationGate});
   const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction,official});
-  const sourceReliability=evaluateSourceReliability({configured:configuredSourceHealth(),official,marketProbe:market});
+  const sourceReliability=evaluateSourceReliability({configured:configuredSourceHealth(),official,marketProbe:market,sessionOpen:marketClock?.isOpen??null});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
   const adaptiveHardBlock=adaptive.gears.some(g=>["execution-realism","uncertainty-control","portfolio-interaction"].includes(g.id)&&g.state==="misaligned");
@@ -78,6 +79,7 @@ export async function GET(req:Request){
     institutional,
     officialSources:official,
     sourceReliability,
+    marketClock,
     canonical:{marketGears:108,adaptiveGears:12,totalGears:120,observedMarket:result.observedCount,observedAdaptive:adaptive.observedCount,observedTotal:result.observedCount+adaptive.observedCount,availability:+((result.observedCount+adaptive.observedCount)/120*100).toFixed(1),all120Aligned:Boolean(result.all108Aligned&&adaptive.observedCount===12&&adaptive.alignedCount===12&&!supervisors.buyVeto&&!governor?.buyClamp)},
     optionSurface,
     features,
