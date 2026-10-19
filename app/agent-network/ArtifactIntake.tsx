@@ -5,6 +5,12 @@ const types=new Set(["text/csv","text/plain","application/json","application/pdf
 const max=25*1024*1024;
 export default function ArtifactIntake(){
  const [items,setItems]=useState<Fingerprint[]>([]);const [busy,setBusy]=useState(false);const [error,setError]=useState("");
+ function exportManifest(){
+  if(!items.length)return;
+  const manifest={schema:"tradeos.artifact-preflight.v1",generatedAt:new Date().toISOString(),authoritative:false,files:items.map(({name,bytes,sha256,status})=>({name,bytes,sha256,status}))};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(manifest,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");a.href=url;a.download="tradeos-artifact-preflight.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
  async function inspect(file:File|undefined){
   if(!file)return;setBusy(true);setError("");
   try{
@@ -21,6 +27,7 @@ export default function ArtifactIntake(){
  <label style={{display:"block",padding:12,border:"1px dashed #bca06d",borderRadius:9}}>Select CSV, JSON, PDF, plain text or Parquet (25 MiB maximum)
  <input type="file" accept=".csv,.json,.pdf,.txt,.parquet" disabled={busy} onChange={e=>{void inspect(e.target.files?.[0]);e.target.value="";}} style={{display:"block",marginTop:10,maxWidth:"100%"}}/></label>
  {busy&&<p role="status">Calculating fingerprint locally…</p>}{error&&<p role="alert" style={{color:"#ffb6b6"}}>{error}</p>}
+ {items.length>0&&<button type="button" onClick={exportManifest} style={{marginTop:12,padding:10,background:"#d8bb81",color:"#142638",border:0,borderRadius:8,fontWeight:700}}>Export local fingerprint manifest (JSON)</button>}
  {items.map((item,i)=><div key={item.sha256+"-"+i} style={{padding:12,marginTop:10,border:"1px solid #50687c",borderRadius:10,overflowWrap:"anywhere"}}><strong>{item.name}</strong> · {item.bytes.toLocaleString()} bytes<p style={{color:item.status.startsWith("Duplicate")?"#f6c080":"#a8e7c1"}}>{item.status}</p><code style={{fontSize:12}}>{item.sha256}</code></div>)}
- <p style={{color:"#b9c8d1",fontSize:13}}>Fingerprint matches are preliminary and not authoritative until a server independently verifies the uploaded bytes. Authenticated transfer remains disabled while storage signing is configured.</p></section>;
+ <p style={{color:"#b9c8d1",fontSize:13}}>Export contains filenames and fingerprints, never file contents. Fingerprint matches are preliminary and not authoritative until a server independently verifies the uploaded bytes. Authenticated transfer remains disabled while storage signing is configured.</p></section>;
 }
