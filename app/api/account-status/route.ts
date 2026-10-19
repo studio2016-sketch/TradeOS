@@ -14,7 +14,7 @@ export async function GET(){
   const rows=await sql`select id::text, "emailVerified" as verified, role, banned from neon_auth."user" where id::text=${user.id} limit 1`;
   const account=rows[0];
   if(!account)return NextResponse.json({authenticated:true,researchAccess:false,reason:"Authenticated account not found in trusted user directory"},{status:403,headers:noStore});
-  const isOwner=account.role==="admin" && account.id==="0a47c8eb-1c94-4c15-a7d8-a6437e00fada";
+  const isOwner=account.role==="admin" && Boolean(process.env.TRADEOS_OWNER_USER_ID) && account.id===process.env.TRADEOS_OWNER_USER_ID;
   const principal:ResearchPrincipal={userId:String(account.id),emailVerified:account.verified===true,accountDisabled:account.banned===true,role:isOwner?"owner":"unapproved"};
   const access=mayAccessResearch(principal,"read");
   return NextResponse.json({authenticated:true,email:user.email,emailVerified:principal.emailVerified,role:principal.role,researchAccess:access,reason:access?"Verified owner account":!principal.emailVerified?"Email verification required":principal.role==="unapproved"?"Account is not approved for private research":"Research access denied"},{headers:noStore});
