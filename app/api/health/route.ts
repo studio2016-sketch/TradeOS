@@ -6,16 +6,18 @@ import {latestRegimeContext} from "../../../lib/market/fred";
 import {macroRiskContext} from "../../../lib/market/bls";
 import {latestSecCatalysts} from "../../../lib/market/sec";
 import {evaluateSourceReliability} from "../../../lib/market/sourceReliability";
+import {alpacaMarketClock} from "../../../lib/market/live";
 
 export const dynamic="force-dynamic";
 
 export async function GET(){
   const configured=configuredSourceHealth();
-  const [official,fredProbe,macroProbe,secProbe]=await Promise.all([
+  const [official,fredProbe,macroProbe,secProbe,marketClock]=await Promise.all([
     freeOfficialSnapshot(["NVDA","SPY","QQQ"]).catch(()=>null),
     latestRegimeContext().catch(()=>null),
     macroRiskContext().catch(()=>null),
-    latestSecCatalysts(["NVDA"],1).catch(()=>null)
+    latestSecCatalysts(["NVDA"],1).catch(()=>null),
+    alpacaMarketClock().catch(()=>null)
   ]);
   const runtime=new Map((official?.sources??[]).map((s:any)=>[s.id,s]));
 
@@ -44,7 +46,7 @@ export async function GET(){
 
   if(!hasDatabase()){
     const sources=buildSources(null);
-    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe:null});
+    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe:null,sessionOpen:(marketClock as any)?.isOpen??null});
     return NextResponse.json({status:"degraded",database:"unconfigured",sources,reliability});
   }
 
@@ -79,7 +81,7 @@ export async function GET(){
     const marketProbe={provider,snapshots:persisted,attempts:provider?[{source:provider,count:persisted.length}]:[]};
 
     const sources=buildSources(marketProbe);
-    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe});
+    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe,sessionOpen:(marketClock as any)?.isOpen??null});
 
     return NextResponse.json({
       status:"ok",
@@ -93,7 +95,8 @@ export async function GET(){
         official:{live:official?.live??0,degraded:official?.degraded??0,unconfigured:official?.unconfigured??0},
         fredUsable:(fredProbe as any)?.usableCount??0,
         macroState:(macroProbe as any)?.state??null,
-        secReachable:Array.isArray(secProbe)
+        secReachable:Array.isArray(secProbe),
+        marketClock
       },
       reliability,
       metrics:(rows as any[])[0],
@@ -101,7 +104,7 @@ export async function GET(){
     });
   }catch(error){
     const sources=buildSources(null);
-    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe:null});
+    const reliability=evaluateSourceReliability({configured:sources,official,marketProbe:null,sessionOpen:(marketClock as any)?.isOpen??null});
     return NextResponse.json({status:"degraded",database:"error",sources,reliability,error:error instanceof Error?error.message:String(error)},{status:503});
   }
 }
