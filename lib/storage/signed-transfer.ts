@@ -4,8 +4,8 @@ const bucket=()=>process.env.TRADEOS_RESEARCH_STORAGE_BUCKET;
 function client(){
  const endpoint=process.env.TRADEOS_RESEARCH_STORAGE_ENDPOINT;
  const region=process.env.TRADEOS_RESEARCH_STORAGE_REGION;
- const accessKeyId=process.env.TRADEOS_STORAGE_ACCESS_KEY_ID;
- const secretAccessKey=process.env.TRADEOS_STORAGE_SECRET_ACCESS_KEY;
+ const accessKeyId=process.env.TRADEOS_STORAGE_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+ const secretAccessKey=process.env.TRADEOS_STORAGE_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
  if(!endpoint||!region||!accessKeyId||!secretAccessKey||!bucket())return null;
  if(!endpoint.startsWith("https://"))throw Error("Storage endpoint must use HTTPS");
  return new S3Client({endpoint,region,forcePathStyle:true,credentials:{accessKeyId,secretAccessKey}});
