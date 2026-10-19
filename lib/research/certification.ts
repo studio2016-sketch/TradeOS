@@ -12,6 +12,9 @@ export interface CertificationDecision{
     calibration:boolean;
     drift:boolean;
     untouchedHoldout:boolean;
+    pointInTimeVerified:boolean;
+    costsVerified:boolean;
+    independentReplayVerified:boolean;
   };
   evidence:{independentSourceCount:number;prospectiveSamples:number;brier:number|null;drift:number|null;holdoutSamples:number};
   reasons:string[];
@@ -43,7 +46,10 @@ export async function certifyFactor(hypothesis:any):Promise<CertificationDecisio
     sampleSufficiency:samples>=Number(hypothesis.sampleFloor??80),
     calibration:brier!=null&&brier<=.20,
     drift:drift!=null&&drift<=.10,
-    untouchedHoldout:holdout.reduce((s,v)=>s+Number(v.payload?.sampleCount??0),0)>=Math.max(30,Math.floor(Number(hypothesis.sampleFloor??80)*.25))
+    untouchedHoldout:holdout.reduce((s,v)=>s+Number(v.payload?.sampleCount??0),0)>=Math.max(30,Math.floor(Number(hypothesis.sampleFloor??80)*.25)),
+    pointInTimeVerified:prospective.some(v=>v.payload?.pointInTimeVerified===true),
+    costsVerified:prospective.some(v=>v.payload?.costsVerified===true),
+    independentReplayVerified:prospective.some(v=>v.payload?.independentReplayVerified===true)
   };
   const passed=Object.values(gates).every(Boolean);
   const failed=prospective.some(v=>v.payload?.rejected===true);
@@ -55,6 +61,9 @@ export async function certifyFactor(hypothesis:any):Promise<CertificationDecisio
   if(!gates.calibration)reasons.push("Calibration gate has not been proven.");
   if(!gates.drift)reasons.push("Drift stability gate has not been proven.");
   if(!gates.untouchedHoldout)reasons.push("Untouched chronological holdout evidence is insufficient.");
+  if(!gates.pointInTimeVerified)reasons.push("Point-in-time data integrity has not been independently verified.");
+  if(!gates.costsVerified)reasons.push("Execution-cost sensitivity has not been independently verified.");
+  if(!gates.independentReplayVerified)reasons.push("Independent replay has not been verified.");
   return{
     subjectId:id,subjectType:"factor",status,modelEligible:status==="CERTIFIED",gates,
     evidence:{independentSourceCount,prospectiveSamples:samples,brier,drift,holdoutSamples:holdout.reduce((s,v)=>s+Number(v.payload?.sampleCount??0),0)},
@@ -79,11 +88,14 @@ export async function certifiedModelVersions(){
       ` as any[];
     }catch(_){evidence=[];}
     const sources=new Set<string>();
-    let holdoutSamples=0,prospectiveSamples=0;
+    let holdoutSamples=0,prospectiveSamples=0,pointInTimeVerified=false,costsVerified=false,independentReplayVerified=false;
     for(const e of evidence){
       for(const s of e.payload?.independentSources??[])sources.add(String(s));
       if(e.payload?.untouchedHoldout)holdoutSamples+=Number(e.payload?.sampleCount??0);
       if(e.payload?.prospective)prospectiveSamples+=Number(e.payload?.sampleCount??0);
+      if(e.payload?.pointInTimeVerified===true)pointInTimeVerified=true;
+      if(e.payload?.costsVerified===true)costsVerified=true;
+      if(e.payload?.independentReplayVerified===true)independentReplayVerified=true;
     }
     const gates={
       independentSources:sources.size>=2,
@@ -91,7 +103,10 @@ export async function certifiedModelVersions(){
       sampleSufficiency:Number(r.sample_count??0)>=100,
       calibration:Number(r.brier_score)<.20,
       drift:r.drift_score!=null&&Number(r.drift_score)<=.10,
-      untouchedHoldout:holdoutSamples>=30
+      untouchedHoldout:holdoutSamples>=30,
+      pointInTimeVerified,
+      costsVerified,
+      independentReplayVerified
     };
     const certified=Object.values(gates).every(Boolean);
     out.push({...r,certification:certified?"CERTIFIED":"RESEARCH_ONLY",modelEligible:certified,gates,independentSources:[...sources],prospectiveSamples,holdoutSamples});
