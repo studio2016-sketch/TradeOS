@@ -5,7 +5,7 @@ export interface ReliabilityRow{
   label:string;
   connected:boolean;
   runtimeVerified:boolean;
-  freshness:"live"|"current"|"delayed"|"stale"|"unknown"|"unconfigured";
+  freshness:"live"|"current"|"delayed"|"closed-session"|"stale"|"unknown"|"unconfigured";
   authority:number;
   coverage:number;
   redundancy:number;
@@ -48,8 +48,9 @@ export function evaluateSourceReliability(args:{
   configured:SourceHealth[];
   official?:any;
   marketProbe?:any;
+  sessionOpen?:boolean|null;
 }){
-  const {configured,official,marketProbe}=args;
+  const {configured,official,marketProbe,sessionOpen}=args;
   const officialBy=new Map((official?.sources??[]).map((s:any)=>[s.id,s]));
   const chosen=String(marketProbe?.provider??"").toLowerCase();
   const marketSnapshots=marketProbe?.snapshots??[];
@@ -58,7 +59,7 @@ export function evaluateSourceReliability(args:{
     const off:any=officialBy.get(s.id);
     const connected=s.state!=="unconfigured";
     let runtimeVerified=Boolean((s as any).runtimeVerified);
-    let freshness:"live"|"current"|"delayed"|"stale"|"unknown"|"unconfigured"=connected?"unknown":"unconfigured";
+    let freshness:"live"|"current"|"delayed"|"closed-session"|"stale"|"unknown"|"unconfigured"=connected?"unknown":"unconfigured";
     let freshnessScore=connected?45:0;
     let authority=s.authoritative?95:65;
     let coverage=60;
@@ -71,7 +72,8 @@ export function evaluateSourceReliability(args:{
       runtimeVerified=selected;
       const latest=snaps.map((x:any)=>ageMs(x.timestamp)).filter((x:any)=>x!=null).sort((a:number,b:number)=>a-b)[0]??null;
       const f=freshnessFromAge(latest,60_000);
-      freshness=f.label;freshnessScore=f.score;
+      freshness=sessionOpen===false&&f.label==="stale"?"closed-session":f.label;
+      freshnessScore=freshness==="closed-session"?70:f.score;
       if(s.id==="alpaca"){
         const feed=String(snaps[0]?.source??"");
         coverage=/sip/i.test(feed)?95:/iex/i.test(feed)?55:65;
@@ -107,7 +109,7 @@ export function evaluateSourceReliability(args:{
     };
   });
 
-  const usable=rows.filter(r=>r.runtimeVerified&&r.freshness!=="stale");
+  const usable=rows.filter(r=>r.runtimeVerified&&!["stale","unconfigured","unknown"].includes(r.freshness));
   const decision=rows.filter(r=>r.decisionGrade);
   const score=rows.length?rows.reduce((a,b)=>a+b.reliability,0)/rows.length:0;
   const marketRows=rows.filter(r=>["alpaca","massive"].includes(r.id));
@@ -120,6 +122,7 @@ export function evaluateSourceReliability(args:{
     totalSources:rows.length,
     consolidatedRealtimeEquities:consolidatedLive,
     independentRealtimeMarketRedundancy:marketRows.filter(r=>r.decisionGrade).length>=2,
+    marketSessionOpen:sessionOpen??null,
     rows
   };
 }
