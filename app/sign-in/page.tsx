@@ -6,7 +6,7 @@ export default function SignIn(){
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");
  const [pending,setPending]=useState(false);const [error,setError]=useState("");
  async function submit(e:React.FormEvent){e.preventDefault();setPending(true);setError("");
- try{const result=await authClient.signIn.email({email,password});if(result.error){setError(result.error.message||"Sign-in unsuccessful");}else{window.location.assign("/agent-network");}}
+ try{const result=await authClient.signIn.email({email,password});if(result.error){setError(result.error.message||"Sign-in unsuccessful");}else{const verified=await authClient.getSession();if(!verified.data?.user){setError("Your password was accepted, but the browser did not retain an authenticated session. Open TradeOS directly in Safari and sign in there.");}else{window.location.assign("/agent-network");}}}
  catch(e){setError(e instanceof Error?e.message:"Authentication service connection failed. Please try again.");}finally{setPending(false);}
  }
  return <main style={{minHeight:"100vh",background:"linear-gradient(135deg,#071827,#102a40)",color:"#f2e7cf",display:"grid",placeItems:"center",padding:24}}>
