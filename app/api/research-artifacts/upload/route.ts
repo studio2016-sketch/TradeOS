@@ -13,6 +13,6 @@ export async function POST(){
   const owner=owners[0];
   const valid=owner?.verified===true && owner?.banned!==true && owner?.role==="admin" && Boolean(process.env.TRADEOS_OWNER_USER_ID) && owner?.id===process.env.TRADEOS_OWNER_USER_ID;
   if(!valid)return NextResponse.json({status:"research_access_denied",uploadsEnabled:false},{status:403,headers});
-  return NextResponse.json({status:"storage_gateway_pending",authorized:true,uploadsEnabled:false,reason:"Authentication confirmed. Research authorization and storage signing must pass before transfers."},{status:503,headers});
- }catch{return NextResponse.json({status:"authentication_unavailable",uploadsEnabled:false},{status:503,headers});}
+  return NextResponse.json({status:"storage_gateway_pending",authorized:true,uploadsEnabled:false,reason:"Verified owner authorization confirmed. Storage signing is not configured; no file has been transferred."},{status:503,headers});
+ }catch{return NextResponse.json({status:"authorization_service_unavailable",uploadsEnabled:false},{status:503,headers});}
 }
