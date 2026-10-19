@@ -1,6 +1,6 @@
 "use client";
 import {useMemo} from "react";
-type Group={group:string;buyScore?:number|null;availability?:number|null};
+type Group={group:string;buyScore?:number|null;available?:number;total?:number;availability?:number|null};
 type Alignment={symbol?:string;buyScore?:number|null;buyState?:string;groups?:Group[];criticalPassed?:number;criticalTotal?:number;canonical?:{all120Aligned?:boolean};decisionCouncil?:{vetoes?:unknown[]}};
 const slots=[[-12,-145],[108,-109],[146,-26],[125,76],[54,139],[-57,139],[-130,76],[-147,-26],[-109,-108],[0,-175]];
 const clamp=(v:number)=>Math.min(100,Math.max(0,v));
@@ -9,7 +9,7 @@ export default function AlignmentVault({symbol,data,onExpand}:{symbol:string;dat
  const score=typeof data?.buyScore==="number"&&Number.isFinite(data.buyScore)?clamp(data.buyScore):null;
  const hardVeto=Boolean(data?.decisionCouncil?.vetoes?.length);
  const state=data?.buyState??"UNAVAILABLE";
- const eligible=Boolean(data?.canonical?.all120Aligned)&&state==="MUST BUY"&&!hardVeto;
+ const eligible=Boolean(data?.canonical?.all120Aligned)&&state==="MUST BUY"&&!hardVeto&&groups.length===10&&groups.every(g=>g.available===g.total&&Boolean(g.total));
  const stage=eligible?"UNLOCKED":state==="NO TRADE"?"PASS":state==="WATCH"?"WATCH":state==="READY"||state==="HIGH CONVICTION"?"PREPARE":"WAIT";
  const valid=score!==null&&groups.length>0;
  return <section className="av-shell" aria-label="TradeOS animated trade alignment engine">
