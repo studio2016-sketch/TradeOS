@@ -6,6 +6,7 @@ import {bestSnapshots} from "../../../lib/market/live";
 import {latestRegimeContext} from "../../../lib/market/fred";
 import {macroRiskContext} from "../../../lib/market/bls";
 import {latestSecCatalysts} from "../../../lib/market/sec";
+import {evaluateSourceReliability} from "../../../lib/market/sourceReliability";
 
 export const dynamic="force-dynamic";
 
@@ -42,7 +43,8 @@ export async function GET(){
     }
     return {...s,runtimeVerified:false};
   });
-  if(!hasDatabase()) return NextResponse.json({status:"degraded",database:"unconfigured",sources});
+  const reliability=evaluateSourceReliability({configured:sources,official,marketProbe});
+  if(!hasDatabase()) return NextResponse.json({status:"degraded",database:"unconfigured",sources,reliability});
   try{
     const sql=db();
     const rows=await sql`
@@ -59,6 +61,7 @@ export async function GET(){
       database:"connected",
       sources,
       runtime:{marketProvider:(marketProbe as any)?.provider??null,marketAttempts:(marketProbe as any)?.attempts??[],official:{live:official?.live??0,degraded:official?.degraded??0,unconfigured:official?.unconfigured??0},fredUsable:(fredProbe as any)?.usableCount??0,macroState:(macroProbe as any)?.state??null,secReachable:Array.isArray(secProbe)},
+      reliability,
       metrics:rows[0],
       generatedAt:new Date().toISOString()
     });
