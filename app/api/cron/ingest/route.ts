@@ -23,7 +23,9 @@ import {catalystReactions} from "../../../../lib/market/reactions";
 import {microstructureContext} from "../../../../lib/market/microstructure";
 import {latestNewsReaction} from "../../../../lib/market/newsReaction";
 import {secIssuerContext} from "../../../../lib/market/sec";
-import {alpacaBrokerState,brokerReadStatus} from "../../../../lib/broker/alpaca";
+import {alpacaBrokerState,brokerReadStatus,alpacaBrokerReconciliation} from "../../../../lib/broker/alpaca";
+import {verifyOpenMarketAdvancement} from "../../../../lib/market/verification";
+import {certifiedModelVersions} from "../../../../lib/research/certification";
 import {evaluateInstitutionalLens} from "../../../../lib/research/institutionalLens";
 
 export const dynamic="force-dynamic";
@@ -124,6 +126,13 @@ export async function GET(req:Request){
       `
     ]);
     const calibration={sampleCount:Number((calibrationRows as any[])[0]?.sample_count??0),confidenceMultiplier:.65};
+    const modelCertifications=await certifiedModelVersions().catch(()=>[] as any[]);
+    const validationGate={validation:{
+      pointInTimeVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.pointInTimeVerified),
+      outOfSampleVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.untouchedHoldout),
+      costsVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.costsVerified),
+      independentReplayVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.independentReplayVerified)
+    }};
     const intelligence={core:(intelligenceCore as any[])[0]??{},models:modelRows};
     const marketContext={mode:market.provider?"provider_data":"unconfigured",...market};
     const governor=await globalEventRisk(market.snapshots,watchlist).catch(()=>null);
@@ -152,7 +161,7 @@ export async function GET(req:Request){
         brokerState
       });
       const supervisors=evaluateSupervisors(baseAlignment,{calibration,options:optionSurface,regime});
-      const adaptive=evaluateAdaptiveIntelligence(baseAlignment,supervisors,{calibration,intelligence});
+      const adaptive=evaluateAdaptiveIntelligence(baseAlignment,supervisors,{calibration,intelligence,validationGate});
       const institutional=evaluateInstitutionalLens(symbol,{alignment:baseAlignment,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction});
       let finalBuy=governor?.buyClamp&&["MUST BUY","HIGH CONVICTION"].includes(baseAlignment.buyState)?"WATCH":baseAlignment.buyState;
       if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(finalBuy))finalBuy="WATCH";
@@ -184,6 +193,23 @@ export async function GET(req:Request){
       results.alignments++;
     }
   }catch(e){results.errors.push({source:"alignment",error:e instanceof Error?e.message:String(e)});}
+
+  try{
+    const [brokerage,marketVerification]=await Promise.all([
+      brokerReadStatus().enabled?alpacaBrokerReconciliation().catch(()=>null):Promise.resolve(null),
+      verifyOpenMarketAdvancement(["SPY","QQQ","NVDA"]).catch(()=>null)
+    ]);
+    results.brokerageReconciliation=brokerage?{coverage:brokerage.coverage,reconciled:brokerage.reconciled,positions:brokerage.positionsCount,openOrders:brokerage.openOrdersCount,closedOrders:brokerage.closedOrdersCount,fills:brokerage.fillActivitiesCount}:null;
+    results.openMarketVerification=marketVerification?{status:marketVerification.status,verified:marketVerification.verified,clock:marketVerification.clock}:null;
+    if(brokerage)await sql`
+      insert into audit_events(event_type,entity_type,model_version,payload)
+      values('brokerage_reconciliation','broker','alpaca-readonly-v1',${JSON.stringify(brokerage)}::jsonb)
+    `;
+    if(marketVerification)await sql`
+      insert into audit_events(event_type,entity_type,model_version,payload)
+      values('open_market_verification','market','market-advancement-v1',${JSON.stringify(marketVerification)}::jsonb)
+    `;
+  }catch(e){results.errors.push({source:"operational-verification",error:e instanceof Error?e.message:String(e)});}
 
   await sql`
     insert into audit_events(event_type,entity_type,payload)
