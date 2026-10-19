@@ -1,7 +1,7 @@
 "use client";
 import {useMemo} from "react";
 type Group={group:string;buyScore?:number|null;available?:number;total?:number;availability?:number|null};
-type Alignment={symbol?:string;buyScore?:number|null;buyState?:string;groups?:Group[];criticalPassed?:number;criticalTotal?:number;canonical?:{all120Aligned?:boolean};decisionCouncil?:{vetoes?:unknown[]}};
+type Alignment={symbol?:string;buyScore?:number|null;buyState?:string;groups?:Group[];criticalPassed?:number;criticalTotal?:number;canonical?:{all120Aligned?:boolean};decisionCouncil?:{vetoes?:unknown[]};decisionInsights?:{strengths?:Array<{label:string;group:string;score:number|null}>;blockers?:Array<{label:string;state:string;critical:boolean;reason:string}>;unmetGates?:string[]}};
 const categoryNames=["Market Regime","Instrument Quality","Multi-Timeframe Trend","Momentum","Volatility & Risk","Volume & Order Flow","Setup Quality","Timing & Execution","Catalyst & Information","Discipline & Capital Protection"];
 const slots=[[-12,-145],[108,-109],[146,-26],[125,76],[54,139],[-57,139],[-130,76],[-147,-26],[-109,-108],[0,-175]];
 const clamp=(v:number)=>Math.min(100,Math.max(0,v));
@@ -36,6 +36,7 @@ export default function AlignmentVault({symbol,data,onExpand}:{symbol:string;dat
    </div>
    <aside className="av-panel"><span className="av-eyebrow">CURRENT RESEARCH DECISION</span><h3>{symbol}</h3><div className={"av-state av-state-"+stage.toLowerCase()}>{stage}</div><p>{eligible?"All canonical alignment conditions are reported met; independently confirm the full safety gate before any paper-trade action.":!valid?"Awaiting scored group evidence. This vault stays locked.":hardVeto?"Decision Council objections are active. The vault remains locked.":"Gear movement indicates research alignment only. A strong score cannot bypass hard risk, data quality, or model certification."}</p>
     <div className="av-statgrid"><div><span>Measured score</span><b>{score===null?"Unavailable":Math.round(score)+"/100"}</b></div><div><span>Groups reported</span><b>{groups.filter(g=>(g.available??0)>0).length}</b></div><div><span>Critical checks</span><b>{data?.criticalTotal?String(data.criticalPassed??0)+"/"+String(data.criticalTotal):"Unavailable"}</b></div><div><span>Vault</span><b>{eligible?"Open":"Locked"}</b></div></div>
+    {matched&&data?.decisionInsights&&<div className="av-insights"><b>WHY THIS DECISION</b>{(data.decisionInsights.blockers??[]).slice(0,3).map((x,i)=><p key={i}><span>{x.critical?"CRITICAL · ":""}{x.label}</span><small>{x.reason}</small></p>)}{(data.decisionInsights.blockers??[]).length===0&&<p>No unresolved market-gear blockers reported. Independent governance checks still apply.</p>}{(data.decisionInsights.unmetGates??[]).length>0&&<small>Research gates outstanding: {data.decisionInsights.unmetGates.join(", ").replaceAll("_"," ")}</small>}</div>}
     <div className="av-stage-track">{["PASS","WATCH","PREPARE","UNLOCKED"].map(s=><span key={s} className={stage===s?"selected":""}>{s}</span>)}</div>
     <small className="av-clarifier">Gears use current research group scores, not illustrative values. Opening the vault represents alignment only; it never authorizes a live order.</small>
     {onExpand&&<button className="av-action" onClick={onExpand}>Inspect all 120 gears →</button>}
