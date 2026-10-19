@@ -45,7 +45,7 @@ export async function GET(req:Request){
   const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState,processState:{tradeCountOk,tiltOk}});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
-  const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes});
+  const adaptive=evaluateAdaptiveIntelligence(result,supervisors,{calibration:calibrationRes,intelligence:intelligenceRes,validationGate:intelligenceRes?.validationGate});
   const institutional=evaluateInstitutionalLens(symbol,{alignment:result,features,marketContext,microstructure,options:optionSurface,newsContext,newsReaction,official});
   let governedBuy=governor?.buyClamp?(result.buyState==="MUST BUY"||result.buyState==="HIGH CONVICTION"?"WATCH":result.buyState):result.buyState;
   if(supervisors.buyVeto&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy)) governedBuy="WATCH";
@@ -59,7 +59,8 @@ export async function GET(req:Request){
   if(governedBuy==="READY"&&adaptive.score<55) governedBuy="WATCH";
   let governedSell=governor?.capitalGuardOverride?"MUST SELL":governor?.level==="SEVERE"&&result.sellState==="HOLD"?"CAUTION":result.sellState;
   if(supervisors.sellEscalation>=30&&governedSell==="HOLD")governedSell="CAUTION";
-  const decisionCouncil=evaluateDecisionCouncil({alignment:result,supervisors,marketSnapshot:market?.snapshots?.[0],intradayLastObserved:features?.quality?.latestIntradayBar,independentOutOfSampleVerified:false});
+  const independentOosVerified=Boolean(intelligenceRes?.validationGate?.validation?.pointInTimeVerified&&intelligenceRes?.validationGate?.validation?.outOfSampleVerified&&intelligenceRes?.validationGate?.validation?.costsVerified&&intelligenceRes?.validationGate?.validation?.independentReplayVerified);
+  const decisionCouncil=evaluateDecisionCouncil({alignment:result,supervisors,marketSnapshot:market?.snapshots?.[0],intradayLastObserved:features?.quality?.latestIntradayBar,independentOutOfSampleVerified:independentOosVerified});
   if(decisionCouncil.vetoes.length&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy))governedBuy="WATCH";
   return NextResponse.json({
     ...result,
@@ -85,7 +86,8 @@ export async function GET(req:Request){
     brokerRead:brokerReadStatus(),
     humanChecks:{tradeCountOk,tiltOk},
     macro,
-    executionAuthorization:{allowed:false,mode:"research_only",reason:"No validated independent out-of-sample evidence or user authorization to execute live trades."},
+    certificationGate:intelligenceRes?.validationGate??null,
+    executionAuthorization:{allowed:false,mode:"research_only",reason:independentOosVerified?"Research certification may support analysis, but live execution remains disabled pending separate explicit authorization and operational validation.":"No fully certified independent out-of-sample evidence or live-execution authorization."},
     interpretation:{buy:governedBuy==="MUST BUY"?"Exceptional indicator alignment — research only":governedBuy==="HIGH CONVICTION"?"Strong research candidate":governedBuy==="READY"?"Candidate for manual review":"No trading authorization",sell:governedSell==="MUST SELL"?"Elevated capital-risk review required":"Monitor downside risk"},
     disclaimer:"Alignment is not a probability of profit. MUST BUY / MUST SELL are internal legacy state labels only; live trading is disabled."
   });
