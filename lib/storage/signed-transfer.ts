@@ -19,3 +19,13 @@ export async function signResearchTransfer(input:{ownerId:string;sha256:string;b
  const command=input.operation==="upload"?new PutObjectCommand({Bucket:bucket(),Key,ContentType:input.contentType}):new GetObjectCommand({Bucket:bucket(),Key});
  return {url:await getSignedUrl(s3,command,{expiresIn:180}),key:Key,expiresInSeconds:180};
 }
+
+export async function readResearchObject(key:string){
+ const s3=client();if(!s3)throw Error("Storage not configured");
+ const result=await s3.send(new GetObjectCommand({Bucket:bucket(),Key:key}));
+ if(!result.Body)throw Error("Object not found");
+ if((result.ContentLength??0)>25*1024*1024)throw Error("Object exceeds verification limit");
+ const bytes=await result.Body.transformToByteArray();
+ if(bytes.byteLength>25*1024*1024)throw Error("Object exceeds verification limit");
+ return bytes;
+}
