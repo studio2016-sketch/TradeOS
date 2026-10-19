@@ -14,4 +14,4 @@ export function budgetSnapshot(input:{dbBytes:number;objectBytes:number;objectTr
  const safe=(n:number)=>Number.isFinite(n)&&n>=0?n:0;
  return {dbGiB:safe(input.dbBytes)/2**30,objectGiB:safe(input.objectBytes)/2**30,transferGiB:safe(input.objectTransfersBytes)/2**30,estimatedProviderCost:null,note:"Usage metrics only. Provider billing depends on plan, operations and current rates; no invented cost forecast."};
 }
-export const storageControls={publicUploadsAllowed:false,anonymousResearchWritesAllowed:false,objectStoreConnected:false,externalArchiveConnected:false,provider:"Vercel Blob planned",metadataStore:"Neon PostgreSQL",brokerageExecutionEnabled:false} as const;
+export const storageControls={publicUploadsAllowed:false,anonymousResearchWritesAllowed:false,objectStoreConfigured:true,objectTransferEnabled:false,externalArchiveConnected:false,provider:"Neon Object Storage",metadataStore:"Neon PostgreSQL",brokerageExecutionEnabled:false} as const;
