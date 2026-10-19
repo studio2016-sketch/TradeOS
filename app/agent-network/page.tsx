@@ -2,6 +2,7 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {researchDocket} from "../../lib/agents/network";
+import {assessDiscovery} from "../../lib/agents/discovery-validation";
 type Agent={id:string;name:string;purpose:string;state:string};
 type Data={external:{share:number;connected:number;agents:Agent[]};internal:{share:number;agents:Agent[]};policy:{controls:string[]}};
 export default function AgentNetwork(){
@@ -39,7 +40,7 @@ export default function AgentNetwork(){
  </section>)}</div>
  <section style={{marginTop:24,padding:24,border:"1px solid #b8975e",borderRadius:16,background:"#102436"}}>
  <h2>External Discovery Inbox</h2><p>Capture an externally discovered hypothesis with a public source. Entries stay in this browser, remain unverified, and cannot influence trading models.</p>
- <form onSubmit={e=>{e.preventDefault();let u:URL;try{u=new URL(source);}catch{setError("Provide a valid HTTPS research source");return;}if(u.protocol!=="https:"||!idea.trim()){setError("Provide a hypothesis and an HTTPS source");return;}const next=[{id:crypto.randomUUID(),idea:idea.trim().slice(0,500),source:u.toString().slice(0,600),createdAt:new Date().toISOString()},...inbox].slice(0,30);setInbox(next);try{localStorage.setItem("tradeos-agent-inbox-v1",JSON.stringify(next))}catch{}setIdea("");setSource("");setError("")}}>
+ <form onSubmit={e=>{e.preventDefault();let u:URL;try{u=new URL(source);}catch{setError("Provide a valid HTTPS research source");return;}if(u.protocol!=="https:"||!idea.trim()){setError("Provide a hypothesis and an HTTPS source");return;}const review=assessDiscovery({hypothesis:idea,sourceUrl:u.toString(),discoveredAt:new Date().toISOString(),origin:"manual"});if(!review.accepted){setError("Source rejected: "+review.flags.join(", "));return;}const next=[{id:crypto.randomUUID(),idea:idea.trim().slice(0,500),source:u.toString().slice(0,600),createdAt:new Date().toISOString()},...inbox].slice(0,30);setInbox(next);try{localStorage.setItem("tradeos-agent-inbox-v1",JSON.stringify(next))}catch{}setIdea("");setSource("");setError("")}}>
  <label htmlFor="agent-hypothesis">Research hypothesis</label><textarea id="agent-hypothesis" value={idea} onChange={e=>setIdea(e.target.value)} maxLength={500} rows={3} style={{display:"block",width:"100%",padding:10,margin:"10px 0",background:"#0b1e2e",color:"#fff",border:"1px solid #6e8899",borderRadius:8}}/>
  <label htmlFor="agent-source">Original public HTTPS source</label><input id="agent-source" type="url" required value={source} onChange={e=>setSource(e.target.value)} style={{display:"block",width:"100%",padding:10,margin:"10px 0",background:"#0b1e2e",color:"#fff",border:"1px solid #6e8899",borderRadius:8}}/>
  <button style={{padding:12,background:"#e9c781",color:"#061522",border:0,borderRadius:8,fontWeight:700}}>Register unverified hypothesis</button></form>
