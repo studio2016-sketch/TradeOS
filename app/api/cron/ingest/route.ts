@@ -27,6 +27,7 @@ import {alpacaBrokerState,brokerReadStatus,alpacaBrokerReconciliation} from "../
 import {verifyOpenMarketAdvancement} from "../../../../lib/market/verification";
 import {certifiedModelVersions} from "../../../../lib/research/certification";
 import {evaluateInstitutionalLens} from "../../../../lib/research/institutionalLens";
+import {persistDecisionMemory} from "../../../../lib/research/decisionMemory";
 
 export const dynamic="force-dynamic";
 
@@ -178,6 +179,7 @@ export async function GET(req:Request){
         insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
         values('alignment_snapshot','symbol',${symbol},'swiss-movement-v2-120',${JSON.stringify(alignment)}::jsonb)
       `;
+      await persistDecisionMemory(symbol,alignment,spot??null).catch(()=>null);
       for(const playbook of institutional.playbooks){
         if(playbook.score==null)continue;
         const playbookId=`${symbol}:${playbook.id}:${new Date().toISOString().slice(0,13)}`;
