@@ -1,5 +1,6 @@
 import {NextResponse} from "next/server";
 import {buildAlignment} from "../../../lib/alignment/engine";
+import {buildDecisionInsights} from "../../../lib/alignment/decisionInsights";
 import {evaluateDecisionCouncil} from "../../../lib/market/decisionCouncil";
 import {latestRegimeContext} from "../../../lib/market/fred";
 import {latestSecCatalysts} from "../../../lib/market/sec";
@@ -66,8 +67,10 @@ export async function GET(req:Request){
   const independentOosVerified=Boolean(intelligenceRes?.validationGate?.validation?.pointInTimeVerified&&intelligenceRes?.validationGate?.validation?.outOfSampleVerified&&intelligenceRes?.validationGate?.validation?.costsVerified&&intelligenceRes?.validationGate?.validation?.independentReplayVerified);
   const decisionCouncil=evaluateDecisionCouncil({alignment:result,supervisors,marketSnapshot:market?.snapshots?.[0],intradayLastObserved:features?.quality?.latestIntradayBar,independentOutOfSampleVerified:independentOosVerified});
   if(decisionCouncil.vetoes.length&&["MUST BUY","HIGH CONVICTION","READY"].includes(governedBuy))governedBuy="WATCH";
+  const decisionInsights=buildDecisionInsights({readings:result.readings,buyState:governedBuy,observedCount:result.observedCount,criticalPassed:result.criticalPassed,criticalTotal:result.criticalTotal,sourceDecisionGrade:Boolean(sourceReliability.consolidatedRealtimeEquities&&sourceReliability.decisionGradeSources>=6),independentOosVerified,vetoes:decisionCouncil.vetoes.map(v=>String(v))});
   return NextResponse.json({
     ...result,
+    decisionInsights,
     decisionCouncil,
     buyState:governedBuy,
     sellState:governedSell,
