@@ -1,5 +1,7 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
+import {certifiedModelVersions} from "../../../lib/research/certification";
+import {championChallengerEvaluation} from "../../../lib/research/championChallenger";
 
 export const dynamic="force-dynamic";
 
@@ -7,7 +9,7 @@ export async function GET(){
   if(!hasDatabase()) return NextResponse.json({status:"database_unconfigured"});
   try{
     const sql=db();
-    const [core,recentSources,recentCatalysts,models]=await Promise.all([
+    const [core,recentSources,recentCatalysts,models,modelCertifications,competition]=await Promise.all([
       sql`
         select
           (select count(*) from forecast_ledger)::int as forecasts,
@@ -40,7 +42,9 @@ export async function GET(){
         from model_scorecards
         order by sample_count desc,updated_at desc
         limit 12
-      `
+      `,
+      certifiedModelVersions(),
+      championChallengerEvaluation()
     ]);
     return NextResponse.json({
       status:"ok",
@@ -48,6 +52,14 @@ export async function GET(){
       recentSources,
       recentCatalysts,
       models,
+      modelCertifications,
+      competition,
+      validationGate:{validation:{
+        pointInTimeVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.pointInTimeVerified),
+        outOfSampleVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.untouchedHoldout),
+        costsVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.costsVerified),
+        independentReplayVerified:modelCertifications.some((m:any)=>m.modelEligible&&m.gates?.independentReplayVerified)
+      }},
       generatedAt:new Date().toISOString()
     });
   }catch(error){
