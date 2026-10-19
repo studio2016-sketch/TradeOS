@@ -5,6 +5,8 @@ import {DEFAULT_RESEARCH_UNIVERSE,discoverResearchSubjects} from "../../../../li
 import {freeOfficialSnapshot} from "../../../../lib/market/freeOfficial";
 import {db} from "../../../../lib/db";
 import {persistResearchSnapshot,resolveResearchSubjects,researchScorecard,resolveExpertViews,expertScorecard,resolveInstitutionalPlaybooks,institutionalPlaybookScorecard} from "../../../../lib/research/ledger";
+import {buildFinancialKnowledgeGraph} from "../../../../lib/research/knowledgeGraph";
+import {graphHypotheses} from "../../../../lib/research/factorDiscovery";
 
 export const dynamic="force-dynamic";
 
@@ -18,7 +20,7 @@ export async function GET(req:Request){
   const symbols=universe.filter((_,i)=>i%buckets===bucket);
   const startedAt=new Date().toISOString();
   const errors:any[]=[];
-  let snapshot:any=null,persisted:any=null,official:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null;
+  let snapshot:any=null,persisted:any=null,official:any=null,graph:any=null,factors:any=null,resolution:any=null,expertResolution:any=null,playbookResolution:any=null,scorecard:any=null,expertScores:any=null,playbookScores:any=null;
   try{
     snapshot=await discoverResearchSubjects(symbols);
     persisted=await persistResearchSnapshot({...snapshot,researchUniverseSize:universe.length,bucket,buckets});
@@ -31,6 +33,23 @@ export async function GET(req:Request){
       values('official_source_snapshot','system','free-official-v1',${JSON.stringify({bucket,buckets,symbols,...official})}::jsonb)
     `;
   }catch(error){errors.push({stage:"official-sources",error:error instanceof Error?error.message:String(error)});}
+  try{
+    graph=await buildFinancialKnowledgeGraph(symbols);
+    factors=graphHypotheses(graph);
+    const sql=db();
+    await sql`
+      insert into audit_events(event_type,entity_type,model_version,payload)
+      values('knowledge_graph_snapshot','research','financial-knowledge-graph-v1',${JSON.stringify(graph)}::jsonb)
+    `;
+    for(const h of factors.hypotheses.slice(0,80)){
+      const key=h.id+":"+new Date().toISOString().slice(0,10);
+      await sql`
+        insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
+        select 'factor_hypothesis_observed','factor',${key},'factor-discovery-v1',${JSON.stringify(h)}::jsonb
+        where not exists(select 1 from audit_events where event_type='factor_hypothesis_observed' and entity_id=${key})
+      `;
+    }
+  }catch(error){errors.push({stage:"knowledge-graph",error:error instanceof Error?error.message:String(error)});}
   try{resolution=await resolveResearchSubjects(18);}catch(error){errors.push({stage:"resolution",error:error instanceof Error?error.message:String(error)});}
   try{expertResolution=await resolveExpertViews(24);}catch(error){errors.push({stage:"expert-resolution",error:error instanceof Error?error.message:String(error)});}
   try{playbookResolution=await resolveInstitutionalPlaybooks(36);}catch(error){errors.push({stage:"playbook-resolution",error:error instanceof Error?error.message:String(error)});}
@@ -46,7 +65,7 @@ export async function GET(req:Request){
       global:snapshot.geography?.globalItems?.length??0,
       localConfigured:Boolean(snapshot.geography?.configuredLocalTerms?.length)
     }}:null,
-    persisted,official:official?{live:official.live,degraded:official.degraded,unconfigured:official.unconfigured,sources:official.sources.map((s:any)=>({id:s.id,status:s.status,error:s.error??null}))}:null,resolution,expertResolution,playbookResolution,scorecard,expertScores,playbookScores,errors,
+    persisted,graph:graph?{nodes:graph.stats.nodes,edges:graph.stats.edges,multiSourceEdges:graph.stats.multiSourceEdges}:null,factors:factors?{hypotheses:factors.hypotheses.length,candidates:factors.hypotheses.filter((h:any)=>h.state==="candidate").length}:null,official:official?{live:official.live,degraded:official.degraded,unconfigured:official.unconfigured,sources:official.sources.map((s:any)=>({id:s.id,status:s.status,error:s.error??null}))}:null,resolution,expertResolution,playbookResolution,scorecard,expertScores,playbookScores,errors,
     safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-research-only"}
   });
 }
