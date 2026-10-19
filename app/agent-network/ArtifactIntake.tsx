@@ -19,15 +19,22 @@ export default function ArtifactIntake(){
    const bytes=await file.arrayBuffer();
    const raw=await crypto.subtle.digest("SHA-256",bytes);
    const sha256=Array.from(new Uint8Array(raw)).map(x=>x.toString(16).padStart(2,"0")).join("");
-   setItems(previous=>[{name:file.name,bytes:file.size,sha256,status:previous.some(x=>x.sha256===sha256)?"Duplicate content detected":"Local fingerprint ready"},...previous].slice(0,12));
+   const localDuplicate=items.some(x=>x.sha256===sha256);
+   let remoteStatus="Registry check unavailable (not evidence of a new artifact)";
+   try{
+    const response=await fetch("/api/research-artifacts/upload?sha256="+sha256,{cache:"no-store"});
+    if(response.ok){const record=await response.json();remoteStatus=record.registered?"Already registered in Neon manifest":"Not registered in your Neon manifest";}
+    else if(response.status===401||response.status===403){remoteStatus="Sign in with a verified owner account to check Neon";}
+   }catch{}
+   setItems(previous=>[{name:file.name,bytes:file.size,sha256,status:localDuplicate?"Duplicate in this browser · "+remoteStatus:remoteStatus},...previous].slice(0,12));
   }catch(e){setError(e instanceof Error?e.message:"Unable to inspect file.");}finally{setBusy(false);}
  }
  return <section style={{marginTop:22,padding:22,border:"1px solid #7895a4",borderRadius:16,background:"#0b2230"}}>
- <h2>Research Artifact Intake</h2><p style={{lineHeight:1.6}}>Inspect a local research dataset and calculate its SHA-256 fingerprint before registration. This is a <strong>local-only preflight</strong>: no file bytes leave your browser, and no Neon upload occurs.</p>
+ <h2>Research Artifact Intake</h2><p style={{lineHeight:1.6}}>Inspect a local research dataset and calculate its SHA-256 fingerprint before registration. This is a <strong>local-only preflight</strong>: no file bytes leave your browser, and no Neon upload occurs. Only the SHA-256 fingerprint is sent to TradeOS for an authorized metadata lookup.</p>
  <label style={{display:"block",padding:12,border:"1px dashed #bca06d",borderRadius:9}}>Select CSV, JSON, PDF, plain text or Parquet (25 MiB maximum)
  <input type="file" accept=".csv,.json,.pdf,.txt,.parquet" disabled={busy} onChange={e=>{void inspect(e.target.files?.[0]);e.target.value="";}} style={{display:"block",marginTop:10,maxWidth:"100%"}}/></label>
  {busy&&<p role="status">Calculating fingerprint locally…</p>}{error&&<p role="alert" style={{color:"#ffb6b6"}}>{error}</p>}
  {items.length>0&&<button type="button" onClick={exportManifest} style={{marginTop:12,padding:10,background:"#d8bb81",color:"#142638",border:0,borderRadius:8,fontWeight:700}}>Export local fingerprint manifest (JSON)</button>}
  {items.map((item,i)=><div key={item.sha256+"-"+i} style={{padding:12,marginTop:10,border:"1px solid #50687c",borderRadius:10,overflowWrap:"anywhere"}}><strong>{item.name}</strong> · {item.bytes.toLocaleString()} bytes<p style={{color:item.status.startsWith("Duplicate")?"#f6c080":"#a8e7c1"}}>{item.status}</p><code style={{fontSize:12}}>{item.sha256}</code></div>)}
- <p style={{color:"#b9c8d1",fontSize:13}}>Export contains filenames and fingerprints, never file contents. Fingerprint matches are preliminary and not authoritative until a server independently verifies the uploaded bytes. Authenticated transfer remains disabled while storage signing is configured.</p></section>;
+ <p style={{color:"#b9c8d1",fontSize:13}}>Export contains filenames and fingerprints, never file contents. Registry checks only examine your manifest; they cannot prove an unregistered file is absent from object storage. Fingerprint matches are preliminary and not authoritative until a server independently verifies the uploaded bytes. Authenticated transfer remains disabled while storage signing is configured.</p></section>;
 }
