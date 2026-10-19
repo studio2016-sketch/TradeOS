@@ -19,7 +19,7 @@ function marketSession(now=new Date()){
 const fmt=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)&&v>0?"$"+v.toLocaleString("en-US",{maximumFractionDigits:2,minimumFractionDigits:2}):"Unavailable";
 const age=(ms:any)=>typeof ms==="number"&&Number.isFinite(ms)?(ms<60000?Math.round(ms/1000)+" sec":ms<3600000?Math.round(ms/60000)+" min":Math.round(ms/3600000)+" hr"):"Unavailable";
 export default function LiveBoard(){
- const [alignment,setAlignment]=useState<any>(null);const [alignmentLoading,setAlignmentLoading]=useState(false);
+ const [alignment,setAlignment]=useState<any>(null);const [alignmentLoading,setAlignmentLoading]=useState(false);const [alignmentRefresh,setAlignmentRefresh]=useState(0);
  const [clock,setClock]=useState(Date.now());const [previousMarket,setPreviousMarket]=useState<any>(null),[market,setMarket]=useState<any>(null),[verification,setVerification]=useState<any>(null),[monitor,setMonitor]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[selected,setSelected]=useState("SPY"),[paper,setPaper]=useState<any>(null);
  const refresh=useCallback(async()=>{setBusy(true);setError("");try{const [a,b,m]=await Promise.all([fetch("/api/market?symbols="+[...new Set([...symbols,selected])].join(","),{cache:"no-store"}),fetch("/api/data-verification?symbols="+[...new Set([...symbols,selected])].join(","),{cache:"no-store"}),fetch("/api/monitoring-status",{cache:"no-store"})]);if(!a.ok)throw Error("Market API returned "+a.status);const next=await a.json();setMarket((old:any)=>{setPreviousMarket(old);return next});setVerification(b.ok?await b.json():null);setMonitor(m.ok?await m.json():null);}catch(e){setError(e instanceof Error?e.message:"Request failed");setMarket(null);}finally{setBusy(false)}},[selected]);
  useEffect(()=>{refresh();const timer=setInterval(()=>{setClock(Date.now());refresh()},60000);return()=>clearInterval(timer)},[refresh]);
@@ -30,7 +30,7 @@ export default function LiveBoard(){
  .catch(()=>{if(alive)setAlignment(null)})
  .finally(()=>{if(alive)setAlignmentLoading(false)});
  return()=>{alive=false;controller.abort()};
- },[selected]);
+ },[selected,alignmentRefresh]);
  const fallbackSession=marketSession(new Date(clock));const session={regular:monitor?.market?.clockSource?Boolean(monitor.market.isOpen):fallbackSession.regular,explanation:monitor?.market?.clockSource?(monitor.market.isOpen?"Alpaca market clock reports the regular US equity session is open.":"Alpaca market clock reports the regular US equity session is closed."):fallbackSession.explanation};const massiveForbidden=(market?.attempts||verification?.providerAttempts||[]).some((a:any)=>a.source==="Massive"&&String(a.error||"").includes("403"));const snapshots:Snapshot[]=market?.snapshots??[];const checks:any[]=verification?.checks??[];const recentCount=checks.filter(c=>c.status==="recent_observation").length;const staleCount=checks.filter(c=>c.status==="stale").length;const unverifiedCount=checks.filter(c=>c.status==="unverified").length;const active=snapshots.find(s=>s.symbol===selected);const report=verification?.checks?.find((c:any)=>c.symbol===selected);
  const fetchPaper=async()=>{setPaper({status:"loading"});try{const r=await fetch("/api/research-paper?symbol="+encodeURIComponent(selected),{cache:"no-store"});setPaper(r.ok?await r.json():{status:"unavailable",message:"Bridge returned "+r.status})}catch{setPaper({status:"unavailable",message:"Research bridge unreachable"})}};
  const statusColor=(s:string)=>s==="recent_observation"?"#73d6a9":s==="stale"?"#ff9c87":"#e8c184";
