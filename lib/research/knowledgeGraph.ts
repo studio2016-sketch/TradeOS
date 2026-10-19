@@ -31,13 +31,13 @@ function edge(id:string,from:string,to:string,relation:string,evidenceClass:Grap
 
 export async function buildFinancialKnowledgeGraph(symbols:string[]):Promise<FinancialKnowledgeGraph>{
   const clean=[...new Set(symbols.map(s=>s.trim().toUpperCase()).filter(Boolean))].slice(0,30);
-  const nodes=new Map<string,GraphNode>(); const edges:GraphEdge[]=[];
+  const nodes=new Map<string,GraphNode>(); const edges:GraphEdge[]=[]; const issuerBy=new Map<string,any>(); const ctxBy=new Map<string,any>();
   ["SPY","QQQ","IWM"].forEach(s=>pushNode(nodes,{id:"market:"+s,type:"market",label:s}));
   const official=await freeOfficialSnapshot(clean).catch(()=>null);
   const officialBy=new Map((official?.sources??[]).map((s:any)=>[s.id,s]));
 
   for(const symbol of clean){
-    const [issuer,ctx]=await Promise.all([secIssuerContext(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null)]);
+    const [issuer,ctx]=await Promise.all([secIssuerContext(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null)]); issuerBy.set(symbol,issuer); ctxBy.set(symbol,ctx);
     const companyId="company:"+symbol;
     pushNode(nodes,{id:companyId,type:"company",label:issuer?.company||symbol,metadata:{symbol,cik:issuer?.cik??null}});
     if(issuer){
@@ -48,7 +48,8 @@ export async function buildFinancialKnowledgeGraph(symbols:string[]):Promise<Fin
       const industryId="industry:"+proxy;
       pushNode(nodes,{id:industryId,type:"industry",label:sectorNames[proxy]||proxy,metadata:{proxy}});
       const rs=ctx?.sector?.relativeStrengthScore??null;
-      edges.push(edge("industry:"+symbol+":"+proxy,companyId,industryId,"trades_with_industry_proxy","empirical",["Alpaca SIP historical","TradeOS sector taxonomy"],rs,rs==null?"unknown":rs>=55?"positive":rs<=45?"negative":"mixed","Industry relationship is a taxonomy + observed relative-behavior relationship, not a causal or predictive claim."));
+      const industrySources=issuer?.sic?["SEC EDGAR SIC","Alpaca SIP historical"]:["Alpaca SIP historical","TradeOS sector taxonomy"];
+      edges.push(edge("industry:"+symbol+":"+proxy,companyId,industryId,"trades_with_industry_proxy","empirical",industrySources,rs,rs==null?"unknown":rs>=55?"positive":rs<=45?"negative":"mixed","Industry relationship combines corporate classification where available with observed relative behavior; it is not a causal or predictive claim."));
     }
     const corr=ctx?.correlation?.spy20;
     if(corr!=null){
@@ -56,7 +57,18 @@ export async function buildFinancialKnowledgeGraph(symbols:string[]):Promise<Fin
     }
   }
 
-  const treasury=officialBy.get("treasury") as any;
+  for(let i=0;i<clean.length;i++){
+    for(let j=i+1;j<clean.length;j++){
+      const a=clean[i],b=clean[j],ia=issuerBy.get(a),ib=issuerBy.get(b),ca=ctxBy.get(a),cb=ctxBy.get(b);
+      const sameSic=Boolean(ia?.sic&&ib?.sic&&ia.sic===ib.sic);
+      const sameProxy=Boolean(ca?.sector?.proxy&&cb?.sector?.proxy&&ca.sector.proxy===cb.sector.proxy);
+      if(!sameSic&&!sameProxy)continue;
+      const sources:string[]=[]; if(sameSic)sources.push("SEC EDGAR SIC"); if(sameProxy)sources.push("Alpaca SIP historical");
+      edges.push(edge("peer:"+a+":"+b,"company:"+a,"company:"+b,"peer_relationship_candidate","empirical",sources,null,"unknown","Peer relationship is supported by shared official industry classification and/or common observed industry proxy. It does not imply price prediction."));
+    }
+  }
+
+    const treasury=officialBy.get("treasury") as any;
   if(treasury?.status==="live"){
     pushNode(nodes,{id:"economic:yield-curve",type:"economic",label:"10Y-2Y Treasury curve",metadata:treasury.data});
     ["industry:XLK","industry:XLF","industry:XLRE","market:SPY"].forEach(target=>{
