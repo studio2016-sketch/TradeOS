@@ -120,6 +120,9 @@ export async function accelerationTick(now=new Date()){
   if(!history?.bars.length){const reason=history?.error??"empty_history_or_ineligible_snapshot";historyFailures[reason]=(historyFailures[reason]??0)+1;}
   derivedValues+=Object.values(derived).filter(v=>v.value!==null).length;
   for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
+  factors.var_95=null;
+  factors.expected_shortfall=null;
+  factors.max_drawdown=null;
   const coverage=observedFactorCoverage(factors);
   const provenance={studyKey:studyKey(now),news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
   const runId=timestamp.slice(0,16)+":"+batch;
