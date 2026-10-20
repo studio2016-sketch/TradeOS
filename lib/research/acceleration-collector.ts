@@ -4,6 +4,7 @@ import {curatedNews} from "../market/news";
 import {db} from "../db";
 import {alpacaDailyHistory} from "./market-factor-history";
 import {calculateMarketFactors} from "./market-factor-engine";
+import {latestSecCatalysts} from "../market/sec";
 const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
 export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
@@ -42,6 +43,12 @@ export async function accelerationTick(now=new Date()){
    historyBySymbol.set(snap.symbol,await alpacaDailyHistory(snap.symbol,snap.timestamp));
   }));
  }
+ // Bound SEC requests to two symbols per tick; failures never imply zero filings.
+ const secSymbols=eligible.slice(0,2).map(s=>s.symbol);
+ let secCatalysts:Awaited<ReturnType<typeof latestSecCatalysts>>=[];
+ let secError:string|null=null;
+ try{if(secSymbols.length)secCatalysts=await latestSecCatalysts(secSymbols,5);}
+ catch(e){secError=e instanceof Error?e.message:"sec_unavailable";}
  const sql=db();
  let saved=0,skipped=0,historyBars=0,derivedValues=0;
  const historyFailures:Record<string,number>={};
@@ -75,6 +82,13 @@ export async function accelerationTick(now=new Date()){
   // Novelty is the fraction of distinct article identifiers among the observed headlines.
   // Zero headlines means novelty is unknown, not zero.
   if(related.length>0)factors.headline_novelty=new Set(related.map(n=>n.id)).size/related.length;
+  // Only filings accepted before the observed market timestamp count.
+  if(secSymbols.includes(snap.symbol)&&secError===null){
+    factors.sec_filing_catalyst=secCatalysts.filter(f=>f.symbol===snap.symbol&&
+      Number.isFinite(Date.parse(f.acceptedAt??""))&&
+      Date.parse(f.acceptedAt!)<=marketTime&&
+      marketTime-Date.parse(f.acceptedAt!)<=30*86400000).length;
+  }
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
   historyBars+=history?.bars.length??0;
@@ -82,10 +96,10 @@ export async function accelerationTick(now=new Date()){
   derivedValues+=Object.values(derived).filter(v=>v.value!==null).length;
   for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
   const coverage=observedFactorCoverage(factors);
-  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived};
+  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,lookbackDays:30}};
   const runId=timestamp.slice(0,16)+":"+batch;
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
  }
- return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
+ return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
 }
