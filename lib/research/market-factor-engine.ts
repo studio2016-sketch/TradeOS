@@ -27,5 +27,32 @@ export function calculateMarketFactors(raw:PriceBar[]):Record<string,DerivedFact
  for(const [key,period] of [["ema_9",9],["ema_21",21]] as const)compute(key,period,s=>{
   const alpha=2/(period+1);return s.slice(1).reduce((ema,b)=>alpha*b.close+(1-alpha)*ema,s[0].close);
  });
+ // MACD uses the full completed history, rather than seeding on a short trailing window.
+ if(n>=35){
+  const closes=bars.map(b=>b.close);
+  const ema=(period:number)=>{const alpha=2/(period+1);let v=closes[0];return closes.map((c,i)=>v=i===0?c:alpha*c+(1-alpha)*v);};
+  const fast=ema(12),slow=ema(26),macd=fast.map((v,i)=>v-slow[i]);
+  const alpha=2/10;let signal=macd[0];for(let i=1;i<macd.length;i++)signal=alpha*macd[i]+(1-alpha)*signal;
+  result.macd=valid(macd[n-1],n,last.timestamp);
+  result.macd_signal=valid(signal,n,last.timestamp);
+ }else{result.macd=absent("insufficient_bars",n);result.macd_signal=absent("insufficient_bars",n);}
+ // ADX: Wilder smoothing, at least two complete 14-bar smoothing periods.
+ if(n>=29){
+  const period=14,trs:number[]=[],plus:number[]=[],minus:number[]=[];
+  for(let i=1;i<n;i++){const b=bars[i],prev=bars[i-1],up=b.high-prev.high,down=prev.low-b.low;
+   trs.push(Math.max(b.high-b.low,Math.abs(b.high-prev.close),Math.abs(b.low-prev.close)));
+   plus.push(up>down&&up>0?up:0);minus.push(down>up&&down>0?down:0);
+  }
+  const smooth=(arr:number[])=>{let v=arr.slice(0,period).reduce((a,b)=>a+b,0);const out=[v];for(let i=period;i<arr.length;i++){v=v-v/period+arr[i];out.push(v);}return out;};
+  const tr=smooth(trs),p=smooth(plus),m=smooth(minus);
+  const dx=tr.map((v,i)=>v>0?100*Math.abs(p[i]-m[i])/(p[i]+m[i]||1):0);
+  let adx=dx.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<dx.length;i++)adx=((period-1)*adx+dx[i])/period;
+  result.adx=valid(adx,n,last.timestamp);
+ }else result.adx=absent("insufficient_bars",n);
+ // Breakout relative to the previous 20 completed sessions, never the current bar.
+ if(n>=21){const prior=bars.slice(-21,-1),high=Math.max(...prior.map(b=>b.high)),low=Math.min(...prior.map(b=>b.low));
+  result.breakout_strength=valid(high>low?(last.close-high)/(high-low):0,21,last.timestamp);
+ }else result.breakout_strength=absent("insufficient_bars",n);
  return result;
 }
