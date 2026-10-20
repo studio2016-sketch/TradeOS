@@ -5,6 +5,9 @@ import {db} from "../db";
 const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
 export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
+ const sql=db();
+ const frozen=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key='2026-10-20-volume-100'`;
+ if(frozen.length)return {symbols:frozen[0].symbols as string[],mode:String(frozen[0].mode),asOf:new Date(frozen[0].as_of as string).toISOString()};
  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
  if(!key||!secret)throw Error("Alpaca credentials missing; cannot rank 100 most active securities");
  const url="https://data.alpaca.markets/v1beta1/screener/stocks/most-actives?by=volume&top=100";
@@ -13,7 +16,10 @@ export async function active100():Promise<{symbols:string[];mode:string;asOf:str
  const response=await r.json() as {most_actives?:Active[];last_updated?:string};
  const symbols=[...new Set((response.most_actives??[]).map(s=>s.symbol?.toUpperCase()).filter((s):s is string=>Boolean(s&&/^[A-Z0-9.-]{1,10}$/.test(s))))].slice(0,100);
  if(symbols.length<75)throw Error("Insufficient ranked universe coverage "+symbols.length);
- return {symbols,mode:"Alpaca most actives by trading volume (dynamic, not popularity polling)",asOf:response.last_updated||new Date().toISOString()};
+ const asOf=response.last_updated||new Date().toISOString();
+ await sql`insert into tradeos_acceleration_universe(study_key,symbols,as_of,mode) values('2026-10-20-volume-100',${JSON.stringify(symbols)}::jsonb,${asOf},'Frozen Alpaca top 100 by reported volume; not an options popularity rank') on conflict(study_key) do nothing`;
+ const baseline=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key='2026-10-20-volume-100'`;
+ return {symbols:baseline[0].symbols as string[],mode:String(baseline[0].mode),asOf:new Date(baseline[0].as_of as string).toISOString()};
 }
 export async function accelerationTick(now=new Date()){
  const timestamp=now.toISOString();
