@@ -4,7 +4,7 @@ import {curatedNews} from "../market/news";
 import {db} from "../db";
 const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
-async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
+export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
  if(!key||!secret)throw Error("Alpaca credentials missing; cannot rank 100 most active securities");
  const url="https://data.alpaca.markets/v1beta1/screener/stocks/most-actives?by=volume&top=100";
