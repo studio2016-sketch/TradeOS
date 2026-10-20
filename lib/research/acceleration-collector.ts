@@ -33,8 +33,15 @@ export async function accelerationTick(now=new Date()){
  const snapshots=await bestSnapshots(selected);
  const news=await curatedNews(selected,30);
  // Historical fetch is bounded to the selected batch; unavailable history stays null.
- const histories=await Promise.all(selected.map(async symbol=>({symbol,history:await alpacaDailyHistory(symbol,timestamp)})));
- const historyBySymbol=new Map(histories.map(x=>[x.symbol,x.history]));
+ // Fetch only for usable snapshots, bounded to their actual market timestamps.
+ const historyBySymbol=new Map<string,Awaited<ReturnType<typeof alpacaDailyHistory>>>();
+ const eligible=snapshots.snapshots.filter(s=>{const t=Date.parse(s.timestamp);return Number.isFinite(t)&&t<=now.getTime()+5000&&now.getTime()-t<=600000;});
+ // Cap concurrency to avoid a burst of historical API calls.
+ for(let i=0;i<eligible.length;i+=2){
+  await Promise.all(eligible.slice(i,i+2).map(async snap=>{
+   historyBySymbol.set(snap.symbol,await alpacaDailyHistory(snap.symbol,snap.timestamp));
+  }));
+ }
  const sql=db();
  let saved=0,skipped=0;
  for(const snap of snapshots.snapshots){
