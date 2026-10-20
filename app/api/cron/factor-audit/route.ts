@@ -14,8 +14,10 @@ export async function GET(request:Request){
    where jsonb_typeof(f.value)='number' group by f.key`;
   const measured=new Map(rows.map(r=>[String(r.key),{samples:Number(r.samples),symbols:Number(r.symbols),latest:r.latest}]));
   const factors=FACTOR_CATALOG.map(f=>({...f,...(measured.get(f.key)??{samples:0,symbols:0,latest:null}),state:measured.has(f.key)?"observed_uncertified":"missing"}));
-  const active=factors.filter(f=>f.samples>0).length;
-  const byFamily=Object.fromEntries([...new Set(factors.map(f=>f.family))].map(family=>[family,{observed:factors.filter(f=>f.family===family&&f.samples>0).length,total:10}]));
+  const invalidLegacy=new Set(["var_95","expected_shortfall","max_drawdown"]);
+  for(const factor of factors)if(invalidLegacy.has(factor.key))factor.state="missing";
+  const active=factors.filter(f=>f.state==="observed_uncertified").length;
+  const byFamily=Object.fromEntries([...new Set(factors.map(f=>f.family))].map(family=>[family,{observed:factors.filter(f=>f.family===family&&f.state==="observed_uncertified").length,total:10}]));
   return NextResponse.json({status:"measurement_audit_not_certification",generatedAt:new Date().toISOString(),declared:120,observed:active,missing:120-active,byFamily,factors,executionAllowed:false,
    cautions:["Non-null observations do not prove predictive validity.","Some portfolio-risk labels currently contain single-security metrics.","Independent certification is required before trading use."]},{headers:{"Cache-Control":"no-store"}});
  }catch(error){return NextResponse.json({status:"audit_failed",reason:error instanceof Error?error.message:"unknown"},{status:503});}
