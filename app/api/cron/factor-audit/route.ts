@@ -18,9 +18,12 @@ export async function GET(request:Request){
   for(const factor of factors)if(invalidLegacy.has(factor.key))factor.state="missing";
   const active=factors.filter(f=>f.state==="observed_uncertified").length;
   const freshnessWindowMs=7*86400000;
-  const fresh=factors.filter(f=>f.state==="observed_uncertified"&&f.latest&&Date.now()-new Date(f.latest as string).getTime()<=freshnessWindowMs).length;
+  const currentTime=Date.now();
+  const fresh=factors.filter(f=>f.state==="observed_uncertified"&&f.latest&&currentTime-new Date(f.latest as string).getTime()>=0&&currentTime-new Date(f.latest as string).getTime()<=freshnessWindowMs).length;
+  const staleKeys=factors.filter(f=>f.state==="observed_uncertified"&&!(f.latest&&currentTime-new Date(f.latest as string).getTime()>=0&&currentTime-new Date(f.latest as string).getTime()<=freshnessWindowMs)).map(f=>f.key);
+  const missingKeys=factors.filter(f=>f.state==="missing").map(f=>f.key);
   const byFamily=Object.fromEntries([...new Set(factors.map(f=>f.family))].map(family=>[family,{observed:factors.filter(f=>f.family===family&&f.state==="observed_uncertified").length,total:10}]));
-  return NextResponse.json({status:"measurement_audit_not_certification",generatedAt:new Date().toISOString(),declared:120,observed:active,freshWithinSevenDays:fresh,staleObserved:active-fresh,missing:120-active,byFamily,factors,executionAllowed:false,
+  return NextResponse.json({status:"measurement_audit_not_certification",generatedAt:new Date().toISOString(),declared:120,observed:active,freshWithinSevenDays:fresh,staleObserved:active-fresh,staleKeys,missing:120-active,missingKeys,byFamily,factors,executionAllowed:false,
    cautions:["Non-null observations do not prove predictive validity.","Some portfolio-risk labels currently contain single-security metrics.","Independent certification is required before trading use."]},{headers:{"Cache-Control":"no-store"}});
  }catch(error){return NextResponse.json({status:"audit_failed",reason:error instanceof Error?error.message:"unknown"},{status:503});}
 }
