@@ -1,4 +1,4 @@
-export type DecisionInput={symbol:string;asOf:string;dataFresh:boolean;tradable:boolean;spreadBps:number;regime:number;trend:number;relativeStrength:number;riskReward:number;liquidity:number;council:number;evidence:number};
+export type DecisionInput={symbol:string;asOf:string;dataFresh:boolean;provenanceVerified:boolean;tradable:boolean;spreadBps:number;regime:number;trend:number;relativeStrength:number;riskReward:number;liquidity:number;council:number;evidence:number};
 export type DecisionOutput={symbol:string;decision:"RESEARCH_CANDIDATE"|"WATCH"|"NO_TRADE";score:number|null;gates:string[];weights:Record<string,number>;certified:false;executionEnabled:false;explanation:string};
 const weights={evidence:.25,regime:.20,trend:.075,relativeStrength:.075,riskReward:.20,liquidity:.10,council:.10} as const;
 export function assessOpportunity(input:DecisionInput):DecisionOutput{
@@ -6,6 +6,7 @@ export function assessOpportunity(input:DecisionInput):DecisionOutput{
  if(!/^[A-Z0-9.^-]{1,20}$/.test(input.symbol))gates.push("Invalid security identifier");
  if(!Number.isFinite(Date.parse(input.asOf)))gates.push("Missing as-of timestamp");
  if(!input.dataFresh)gates.push("Market data freshness unverified");
+ if(!input.provenanceVerified)gates.push("Independent market feed provenance unverified");
  if(!input.tradable)gates.push("Tradability not established");
  if(!Number.isFinite(input.spreadBps)||input.spreadBps<0||input.spreadBps>50)gates.push("Spread exceeds initial safety screen or is unavailable");
  for(const k of Object.keys(weights) as Array<keyof typeof weights>)if(!Number.isFinite(input[k])||input[k]<0||input[k]>100)gates.push("Invalid "+k+" assessment");
