@@ -2,8 +2,7 @@ import {FACTOR_KEYS,observedFactorCoverage} from "./acceleration-factors";
 import {bestSnapshots} from "../market/live";
 import {curatedNews} from "../market/news";
 import {db} from "../db";
-const START="2026-10-20T00:00:00Z",END="2026-10-26T00:00:00Z";
-const fallback=["NVDA","TSLA","AAPL","AMD","MSFT","AMZN","META","GOOGL","PLTR","AVGO","SPY","QQQ","IWM","MU","INTC","SMCI","NFLX","COIN","HOOD","SOFI"];
+const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
 async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
@@ -18,7 +17,7 @@ async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
 }
 export async function accelerationTick(now=new Date()){
  const timestamp=now.toISOString();
- if(timestamp<START||timestamp>=END)return {status:"outside_2026_10_20_to_10_25_window",observations:0};
+ if(timestamp<START||timestamp>=END)return {status:"outside_2026_10_20_to_10_26_window",observations:0};
  const universe=await active100();
  const slot=Math.floor(now.getTime()/900000);
  const batch=slot%10;
