@@ -103,6 +103,13 @@ export async function accelerationTick(now=new Date()){
     factors.net_margin=v.net_income/v.revenue;
    if(Number.isFinite(v.shares)&&v.shares>0)
     factors.market_cap=v.shares*snap.price;
+   // SEC companyfacts share counts can be stale; record only when dated within 120 days.
+   const shareDate=Date.parse((fundamentals.provenance.shares?.end??"")+"T00:00:00Z");
+   if(!Number.isFinite(shareDate)||marketTime-shareDate>120*86400000)factors.market_cap=null;
+   // EPS from the most recent reported quarter is not trailing-twelve-month EPS.
+   // Do not infer trailing P/E from a single quarterly earnings figure.
+   // ROE requires a consistent annual income numerator and equity denominator.
+
   }
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
