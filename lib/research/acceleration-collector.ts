@@ -58,6 +58,12 @@ export async function accelerationTick(now=new Date()){
   }
   const related=news.news.filter(n=>n.symbols.includes(snap.symbol)&&Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)<=marketTime).slice(0,12);
   factors.headline_count=related.length;
+  // Count distinct, independently named news providers; do not infer sentiment or causality.
+  const sources=new Set(related.map(n=>n.source).filter(Boolean));
+  factors.news_source_diversity=sources.size;
+  // Novelty is the fraction of distinct article identifiers among the observed headlines.
+  // Zero headlines means novelty is unknown, not zero.
+  if(related.length>0)factors.headline_novelty=new Set(related.map(n=>n.id)).size/related.length;
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
   historyBars+=history?.bars.length??0;
