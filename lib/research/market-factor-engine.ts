@@ -24,6 +24,26 @@ export function calculateMarketFactors(raw:PriceBar[]):Record<string,DerivedFact
   const mean=returns.reduce((a,b)=>a+b,0)/returns.length;
   return Math.sqrt(returns.reduce((a,b)=>a+(b-mean)**2,0)/(returns.length-1))*Math.sqrt(252);
  });
+ // Relative short/long realized volatility is a continuous regime proxy,
+ // not a certified categorical market regime or an independent data source.
+ const vol5=result.realized_vol_5?.value,vol20=result.realized_vol_20?.value;
+ result.volatility_regime=vol5!==null&&vol5!==undefined&&vol20!==null&&vol20!==undefined&&vol20>0
+  ?valid(vol5/vol20,21,last.timestamp):absent(n<21?"insufficient_bars":"zero_long_window_volatility",n);
+ // Volatility-of-volatility: sample dispersion of 20 overlapping five-session
+ // annualized realized-volatility estimates. Requires 25 completed daily bars.
+ compute("vol_of_vol",25,s=>{
+  const closes=s.map(b=>b.close);
+  const rolling:number[]=[];
+  for(let end=5;end<closes.length;end++){
+   const logReturns:number[]=[];
+   for(let i=end-4;i<=end;i++)logReturns.push(Math.log(closes[i]/closes[i-1]));
+   const mean=logReturns.reduce((sum,x)=>sum+x,0)/5;
+   const realized=Math.sqrt(logReturns.reduce((sum,x)=>sum+(x-mean)**2,0)/4)*Math.sqrt(252);
+   rolling.push(realized);
+  }
+  const mean=rolling.reduce((sum,x)=>sum+x,0)/rolling.length;
+  return Math.sqrt(rolling.reduce((sum,x)=>sum+(x-mean)**2,0)/(rolling.length-1));
+ });
  for(const [key,period] of [["ema_9",9],["ema_21",21]] as const)compute(key,period,s=>{
   const alpha=2/(period+1);return s.slice(1).reduce((ema,b)=>alpha*b.close+(1-alpha)*ema,s[0].close);
  });
