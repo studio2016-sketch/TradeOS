@@ -6,6 +6,8 @@ export async function alpacaDailyHistory(symbol:string,asOf:string):Promise<Hist
  if(!key||!secret)return {bars:[],source:"Alpaca",error:"missing_credentials"};
  const cutoff=Date.parse(asOf);
  if(!Number.isFinite(cutoff))return {bars:[],source:"Alpaca",error:"invalid_as_of"};
+ // Only completed US exchange sessions: exclude current New York trading date.
+ const nyDay=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(cutoff));
  const end=new Date(cutoff).toISOString();
  const start=new Date(cutoff-400*86400000).toISOString();
  const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
@@ -18,7 +20,7 @@ export async function alpacaDailyHistory(symbol:string,asOf:string):Promise<Hist
   const data=await response.json() as {bars?:Array<{t:string;o:number;h:number;l:number;c:number;v:number}>;next_page_token?:string};
   if(data.next_page_token)return {bars:[],source:"Alpaca",error:"pagination_incomplete"};
   // Current-day bars are incomplete. Only use bars from earlier UTC calendar dates.
-  const day=end.slice(0,10);
+  const day=nyDay;
   const bars=(data.bars??[]).filter(b=>b.t.slice(0,10)<day&&Date.parse(b.t)<cutoff).map(b=>({timestamp:b.t,open:b.o,high:b.h,low:b.l,close:b.c,volume:b.v}));
   return {bars,source:"Alpaca:"+ (process.env.ALPACA_FEED||"iex")};
  }catch(e){return {bars:[],source:"Alpaca",error:e instanceof Error?e.message:"fetch_failed"};}
