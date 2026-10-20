@@ -21,8 +21,8 @@ export function historicalCandidate(closes:number[],lookback:number,contrarian:b
 export async function accelerationReplay(now=new Date()){
  if(now.toISOString()>="2026-10-25T00:00:00Z")return {status:"four_day_replay_window_ended",trials:0};
  const universe=await active100();
- const batch=Math.floor(now.getTime()/3600000)%10;
- const symbols=universe.symbols.filter((_,i)=>i%10===batch);
+ const batch=Math.floor(now.getTime()/3600000)%34;
+ const symbols=universe.symbols.filter((_,i)=>i%34===batch);
  const sql=db();let trials=0,skipped=0;
  for(const symbol of symbols){
   try{
