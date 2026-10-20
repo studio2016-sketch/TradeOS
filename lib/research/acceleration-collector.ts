@@ -65,14 +65,13 @@ export async function accelerationTick(now=new Date()){
   const factors:Record<string,number|null>=Object.fromEntries(FACTOR_KEYS.map(k=>[k,null]));
   if(Number.isFinite(snap.volume))factors.daily_volume=snap.volume;
   if(Number.isFinite(snap.vwap)&&snap.vwap!>0)factors.distance_vwap=(snap.price-snap.vwap!)/snap.vwap!;
-  if(Number.isFinite(snap.bid)&&Number.isFinite(snap.ask)&&snap.ask!>=snap.bid!&&snap.bid!>0){
+  const quoteTime=Date.parse(snap.quoteTimestamp??"");
+  const quoteAge=marketTime-quoteTime;
+  if(Number.isFinite(quoteTime)&&quoteAge>=0&&quoteAge<=60000&&
+     Number.isFinite(snap.bid)&&Number.isFinite(snap.ask)&&snap.ask!>=snap.bid!&&snap.bid!>0){
    factors.bid_ask_spread=snap.ask!-snap.bid!;
    factors.spread_bps=(snap.ask!-snap.bid!)/((snap.ask!+snap.bid!)/2)*10000;
   }
-  // Quote-dependent factors require a quote no later than the market observation
-  // and no more than 60 seconds older; never mix stale quote sizes with a new trade.
-  const quoteTime=Date.parse(snap.quoteTimestamp??"");
-  const quoteAge=marketTime-quoteTime;
   if(Number.isFinite(quoteTime)&&quoteAge>=0&&quoteAge<=60000&&
      Number.isFinite(snap.bidSize)&&Number.isFinite(snap.askSize)&&
      snap.bidSize!>=0&&snap.askSize!>=0){
@@ -100,7 +99,7 @@ export async function accelerationTick(now=new Date()){
   const fundamentals=fundamentalBySymbol.get(snap.symbol);
   if(fundamentals?.status==="ok"){
    const v=fundamentals.values;
-   if(Number.isFinite(v.revenue)&&v.revenue!==0&&Number.isFinite(v.net_income))
+   if(fundamentals.provenance.revenue?.end===fundamentals.provenance.net_income?.end&&fundamentals.provenance.revenue?.accession===fundamentals.provenance.net_income?.accession&&Number.isFinite(v.revenue)&&v.revenue>0&&Number.isFinite(v.net_income))
     factors.net_margin=v.net_income/v.revenue;
    if(Number.isFinite(v.shares)&&v.shares>0)
     factors.market_cap=v.shares*snap.price;
