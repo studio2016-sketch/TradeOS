@@ -47,7 +47,8 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
   const key=process.env.MASSIVE_API_KEY;
   if(!key)return[];
   const clean=cleanSymbols(symbols);
-  const requests=(clean.length?clean:[null]).slice(0,8).map(async ticker=>{
+  // One provider request per batch avoids a burst of up to eight concurrent calls.
+  const requests=[null].map(async ticker=>{
     const url=new URL("https://api.massive.com/v2/reference/news");
     if(ticker)url.searchParams.set("ticker",ticker);
     url.searchParams.set("order","desc");
@@ -55,7 +56,7 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
     url.searchParams.set("limit",String(Math.min(20,limit)));
     url.searchParams.set("apiKey",key);
     const res=await fetch(url,{cache:"no-store"});
-    if(!res.ok)throw new Error(`Massive news HTTP ${res.status}`);
+    if(!res.ok){const retry=res.headers.get("retry-after");throw new Error(`Massive news HTTP ${res.status}${retry?` retry_after=${retry}`:""}`);}
     const data=await res.json() as any;
     return (data.results??[]).map((n:any)=>({
       id:`massive:${n.id??n.article_url??n.published_utc}`,
