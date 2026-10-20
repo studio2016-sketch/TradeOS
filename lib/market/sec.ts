@@ -115,7 +115,7 @@ export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Prom
 
 // Point-in-time companyfacts: only accessioned reports filed on or before the observation date.
 // SEC companyfacts lacks intraday acceptance times, so use facts only after the filing day.
-export type SecFundamentalResult={symbol:string;status:"ok"|"unmapped"|"http_error"|"network_error"|"invalid_response";values:Record<string,number>;provenance:Record<string,{filed:string;end:string;accession:string}>;error?:string};
+export type SecFundamentalResult={symbol:string;status:"ok"|"unmapped"|"http_error"|"network_error"|"invalid_response";values:Record<string,number>;provenance:Record<string,{filed:string;end:string;accession:string;start?:string}>;error?:string};
 export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<SecFundamentalResult>{
  const values:Record<string,number>={},provenance:SecFundamentalResult["provenance"]={};
  const map=await tickerMap(),company=map.get(symbol.toUpperCase());
@@ -141,7 +141,7 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
     return true;
    }).sort((a:any,b:any)=>String(b.end).localeCompare(String(a.end))||String(b.filed).localeCompare(String(a.filed)));
    if(!filtered.length)return;
-   const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn};
+   const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn,start:r.start};
   };
   pick("revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"],"USD",true);
   pick("net_income",["NetIncomeLoss"],"USD",true);
@@ -151,6 +151,7 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
   pick("equity",["StockholdersEquity"]);
   pick("shares",["CommonStockSharesOutstanding"],"shares");
   pick("operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"],"USD",false);
+  pick("earnings_per_share",["EarningsPerShareDiluted","EarningsPerShareBasic"],"USD/shares",true);
   return {symbol,status:"ok",values,provenance};
  }catch(e){return {...base,status:"network_error",error:e instanceof Error?e.message:"unknown"};}
 }
