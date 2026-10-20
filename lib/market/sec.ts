@@ -113,6 +113,47 @@ export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Prom
 }
 
 
+// Point-in-time companyfacts: only accessioned reports filed on or before the observation date.
+// SEC companyfacts lacks intraday acceptance times, so use facts only after the filing day.
+export type SecFundamentalResult={symbol:string;status:"ok"|"unmapped"|"http_error"|"network_error"|"invalid_response";values:Record<string,number>;provenance:Record<string,{filed:string;end:string;accession:string}>;error?:string};
+export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<SecFundamentalResult>{
+ const values:Record<string,number>={},provenance:SecFundamentalResult["provenance"]={};
+ const map=await tickerMap(),company=map.get(symbol.toUpperCase());
+ const base={symbol,status:"unmapped" as const,values,provenance};
+ if(!company)return base;
+ const cutoff=Date.parse(asOf);
+ if(!Number.isFinite(cutoff))return {...base,status:"invalid_response"};
+ try{
+  const response=await fetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${company.cik}.json`,{headers:SEC_HEADERS,cache:"no-store",signal:AbortSignal.timeout(12000)});
+  if(!response.ok)return {...base,status:"http_error",error:String(response.status)};
+  const data=await response.json() as any;
+  if(!data?.facts?.["us-gaap"])return {...base,status:"invalid_response"};
+  const gaap=data.facts["us-gaap"];
+  const pick=(key:string,tags:string[],unit="USD",duration=false)=>{
+   const rows=tags.flatMap(tag=>(gaap[tag]?.units?.[unit]??[]).map((r:any)=>({...r,tag})));
+   const filtered=rows.filter((r:any)=>{
+    const filed=Date.parse(String(r.filed??"")+"T23:59:59Z"),end=Date.parse(String(r.end??"")+"T00:00:00Z");
+    if(!Number.isFinite(filed)||!Number.isFinite(end)||filed>=cutoff||end>cutoff||!Number.isFinite(r.val)||!r.accn)return false;
+    if(duration){
+     const days=(end-Date.parse(String(r.start??"")+"T00:00:00Z"))/86400000;
+     return days>=75&&days<=110;
+    }
+    return true;
+   }).sort((a:any,b:any)=>String(b.end).localeCompare(String(a.end))||String(b.filed).localeCompare(String(a.filed)));
+   if(!filtered.length)return;
+   const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn};
+  };
+  pick("revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"],"USD",true);
+  pick("net_income",["NetIncomeLoss"],"USD",true);
+  pick("operating_income",["OperatingIncomeLoss"],"USD",true);
+  pick("assets",["Assets"]);
+  pick("liabilities",["Liabilities"]);
+  pick("equity",["StockholdersEquity"]);
+  pick("shares",["CommonStockSharesOutstanding"],"shares");
+  pick("operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"],"USD",false);
+  return {symbol,status:"ok",values,provenance};
+ }catch(e){return {...base,status:"network_error",error:e instanceof Error?e.message:"unknown"};}
+}
 export interface SecIssuerContext{
   symbol:string;
   company:string;
