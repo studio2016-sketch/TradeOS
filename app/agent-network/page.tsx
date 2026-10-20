@@ -1,5 +1,5 @@
-import GlobalMacroSources from "./GlobalMacroSources";
 "use client";
+import GlobalMacroSources from "./GlobalMacroSources";
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import AccountStatus from "./AccountStatus";
