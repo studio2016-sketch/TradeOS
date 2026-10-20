@@ -43,7 +43,7 @@ export async function accelerationTick(now=new Date()){
    factors.bid_ask_spread=snap.ask!-snap.bid!;
    factors.spread_bps=(snap.ask!-snap.bid!)/((snap.ask!+snap.bid!)/2)*10000;
   }
-  const related=news.news.filter(n=>n.symbols.includes(snap.symbol)).slice(0,12);
+  const related=news.news.filter(n=>n.symbols.includes(snap.symbol)&&Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)<=marketTime).slice(0,12);
   factors.headline_count=related.length;
   const coverage=observedFactorCoverage(factors);
   const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors};
