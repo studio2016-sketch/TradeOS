@@ -110,7 +110,7 @@ export async function secIssuerContext(symbol:string):Promise<SecIssuerContext|n
   const company=map.get(symbol.toUpperCase());
   if(!company)return null;
   const [factsRes,subRes]=await Promise.all([
-    fetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${company.cik}.json`,{headers:SEC_HEADERS,next:{revalidate:3600}}),
+    fetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${company.cik}.json`,{headers:SEC_HEADERS,cache:"no-store",signal:AbortSignal.timeout(12000)}),
     fetch(`https://data.sec.gov/submissions/CIK${company.cik}.json`,{headers:SEC_HEADERS,next:{revalidate:300}})
   ]);
   const facts=factsRes.ok?await factsRes.json() as any:null;
