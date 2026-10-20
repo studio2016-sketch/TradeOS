@@ -4,7 +4,7 @@ import {curatedNews} from "../market/news";
 import {db} from "../db";
 import {alpacaDailyHistory} from "./market-factor-history";
 import {calculateMarketFactors} from "./market-factor-engine";
-import {secCatalystsWithStatus} from "../market/sec";
+import {secCatalystsWithStatus,secFundamentalsAsOf} from "../market/sec";
 const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
 export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
@@ -49,6 +49,12 @@ export async function accelerationTick(now=new Date()){
  let secError:string|null=null;
  try{if(secSymbols.length)secResult=await secCatalystsWithStatus(secSymbols,5);}
  catch(e){secError=e instanceof Error?e.message:"sec_unavailable";}
+ const fundamentalBySymbol=new Map<string,Awaited<ReturnType<typeof secFundamentalsAsOf>>>();
+ // Limit companyfacts traffic and execution time; no imputation on missing facts.
+ for(const snap of eligible.slice(0,1)){
+  try{fundamentalBySymbol.set(snap.symbol,await secFundamentalsAsOf(snap.symbol,snap.timestamp));}
+  catch{/* unavailable fundamentals remain null */}
+ }
  const sql=db();
  let saved=0,skipped=0,historyBars=0,derivedValues=0;
  const historyFailures:Record<string,number>={};
@@ -91,6 +97,14 @@ export async function accelerationTick(now=new Date()){
       marketTime-Date.parse(f.acceptedAt!)<=30*86400000);
     factors.sec_filing_catalyst=matchedFilings.length;
   }
+  const fundamentals=fundamentalBySymbol.get(snap.symbol);
+  if(fundamentals?.status==="ok"){
+   const v=fundamentals.values;
+   if(Number.isFinite(v.revenue)&&v.revenue!==0&&Number.isFinite(v.net_income))
+    factors.net_margin=v.net_income/v.revenue;
+   if(Number.isFinite(v.shares)&&v.shares>0)
+    factors.market_cap=v.shares*snap.price;
+  }
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
   historyBars+=history?.bars.length??0;
@@ -98,7 +112,7 @@ export async function accelerationTick(now=new Date()){
   derivedValues+=Object.values(derived).filter(v=>v.value!==null).length;
   for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
   const coverage=observedFactorCoverage(factors);
-  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
+  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
   const runId=timestamp.slice(0,16)+":"+batch;
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
