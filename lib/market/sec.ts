@@ -41,6 +41,37 @@ function impactForForm(form:string):SecCatalyst["impact"]{
   return "low";
 }
 
+export type SecSourceStatus={symbol:string;status:"ok"|"unmapped"|"http_error"|"invalid_response"|"network_error";httpStatus?:number;error?:string};
+export async function secCatalystsWithStatus(symbols:string[],limitPerSymbol=5):Promise<{catalysts:SecCatalyst[];statuses:SecSourceStatus[]}>{
+ const clean=[...new Set(symbols.map(s=>s.trim().toUpperCase()))].filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)).slice(0,5);
+ const map=await tickerMap(),catalysts:SecCatalyst[]=[],statuses:SecSourceStatus[]=[];
+ for(const symbol of clean){
+  const company=map.get(symbol);
+  if(!company){statuses.push({symbol,status:"unmapped"});continue;}
+  try{
+   const response=await fetch(`https://data.sec.gov/submissions/CIK${company.cik}.json`,{headers:SEC_HEADERS,cache:"no-store",signal:AbortSignal.timeout(9000)});
+   if(!response.ok){statuses.push({symbol,status:"http_error",httpStatus:response.status});continue;}
+   const data=await response.json() as any,recent=data?.filings?.recent;
+   if(!Array.isArray(recent?.accessionNumber)){statuses.push({symbol,status:"invalid_response"});continue;}
+   statuses.push({symbol,status:"ok"});
+   let count=0;
+   for(let i=0;i<recent.accessionNumber.length&&count<limitPerSymbol;i++){
+    const form=String(recent.form?.[i]??""),impact=impactForForm(form);
+    if(impact==="low")continue;
+    const accession=String(recent.accessionNumber[i]),primary=String(recent.primaryDocument?.[i]??"");
+    const accepted=String(recent.acceptanceDateTime?.[i]??"");
+    // Missing acceptance time is not safe for intraday point-in-time research.
+    if(!Number.isFinite(Date.parse(accepted)))continue;
+    catalysts.push({id:`${company.cik}-${accession}`,symbol,cik:company.cik,company:company.title,form,
+     filedAt:String(recent.filingDate?.[i]??""),acceptedAt:accepted,
+     reportDate:String(recent.reportDate?.[i]??""),description:String(recent.primaryDocDescription?.[i]??form),
+     filingUrl:`https://www.sec.gov/Archives/edgar/data/${Number(company.cik)}/${accession.replace(/-/g,"")}/${primary}`,
+     source:"SEC EDGAR",sourceQuality:1,impact});count++;
+   }
+  }catch(e){statuses.push({symbol,status:"network_error",error:e instanceof Error?e.message:"unknown"});}
+ }
+ return {catalysts,statuses};
+}
 export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Promise<SecCatalyst[]>{
   const map=await tickerMap();
   const clean=[...new Set(symbols.map(s=>s.trim().toUpperCase()).filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)))].slice(0,20);
