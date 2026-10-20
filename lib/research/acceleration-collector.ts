@@ -54,10 +54,10 @@ export async function accelerationTick(now=new Date()){
  catch(e){secError=e instanceof Error?e.message:"sec_unavailable";}
  const fundamentalBySymbol=new Map<string,Awaited<ReturnType<typeof secFundamentalsAsOf>>>();
  // Limit companyfacts traffic and execution time; no imputation on missing facts.
- for(const snap of eligible.slice(0,1)){
+ await Promise.all(eligible.slice(0,2).map(async snap=>{
   try{fundamentalBySymbol.set(snap.symbol,await secFundamentalsAsOf(snap.symbol,snap.timestamp));}
   catch{/* unavailable fundamentals remain null */}
- }
+ }));
  const sql=db();
  let saved=0,skipped=0,historyBars=0,derivedValues=0;
  const historyFailures:Record<string,number>={};
@@ -129,5 +129,5 @@ export async function accelerationTick(now=new Date()){
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
  }
- return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
+ return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,fundamentalsQueried:fundamentalBySymbol.size,fundamentalsStatuses:[...fundamentalBySymbol.values()].map(f=>({symbol:f.symbol,status:f.status,error:f.error??null,fields:Object.keys(f.values)})),secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
 }
