@@ -52,7 +52,7 @@ export async function accelerationTick(now=new Date()){
   factors.headline_count=related.length;
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
-  for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.includes(key))factors[key]=item.value;
+  for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
   const coverage=observedFactorCoverage(factors);
   const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived};
   const runId=timestamp.slice(0,16)+":"+batch;
