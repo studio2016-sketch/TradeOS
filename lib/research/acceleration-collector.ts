@@ -2,6 +2,8 @@ import {FACTOR_KEYS,observedFactorCoverage} from "./acceleration-factors";
 import {bestSnapshots} from "../market/live";
 import {curatedNews} from "../market/news";
 import {db} from "../db";
+import {alpacaDailyHistory} from "./market-factor-history";
+import {calculateMarketFactors} from "./market-factor-engine";
 const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
 type Active={symbol:string;volume:number;trade_count:number};
 export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
@@ -30,6 +32,9 @@ export async function accelerationTick(now=new Date()){
  const selected=universe.symbols.filter((_,i)=>i%10===batch);
  const snapshots=await bestSnapshots(selected);
  const news=await curatedNews(selected,30);
+ // Historical fetch is bounded to the selected batch; unavailable history stays null.
+ const histories=await Promise.all(selected.map(async symbol=>({symbol,history:await alpacaDailyHistory(symbol,timestamp)})));
+ const historyBySymbol=new Map(histories.map(x=>[x.symbol,x.history]));
  const sql=db();
  let saved=0,skipped=0;
  for(const snap of snapshots.snapshots){
@@ -45,8 +50,11 @@ export async function accelerationTick(now=new Date()){
   }
   const related=news.news.filter(n=>n.symbols.includes(snap.symbol)&&Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)<=marketTime).slice(0,12);
   factors.headline_count=related.length;
+  const history=historyBySymbol.get(snap.symbol);
+  const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
+  for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.includes(key))factors[key]=item.value;
   const coverage=observedFactorCoverage(factors);
-  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors};
+  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived};
   const runId=timestamp.slice(0,16)+":"+batch;
   await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing`;
   saved++;
