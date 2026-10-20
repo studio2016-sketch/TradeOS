@@ -5,11 +5,14 @@ import {db} from "../db";
 import {alpacaDailyHistory} from "./market-factor-history";
 import {calculateMarketFactors} from "./market-factor-engine";
 import {secCatalystsWithStatus,secFundamentalsAsOf} from "../market/sec";
-const START="2026-10-20T00:00:00Z",END="2026-10-27T00:00:00Z";
+const START="2026-10-20T00:00:00Z";
+const STUDY_MS=7*86400000;
+function studyKey(now:Date){const index=Math.floor((now.getTime()-Date.parse(START))/STUDY_MS);const start=new Date(Date.parse(START)+index*STUDY_MS).toISOString().slice(0,10);return `${start}-volume-100`; }
 type Active={symbol:string;volume:number;trade_count:number};
-export async function active100():Promise<{symbols:string[];mode:string;asOf:string}>{
+export async function active100(now=new Date()):Promise<{symbols:string[];mode:string;asOf:string}>{
+ const study=studyKey(now);
  const sql=db();
- const frozen=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key='2026-10-20-volume-100'`;
+ const frozen=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key=${study}`;
  if(frozen.length)return {symbols:frozen[0].symbols as string[],mode:String(frozen[0].mode),asOf:new Date(frozen[0].as_of as string).toISOString()};
  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
  if(!key||!secret)throw Error("Alpaca credentials missing; cannot rank 100 most active securities");
@@ -20,14 +23,14 @@ export async function active100():Promise<{symbols:string[];mode:string;asOf:str
  const symbols=[...new Set((response.most_actives??[]).map(s=>s.symbol?.toUpperCase()).filter((s):s is string=>Boolean(s&&/^[A-Z0-9.-]{1,10}$/.test(s))))].slice(0,100);
  if(symbols.length<75)throw Error("Insufficient ranked universe coverage "+symbols.length);
  const asOf=response.last_updated||new Date().toISOString();
- await sql`insert into tradeos_acceleration_universe(study_key,symbols,as_of,mode) values('2026-10-20-volume-100',${JSON.stringify(symbols)}::jsonb,${asOf},'Frozen Alpaca top 100 by reported volume; not an options popularity rank') on conflict(study_key) do nothing`;
- const baseline=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key='2026-10-20-volume-100'`;
+ await sql`insert into tradeos_acceleration_universe(study_key,symbols,as_of,mode) values(${study},${JSON.stringify(symbols)}::jsonb,${asOf},'Frozen Alpaca top 100 by reported volume; not an options popularity rank') on conflict(study_key) do nothing`;
+ const baseline=await sql`select symbols,as_of,mode from tradeos_acceleration_universe where study_key=${study}`;
  return {symbols:baseline[0].symbols as string[],mode:String(baseline[0].mode),asOf:new Date(baseline[0].as_of as string).toISOString()};
 }
 export async function accelerationTick(now=new Date()){
  const timestamp=now.toISOString();
- if(timestamp<START||timestamp>=END)return {status:"outside_2026_10_20_to_10_26_window",observations:0};
- const universe=await active100();
+ if(timestamp<START)return {status:"before_study_start",observations:0};
+ const universe=await active100(now);
  const slot=Math.floor(now.getTime()/900000);
  const batch=slot%10;
  const selected=universe.symbols.filter((_,i)=>i%10===batch);
@@ -118,7 +121,7 @@ export async function accelerationTick(now=new Date()){
   derivedValues+=Object.values(derived).filter(v=>v.value!==null).length;
   for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
   const coverage=observedFactorCoverage(factors);
-  const provenance={news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
+  const provenance={studyKey:studyKey(now),news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
   const runId=timestamp.slice(0,16)+":"+batch;
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
