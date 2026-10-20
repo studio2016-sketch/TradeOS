@@ -70,5 +70,5 @@ export async function accelerationTick(now=new Date()){
   await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing`;
   saved++;
  }
- return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
+ return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
 }
