@@ -150,6 +150,21 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
   pick("liabilities",["Liabilities"]);
   pick("equity",["StockholdersEquity"]);
   pick("shares",["CommonStockSharesOutstanding"],"shares");
+  // Many issuers publish common shares in the DEI taxonomy rather than US-GAAP.
+  // Apply the same filed-date cutoff to avoid future-information leakage.
+  if(!Number.isFinite(values.shares)){
+   const deiRows=(data.facts["dei"]?.["EntityCommonStockSharesOutstanding"]?.units?.shares??[]) as Array<{filed?:string;end?:string;val?:number;accn?:string}>;
+   const eligible=deiRows.filter(r=>{
+    const filed=Date.parse(String(r.filed??"")+"T23:59:59Z");
+    const end=Date.parse(String(r.end??"")+"T00:00:00Z");
+    return Number.isFinite(filed)&&filed<cutoff&&Number.isFinite(end)&&end<=cutoff&&Number.isFinite(r.val)&&r.val!>0&&Boolean(r.accn);
+   }).sort((a,b)=>String(b.end).localeCompare(String(a.end))||String(b.filed).localeCompare(String(a.filed)));
+   const share=eligible[0];
+   if(share&&share.val!==undefined&&share.filed&&share.end&&share.accn){
+    values.shares=share.val;
+    provenance.shares={filed:share.filed,end:share.end,accession:share.accn};
+   }
+  }
   pick("operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"],"USD",false);
   pick("earnings_per_share",["EarningsPerShareDiluted","EarningsPerShareBasic"],"USD/shares",true);
   return {symbol,status:"ok",values,provenance};
