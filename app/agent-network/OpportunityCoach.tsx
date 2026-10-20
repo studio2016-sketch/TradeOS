@@ -4,7 +4,7 @@ const fields=["evidence","regime","trend","relativeStrength","riskReward","liqui
 export default function OpportunityCoach(){
  const [symbol,setSymbol]=useState(""),[scores,setScores]=useState<Record<string,number>>(Object.fromEntries(fields.map(k=>[k,50]))),[result,setResult]=useState(""),[busy,setBusy]=useState(false);
  async function evaluate(){setBusy(true);try{
-  const response=await fetch("/api/opportunity-assessment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:symbol.toUpperCase().trim(),asOf:new Date().toISOString(),dataFresh:false,tradable:false,spreadBps:999,...scores})});
+  const response=await fetch("/api/opportunity-assessment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:symbol.toUpperCase().trim(),asOf:new Date().toISOString(),dataFresh:false,provenanceVerified:false,tradable:false,spreadBps:999,...scores})});
   const out=await response.json();setResult(JSON.stringify(out,null,2));
  }catch(e){setResult(e instanceof Error?e.message:"Assessment unavailable");}finally{setBusy(false);}}
  return <section style={{padding:20,marginTop:20,background:"#112b38",border:"1px solid #b9a06a",borderRadius:14}}>
