@@ -54,5 +54,15 @@ export function calculateMarketFactors(raw:PriceBar[]):Record<string,DerivedFact
  if(n>=21){const prior=bars.slice(-21,-1),high=Math.max(...prior.map(b=>b.high)),low=Math.min(...prior.map(b=>b.low));
   result.breakout_strength=valid(high>low?(last.close-high)/(high-low):0,21,last.timestamp);
  }else result.breakout_strength=absent("insufficient_bars",n);
+ // Historical overnight gap dispersion: sample standard deviation of open/previous close.
+ compute("overnight_vol",21,s=>{const gaps=s.slice(1).map((b,i)=>Math.log(b.open/s[i].close));const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;return Math.sqrt(gaps.reduce((a,b)=>a+(b-avg)**2,0)/(gaps.length-1));});
+ // Frequency of overnight absolute gaps greater than 2% in the preceding 20 transitions.
+ compute("gap_frequency",21,s=>s.slice(1).filter((b,i)=>Math.abs(b.open/s[i].close-1)>0.02).length/20);
+ // Rolling 20-session peak-to-trough closing-price drawdown.
+ compute("max_drawdown",20,s=>{let peak=s[0].close,worst=0;for(const b of s){peak=Math.max(peak,b.close);worst=Math.min(worst,b.close/peak-1);}return worst;});
+ // Historical 95% one-day loss quantile (positive loss fraction); not a portfolio VaR.
+ compute("var_95",61,s=>{const losses=s.slice(1).map((b,i)=>1-b.close/s[i].close).sort((a,b)=>a-b);return Math.max(0,losses[Math.ceil(0.95*losses.length)-1]);});
+ // Historical expected shortfall over the worst 5% of daily returns, positive loss fraction.
+ compute("expected_shortfall",61,s=>{const losses=s.slice(1).map((b,i)=>1-b.close/s[i].close).sort((a,b)=>b-a);const tail=losses.slice(0,Math.max(1,Math.ceil(losses.length*0.05)));return Math.max(0,tail.reduce((a,b)=>a+b,0)/tail.length);});
  return result;
 }
