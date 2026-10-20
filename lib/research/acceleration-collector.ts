@@ -56,6 +56,17 @@ export async function accelerationTick(now=new Date()){
    factors.bid_ask_spread=snap.ask!-snap.bid!;
    factors.spread_bps=(snap.ask!-snap.bid!)/((snap.ask!+snap.bid!)/2)*10000;
   }
+  // Quote-dependent factors require a quote no later than the market observation
+  // and no more than 60 seconds older; never mix stale quote sizes with a new trade.
+  const quoteTime=Date.parse(snap.quoteTimestamp??"");
+  const quoteAge=marketTime-quoteTime;
+  if(Number.isFinite(quoteTime)&&quoteAge>=0&&quoteAge<=60000&&
+     Number.isFinite(snap.bidSize)&&Number.isFinite(snap.askSize)&&
+     snap.bidSize!>=0&&snap.askSize!>=0){
+    const bidSize=snap.bidSize!,askSize=snap.askSize!;
+    factors.quoted_depth=bidSize+askSize;
+    if(bidSize+askSize>0)factors.order_imbalance=(bidSize-askSize)/(bidSize+askSize);
+  }
   const related=news.news.filter(n=>n.symbols.includes(snap.symbol)&&Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)<=marketTime).slice(0,12);
   factors.headline_count=related.length;
   // Count distinct, independently named news providers; do not infer sentiment or causality.
