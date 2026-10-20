@@ -84,10 +84,12 @@ export async function accelerationTick(now=new Date()){
   if(related.length>0)factors.headline_novelty=new Set(related.map(n=>n.id)).size/related.length;
   // Only filings accepted before the observed market timestamp count.
   if(secSymbols.includes(snap.symbol)&&secError===null){
-    factors.sec_filing_catalyst=secCatalysts.filter(f=>f.symbol===snap.symbol&&
+    const matchedFilings=secCatalysts.filter(f=>f.symbol===snap.symbol&&
       Number.isFinite(Date.parse(f.acceptedAt??""))&&
       Date.parse(f.acceptedAt!)<=marketTime&&
-      marketTime-Date.parse(f.acceptedAt!)<=30*86400000).length;
+      marketTime-Date.parse(f.acceptedAt!)<=30*86400000);
+    // No match cannot prove a successful per-issuer response; retain null.
+    if(matchedFilings.length>0)factors.sec_filing_catalyst=matchedFilings.length;
   }
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
