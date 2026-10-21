@@ -43,35 +43,47 @@ export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]
   }));
 }
 
+// Best-effort in-process throttle. Serverless instances do not share this state;
+// a distributed provider budget is still needed for fleet-wide enforcement.
+let massiveNewsNextAllowedAt=0;
+let massiveNewsInFlight:Promise<NewsSignal[]>|null=null;
+function massiveRetryDelay(value:string|null):number{
+  if(!value)return 5*60_000;
+  const seconds=Number(value);
+  const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(value)-Date.now();
+  return Number.isFinite(delay)?Math.max(60_000,Math.min(60*60_000,delay)):5*60_000;
+}
 export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
   const key=process.env.MASSIVE_API_KEY;
-  if(!key)return[];
-  const clean=cleanSymbols(symbols);
-  // One provider request per batch avoids a burst of up to eight concurrent calls.
-  const requests=[null].map(async ticker=>{
+  if(!key)return [];
+  if(Date.now()<massiveNewsNextAllowedAt)throw new Error("Massive news unavailable: rate-limit cooldown active");
+  if(massiveNewsInFlight)return massiveNewsInFlight;
+  massiveNewsInFlight=(async()=>{
     const url=new URL("https://api.massive.com/v2/reference/news");
-    if(ticker)url.searchParams.set("ticker",ticker);
     url.searchParams.set("order","desc");
     url.searchParams.set("sort","published_utc");
     url.searchParams.set("limit",String(Math.min(20,limit)));
-    url.searchParams.set("apiKey",key);
-    const res=await fetch(url,{cache:"no-store"});
-    if(!res.ok){const retry=res.headers.get("retry-after");throw new Error(`Massive news HTTP ${res.status}${retry?` retry_after=${retry}`:""}`);}
+    // Keep credentials out of URLs and associated request logs.
+    const res=await fetch(url,{headers:{"Authorization":`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(12000)});
+    if(res.status===429){
+      massiveNewsNextAllowedAt=Date.now()+massiveRetryDelay(res.headers.get("retry-after"));
+      throw new Error("Massive news HTTP 429; cooldown activated");
+    }
+    if(!res.ok)throw new Error(`Massive news HTTP ${res.status}`);
     const data=await res.json() as any;
+    // Minimum spacing between requests from this process.
+    massiveNewsNextAllowedAt=Date.now()+60_000;
     return (data.results??[]).map((n:any)=>({
       id:`massive:${n.id??n.article_url??n.published_utc}`,
       timestamp:String(n.published_utc??new Date().toISOString()),
       headline:String(n.title??""),
       symbols:Array.isArray(n.tickers)?n.tickers:[],
       source:`Massive / ${n.publisher?.name??"News"}`,
-      sourceQuality:.78,
-      novelty:1,
-      marketImpact:.5,
-      priceConfirmed:false,
+      sourceQuality:.78,novelty:1,marketImpact:.5,priceConfirmed:false,
       summary:String(n.description??"")
     } satisfies NewsSignal));
-  });
-  return (await Promise.all(requests)).flat();
+  })();
+  try{return await massiveNewsInFlight;}finally{massiveNewsInFlight=null;}
 }
 
 export async function curatedNews(symbols:string[],limit=40){
