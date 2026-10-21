@@ -67,11 +67,11 @@
     },
     {
       "path": "/api/cron/phase5-execution",
-      "schedule": "24 * * * *"
+      "schedule": "21 * * * *"
     },
     {
       "path": "/api/cron/phase5-validation",
-      "schedule": "27 * * * *"
+      "schedule": "23 * * * *"
     }
   ]
 }
