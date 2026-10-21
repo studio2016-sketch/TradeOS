@@ -1,6 +1,22 @@
 import {historicalBars,type Bar} from "../market/features";
 import type {PersistableEvidence} from "./persist-evidence";
 
+async function massiveGoldPreviousClose(){
+ const key=process.env.MASSIVE_API_KEY;
+ if(!key)return {value:null as number|null,observedAt:null as string|null,error:"unconfigured"};
+ const url=new URL("https://api.massive.com/v2/aggs/ticker/C:XAUUSD/prev");
+ url.searchParams.set("adjusted","true");url.searchParams.set("apiKey",key);
+ try{
+  const res=await fetch(url,{cache:"no-store",signal:AbortSignal.timeout(12000)});
+  if(!res.ok)return {value:null,observedAt:null,error:`http_${res.status}`};
+  const payload=await res.json() as {results?:Array<{c?:number;t?:number;o?:number;h?:number;l?:number;v?:number}>};
+  const row=payload.results?.[0],value=Number(row?.c),raw=Number(row?.t);
+  const observed=Number.isFinite(raw)&&raw>0?new Date(raw>1e14?raw/1e6:raw>1e11?raw:raw*1000):null;
+  if(!Number.isFinite(value)||value<=0||!observed||!Number.isFinite(observed.getTime()))return {value:null,observedAt:null,error:"invalid_payload"};
+  return {value,observedAt:observed.toISOString(),error:null,metadata:{open:row?.o??null,high:row?.h??null,low:row?.l??null,volume:row?.v??null}};
+ }catch(e){return {value:null,observedAt:null,error:e instanceof Error?e.message:"fetch_failed"};}
+}
+
 function ret(bars:Bar[],sessions:number){
  if(bars.length<sessions+1)return null;
  const a=bars[bars.length-sessions-1].c,z=bars[bars.length-1].c;
@@ -38,6 +54,12 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  };
  const candidates:PersistableEvidence[]=[];
  const diagnostics:any[]=[];
+ try{
+  const gold=await massiveGoldPreviousClose();
+  if(gold.value!==null&&gold.observedAt){
+   candidates.push({factor:"gold",value:gold.value,source:"Massive Forex:C:XAUUSD previous-day aggregate",subject:"XAUUSD",observedAt:gold.observedAt,availableAt,domain:"stock",metadata:{...(gold.metadata??{}),unit:"USD_per_troy_ounce",market:"forex_XAUUSD",aggregation:"previous_trading_day"}});
+  }else diagnostics.push({factor:"gold",error:gold.error});
+ }catch(e){diagnostics.push({factor:"gold",error:e instanceof Error?e.message:"unknown"});}
  try{
   const [spy,tlt]=await Promise.all([get("SPY"),get("TLT")]);
   const tlt1=ret(tlt,1);
