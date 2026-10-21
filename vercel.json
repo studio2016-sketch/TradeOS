@@ -48,6 +48,10 @@
     {
       "path": "/api/cron/factor-coverage",
       "schedule": "20 15 * * 1-5"
+    },
+    {
+      "path": "/api/cron/news-evidence",
+      "schedule": "12,27,42,57 * * * *"
     }
   ]
 }
