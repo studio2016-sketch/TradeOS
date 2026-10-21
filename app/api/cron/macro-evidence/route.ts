@@ -3,6 +3,7 @@ import {validateEvidence} from "../../../../lib/research/evidence-gate";
 import {authorizeCron} from "../../../../lib/cron";
 import {hasDatabase,db} from "../../../../lib/db";
 import {observedMacroEvidence} from "../../../../lib/research/official-macro-evidence";
+import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 export async function GET(request:Request){
@@ -19,5 +20,5 @@ export async function GET(request:Request){
   }
   await sql`insert into tradeos_collector_runs(collector,status,received,saved,details) values('fred_macro','finished',${data.factors.length},${saved},${JSON.stringify({excluded:data.excluded})}::jsonb)`;
   return NextResponse.json({status:"stored_research_evidence",received:data.factors.length,saved,retrievedAt:data.retrievedAt,excluded:data.excluded,ordersAllowed:false});
- }catch(e){return NextResponse.json({status:"official_macro_ingestion_failed",error:e instanceof Error?e.message:"Unknown"},{status:503});}
+ }catch(e){try{await recordCollectorReceipt({collector:"fred_macro",status:"failed",received:0,saved:0,details:{error:failureDetail(e)}});}catch(receiptError){console.error("fred_macro_receipt_write_failed",failureDetail(receiptError));}return NextResponse.json({status:"official_macro_ingestion_failed",error:failureDetail(e)},{status:503});}
 }
