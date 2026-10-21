@@ -88,12 +88,19 @@ export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]
   url.searchParams.set("include_content","false");
   const ledgerId=await startNewsLedger("alpaca","news",clean,Math.min(50,limit));
   try{
-   if(!(await claimProviderSlot("alpaca",10))){
+   if(!(await claimProviderSlot("alpaca",30))){
     const cached=await cachedNews("alpaca",clean,limit);
     await finishNewsLedger(ledgerId,"skipped",cached.length,null,{reason:"shared_rate_budget_exhausted",cacheHit:true});
     return cached;
    }
    const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(12000)});
+   if(res.status===429){
+    await deferProviderSlot("alpaca",massiveRetryDelay(res.headers.get("retry-after")));
+    const cached=await cachedNews("alpaca",clean,limit);
+    await finishNewsLedger(ledgerId,"rate_limited",cached.length,429,{retryAfter:res.headers.get("retry-after"),cacheHit:cached.length>0});
+    if(cached.length)return cached;
+    throw new Error("Alpaca news HTTP 429; shared cooldown activated");
+   }
    if(!res.ok){await finishNewsLedger(ledgerId,"failed",0,res.status);throw new Error(`Alpaca news HTTP ${res.status}`);}
    const data=await res.json() as any;
    const items=(data.news??[]).map((n:any)=>({
@@ -131,13 +138,13 @@ function massiveRetryDelay(value:string|null):number{
   const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(value)-Date.now();
   return Number.isFinite(delay)?Math.max(60_000,Math.min(3_600_000,delay)):300_000;
 }
-async function deferMassiveSlot(delayMs:number):Promise<void>{
+async function deferProviderSlot(provider:string,delayMs:number):Promise<void>{
   const {db}=await import("../db");
   const sql=db();
   const seconds=Math.ceil(delayMs/1000);
-  await sql`UPDATE tradeos_provider_rate_limits
-    SET next_allowed_at=GREATEST(next_allowed_at,now()+(${seconds}*interval '1 second')),updated_at=now()
-    WHERE provider='massive' AND endpoint='news'`;
+  await sql`update tradeos_provider_rate_limits
+    set next_allowed_at=greatest(next_allowed_at,now()+(${seconds}*interval '1 second')),updated_at=now()
+    where provider=${provider} and endpoint='news'`;
 }
 export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
   const key=process.env.MASSIVE_API_KEY;
@@ -158,7 +165,7 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
     url.searchParams.set("limit",String(Math.min(20,limit)));
     const res=await fetch(url,{headers:{"Authorization":`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(12000)});
     if(res.status===429){
-      await deferMassiveSlot(massiveRetryDelay(res.headers.get("retry-after")));
+      await deferProviderSlot("massive",massiveRetryDelay(res.headers.get("retry-after")));
       const cached=await cachedNews("massive",symbols,limit);
       await finishNewsLedger(ledgerId,"rate_limited",cached.length,429,{retryAfter:res.headers.get("retry-after"),cacheHit:cached.length>0});
       if(cached.length)return cached;
