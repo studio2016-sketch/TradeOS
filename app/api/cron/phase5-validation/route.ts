@@ -17,8 +17,8 @@ export async function GET(req:Request){
   const [phase4Rows,executionRows,tableRows,protectionRows,sourceRows,fillRows]=await Promise.all([
    sql`select created_at,payload from audit_events where event_type='phase4_validation_snapshot' order by created_at desc limit 1`,
    sql`select * from tradeos_execution_validation_snapshots order by created_at desc limit 1`,
-   sql`select to_regclass('public.tradeos_source_time_certifications') is not null as source_ready,to_regclass('public.tradeos_fill_slippage_validations') is not null as fill_ready,(select count(*)::int from tradeos_execution_validation_snapshots) as execution_snapshots`,
-   sql`select count(distinct c.relname)::int as protected_tables from pg_trigger t join pg_class c on c.oid=t.tgrelid where not t.tgisinternal and t.tgname in ('forecast_ledger_protect','forecast_outcomes_protect','immutable_decision_records_protect','source_observations_protect','tradeos_factor_evidence_protect','tradeos_decision_source_attestations_protect','tradeos_decision_source_verifications_protect','tradeos_execution_validation_snapshots_protect','tradeos_source_time_certifications_protect','tradeos_fill_slippage_validations_protect')`,
+   sql`select to_regclass('public.tradeos_source_time_certifications') is not null as source_ready,to_regclass('public.tradeos_fill_slippage_validations') is not null as fill_ready,to_regclass('public.tradeos_portfolio_reconciliation_validations') is not null as portfolio_ready,(select count(*)::int from tradeos_execution_validation_snapshots) as execution_snapshots`,
+   sql`select count(distinct c.relname)::int as protected_tables from pg_trigger t join pg_class c on c.oid=t.tgrelid where not t.tgisinternal and t.tgname in ('forecast_ledger_protect','forecast_outcomes_protect','immutable_decision_records_protect','source_observations_protect','tradeos_factor_evidence_protect','tradeos_decision_source_attestations_protect','tradeos_decision_source_verifications_protect','tradeos_execution_validation_snapshots_protect','tradeos_source_time_certifications_protect','tradeos_fill_slippage_validations_protect','tradeos_portfolio_reconciliation_validations_protect')`,
    sql`select count(*)::int as immutable_records,count(*) filter(where exists(
        select 1 from tradeos_source_time_certifications c
        join source_observations so on so.id=v.source_observation_id
@@ -38,7 +38,7 @@ export async function GET(req:Request){
   const gate=phase5InfrastructureGate({
    phase4Passed:Boolean(phase4?.gate?.passed),executionSnapshots:Number(tables.execution_snapshots??0),
    executionImplementation:EXECUTION_REALISM_IMPLEMENTATION,brokerImplementation:BROKER_RECONCILIATION_IMPLEMENTATION,
-   sourceCertificationLedgerReady:Boolean(tables.source_ready),fillSlippageLedgerReady:Boolean(tables.fill_ready),
+   sourceCertificationLedgerReady:Boolean(tables.source_ready),fillSlippageLedgerReady:Boolean(tables.fill_ready),portfolioReconciliationLedgerReady:Boolean(tables.portfolio_ready),
    appendOnlyProtectedTables:Number(protections.protected_tables??0),
    certificationFailClosed:failClosed.modelPromotionAllowed===false&&failClosed.liveExecutionAllowed===false&&failClosed.certified===false
   });
