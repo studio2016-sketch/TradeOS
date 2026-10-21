@@ -7,7 +7,7 @@ function mean(xs:number[]){return xs.reduce((a,b)=>a+b,0)/xs.length;}
 export function evaluateExecutionCostResearch(raw:ExecutionResearchRow[],empiricalRoundTripSlippageFraction=0){
  const extra=Number.isFinite(empiricalRoundTripSlippageFraction)&&empiricalRoundTripSlippageFraction>=0?empiricalRoundTripSlippageFraction:0;
  const rows=raw.filter(r=>Number.isFinite(Date.parse(r.time))&&Number.isFinite(r.realizedReturn)&&Number.isFinite(r.spreadFraction)&&r.spreadFraction>=0&&r.spreadFraction<=.1);
- if(!rows.length)return {samples:0,sessions:0,meanGross:null,meanQuotedRoundTripSpreadCost:null,meanNetAfterQuotedSpread:null,clustered95:[null,null] as [number|null,number|null],lowerBound:null,mature:false,executionSlippageValidated:false};
+ if(!rows.length)return {samples:0,sessions:0,meanGross:null,meanQuotedRoundTripSpreadCost:null,meanNetAfterQuotedSpread:null,empiricalRoundTripSlippageFraction:extra,meanNetAfterAllModeledCosts:null,clustered95:[null,null] as [number|null,number|null],lowerBound:null,mature:false,executionSlippageValidated:false,policy:extra>0?"No resolved clean-epoch outcomes yet; empirical slippage penalty is available but cannot be applied until outcomes mature.":"No resolved clean-epoch outcomes yet; quoted-spread execution realism remains unavailable until outcomes mature."};
  const bySession=new Map<string,number[]>();
  const gross:number[]=[],cost:number[]=[],netQuoted:number[]=[],netAll:number[]=[];
  for(const r of rows){
