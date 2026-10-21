@@ -4,6 +4,7 @@ import {db,hasDatabase} from "../../../../lib/db";
 import {factorCoverageAudit} from "../../../../lib/research/factor-coverage-audit";
 import {auditFactorReadiness} from "../../../../lib/research/factor-readiness";
 import {factorDependencySummary} from "../../../../lib/research/factor-dependency-inventory";
+import {phase3BlockerFor} from "../../../../lib/research/phase3-blockers";
 export const dynamic="force-dynamic";
 export async function GET(request:Request){
  if(!authorizeCron(request))return NextResponse.json({error:"unauthorized"},{status:401});
@@ -29,6 +30,7 @@ export async function GET(request:Request){
    ...coverage,
    readiness,
    dependencyInventory:factorDependencySummary(),
+   phase3MissingBlockers:coverage.missingMeasuredKeys.map(key=>phase3BlockerFor(key)??{key,category:"implementation_or_evidence_gap",requiresUserAction:false,detail:"No valid measured evidence yet; inspect dependency inventory and collector diagnostics."}),
    collectorHealth:collectorRuns.map(r=>({collector:String(r.collector),status:String(r.status),runs:Number(r.runs),lastRun:r.last_run,received:Number(r.received??0),saved:Number(r.saved??0)})),
    evidencePersistence:{rows:Number(evidence.evidence_rows??0),factors:Number(evidence.evidenced_factors??0),latestAvailableAt:evidence.latest_available_at??null},
    newsIngestionHealth:newsRuns.map(r=>({provider:String(r.provider),status:String(r.status),runs:Number(r.runs),lastRequest:r.last_request,received:Number(r.received??0)})),
