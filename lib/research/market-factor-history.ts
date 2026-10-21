@@ -12,7 +12,7 @@ export async function alpacaDailyHistory(symbol:string,asOf:string):Promise<Hist
  const start=new Date(cutoff-400*86400000).toISOString();
  const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
  url.searchParams.set("timeframe","1Day");url.searchParams.set("start",start);url.searchParams.set("end",end);
- url.searchParams.set("limit","400");url.searchParams.set("adjustment","raw");
+ url.searchParams.set("limit","1000");url.searchParams.set("adjustment","raw");
  url.searchParams.set("feed",process.env.ALPACA_FEED||"iex");
  try{
   const response=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(12000)});
