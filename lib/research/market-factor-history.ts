@@ -9,7 +9,7 @@ export async function alpacaDailyHistory(symbol:string,asOf:string):Promise<Hist
  // Only completed US exchange sessions: exclude current New York trading date.
  const nyDay=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(cutoff));
  const end=new Date(cutoff).toISOString();
- const start=new Date(cutoff-400*86400000).toISOString();
+ const start=new Date(cutoff-800*86400000).toISOString();
  const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
  url.searchParams.set("timeframe","1Day");url.searchParams.set("start",start);url.searchParams.set("end",end);
  url.searchParams.set("limit","1000");url.searchParams.set("adjustment","raw");
