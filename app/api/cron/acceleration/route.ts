@@ -17,7 +17,7 @@ export async function GET(request:Request){
     timestamp:result.timestamp,selected:result.selected,observationRowsSaved:result.saved,
     evidenceReceived:result.evidenceReceived,evidenceAccepted:result.evidenceAccepted,
     evidenceSaved:result.evidenceSaved,evidenceRejected:result.evidenceRejected,
-    historyBars:result.historyBars,historyFailures:result.historyFailures,newsErrors:result.newsErrors
+    historyBars:result.historyBars,historyFailures:result.historyFailures,newsErrors:result.newsErrors,marketProvider:result.marketProvider,sourceAttempts:result.sourceAttempts
    }
   });
   return NextResponse.json(result,{headers:{"Cache-Control":"no-store"}});
