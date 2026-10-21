@@ -5,6 +5,13 @@ const baseSeries=Object.keys(mapping).map(series=>({series,lookbackDays:90}));
 const dxySupplementalSeries=["DEXUSUK","DEXCAUS","DEXSDUS","DEXSZUS"].map(series=>({series,lookbackDays:90}));
 const dxyComponents=["DEXUSEU","DEXJPUS","DEXUSUK","DEXCAUS","DEXSDUS","DEXSZUS"] as const;
 
+export function reconstructDxy(r:{eurusd:number;usdjpy:number;gbpusd:number;usdcad:number;usdsek:number;usdchf:number}){
+ const values=Object.values(r);
+ if(values.some(v=>!Number.isFinite(v)||v<=0))return null;
+ const value=50.14348112*Math.pow(r.eurusd,-0.576)*Math.pow(r.usdjpy,0.136)*Math.pow(r.gbpusd,-0.119)*Math.pow(r.usdcad,0.091)*Math.pow(r.usdsek,0.042)*Math.pow(r.usdchf,0.036);
+ return Number.isFinite(value)&&value>0?value:null;
+}
+
 type Derivation="latest"|"year_over_year_pct";
 type MacroDefinition={factor:string;series:string;label:string;unit:string;derivation:Derivation;lookbackDays:number};
 
@@ -85,8 +92,8 @@ export async function observedMacroEvidence(now=new Date()){
   const date=common.at(-1);
   if(date){
    const [eurusd,usdjpy,gbpusd,usdcad,usdsek,usdchf]=componentMaps.map(map=>map.get(date)!);
-   const dxy=50.14348112*Math.pow(eurusd,-0.576)*Math.pow(usdjpy,0.136)*Math.pow(gbpusd,-0.119)*Math.pow(usdcad,0.091)*Math.pow(usdsek,0.042)*Math.pow(usdchf,0.036);
-   if(Number.isFinite(dxy)&&dxy>0)evidence.push({factor:"dxy",value:dxy,domain:"macro",source:"FRED H.10 component rates / ICE USDX formula reconstruction",subject:"DXY_RECONSTRUCTION",observedAt:date+"T00:00:00Z",availableAt:receivedAt});
+   const dxy=reconstructDxy({eurusd,usdjpy,gbpusd,usdcad,usdsek,usdchf});
+   if(dxy!==null)evidence.push({factor:"dxy",value:dxy,domain:"macro",source:"FRED H.10 component rates / ICE USDX formula reconstruction",subject:"DXY_RECONSTRUCTION",observedAt:date+"T00:00:00Z",availableAt:receivedAt});
    else excluded.push("DXY_RECONSTRUCTION_NONFINITE");
   }else excluded.push("DXY_RECONSTRUCTION_NO_COMMON_DATE");
  }else excluded.push("DXY_RECONSTRUCTION_COMPONENT_MISSING");
