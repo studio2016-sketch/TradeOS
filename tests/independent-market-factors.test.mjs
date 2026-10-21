@@ -13,3 +13,10 @@ test("incomplete history cannot invent long moving average",()=>{
  const bar={timestamp:"2025-01-01T00:00:00.000Z",open:10,high:11,low:9,close:10,volume:100};
  assert.equal(calculateMarketFactors([bar]).sma_200.value,null);
 });
+
+test("three completed daily bars measure acceleration without using future bars",()=>{
+ const closes=[100,110,132];const bars=closes.map((close,i)=>({timestamp:new Date(Date.UTC(2026,0,2+i)).toISOString(),open:close,high:close+1,low:close-1,close,volume:100}));
+ const out=calculateMarketFactors(bars);
+ assert.ok(Math.abs(out.price_acceleration.value-0.1)<1e-12);
+ assert.equal(calculateMarketFactors(bars.slice(0,2)).price_acceleration.value,null);
+});
