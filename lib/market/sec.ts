@@ -145,6 +145,19 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
   };
   pick("revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"],"USD",true);
   pick("net_income",["NetIncomeLoss"],"USD",true);
+  // Select comparable prior-year quarter from filed, point-in-time XBRL facts.
+  const priorQuarter=(key:string,tags:string[],currentKey:string)=>{
+   const current=provenance[currentKey];if(!current?.start||!current?.end)return;
+   const priorEnd=new Date(Date.parse(current.end+"T00:00:00Z"));priorEnd.setUTCFullYear(priorEnd.getUTCFullYear()-1);
+   const target=priorEnd.toISOString().slice(0,10);
+   const candidates=tags.flatMap(tag=>(gaap[tag]?.units?.USD??[]).map((r:any)=>({...r,tag})))
+    .filter((r:any)=>r.end===target&&r.start&&r.accn&&Number.isFinite(r.val)&&Date.parse(r.filed+"T23:59:59Z")<cutoff)
+    .filter((r:any)=>{const days=(Date.parse(r.end+"T00:00:00Z")-Date.parse(r.start+"T00:00:00Z"))/86400000;return days>=75&&days<=110;})
+    .sort((a:any,b:any)=>String(b.filed).localeCompare(String(a.filed)));
+   if(candidates.length){const row=candidates[0];values[key]=row.val;provenance[key]={filed:row.filed,start:row.start,end:row.end,accession:row.accn};}
+  };
+  priorQuarter("revenue_prior_year",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"],"revenue");
+  priorQuarter("net_income_prior_year",["NetIncomeLoss"],"net_income");
   pick("operating_income",["OperatingIncomeLoss"],"USD",true);
   pick("assets",["Assets"]);
   pick("liabilities",["Liabilities"]);
