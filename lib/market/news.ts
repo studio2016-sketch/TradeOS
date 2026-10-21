@@ -43,36 +43,53 @@ export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]
   }));
 }
 
-// Best-effort in-process throttle. Serverless instances do not share this state;
-// a distributed provider budget is still needed for fleet-wide enforcement.
-let massiveNewsNextAllowedAt=0;
+// Neon-backed atomic request reservation shared across serverless instances.
+// This limits this endpoint; other Massive consumers must join the same budget
+// before account-wide rate limits can be guaranteed.
 let massiveNewsInFlight:Promise<NewsSignal[]>|null=null;
 function massiveRetryDelay(value:string|null):number{
-  if(!value)return 5*60_000;
+  if(!value)return 300_000;
   const seconds=Number(value);
   const delay=Number.isFinite(seconds)?seconds*1000:Date.parse(value)-Date.now();
-  return Number.isFinite(delay)?Math.max(60_000,Math.min(60*60_000,delay)):5*60_000;
+  return Number.isFinite(delay)?Math.max(60_000,Math.min(3_600_000,delay)):300_000;
+}
+async function claimMassiveSlot():Promise<boolean>{
+  const {db}=await import("../db");
+  const sql=db();
+  const rows=await sql`INSERT INTO tradeos_provider_rate_limits(provider,endpoint,next_allowed_at,updated_at)
+    VALUES('massive','news',now()+interval '60 seconds',now())
+    ON CONFLICT(provider,endpoint) DO UPDATE
+    SET next_allowed_at=now()+interval '60 seconds',updated_at=now()
+    WHERE tradeos_provider_rate_limits.next_allowed_at<=now()
+    RETURNING provider`;
+  return rows.length>0;
+}
+async function deferMassiveSlot(delayMs:number):Promise<void>{
+  const {db}=await import("../db");
+  const sql=db();
+  const seconds=Math.ceil(delayMs/1000);
+  await sql`UPDATE tradeos_provider_rate_limits
+    SET next_allowed_at=GREATEST(next_allowed_at,now()+(${seconds}*interval '1 second')),updated_at=now()
+    WHERE provider='massive' AND endpoint='news'`;
 }
 export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
   const key=process.env.MASSIVE_API_KEY;
   if(!key)return [];
-  if(Date.now()<massiveNewsNextAllowedAt)throw new Error("Massive news unavailable: rate-limit cooldown active");
   if(massiveNewsInFlight)return massiveNewsInFlight;
   massiveNewsInFlight=(async()=>{
+    // Fail closed if the shared budget cannot be checked; Alpaca remains available.
+    if(!(await claimMassiveSlot()))throw new Error("Massive news unavailable: shared rate budget exhausted");
     const url=new URL("https://api.massive.com/v2/reference/news");
     url.searchParams.set("order","desc");
     url.searchParams.set("sort","published_utc");
     url.searchParams.set("limit",String(Math.min(20,limit)));
-    // Keep credentials out of URLs and associated request logs.
     const res=await fetch(url,{headers:{"Authorization":`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(12000)});
     if(res.status===429){
-      massiveNewsNextAllowedAt=Date.now()+massiveRetryDelay(res.headers.get("retry-after"));
-      throw new Error("Massive news HTTP 429; cooldown activated");
+      await deferMassiveSlot(massiveRetryDelay(res.headers.get("retry-after")));
+      throw new Error("Massive news HTTP 429; shared cooldown activated");
     }
     if(!res.ok)throw new Error(`Massive news HTTP ${res.status}`);
     const data=await res.json() as any;
-    // Minimum spacing between requests from this process.
-    massiveNewsNextAllowedAt=Date.now()+60_000;
     return (data.results??[]).map((n:any)=>({
       id:`massive:${n.id??n.article_url??n.published_utc}`,
       timestamp:String(n.published_utc??new Date().toISOString()),
