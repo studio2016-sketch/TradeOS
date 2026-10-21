@@ -17,6 +17,8 @@ export function calculateMarketFactors(raw:PriceBar[]):Record<string,DerivedFact
  compute("intraday_range",1,s=>(s[0].high-s[0].low)/s[0].close);
  compute("dollar_volume",1,s=>s[0].close*s[0].volume);
  compute("gap_pct",2,s=>s[1].open/s[0].close-1);
+ // Difference between successive completed daily close-to-close returns.
+ compute("price_acceleration",3,s=>(s[2].close/s[1].close-1)-(s[1].close/s[0].close-1));
  compute("relative_volume",21,s=>s[20].volume/(s.slice(0,20).reduce((v,b)=>v+b.volume,0)/20));
  compute("atr_14",15,s=>s.slice(1).reduce((v,b,i)=>v+Math.max(b.high-b.low,Math.abs(b.high-s[i].close),Math.abs(b.low-s[i].close)),0)/14);
  for(const period of [5,20] as const)compute(`realized_vol_${period}`,period+1,s=>{
