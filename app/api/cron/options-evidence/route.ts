@@ -18,14 +18,15 @@ export async function GET(req:Request){
    try{
     const surface=await alpacaOptionSurface(symbol);
     if(!surface||surface.contractCount===0){results.push({symbol,status:"no_eligible_contracts"});continue;}
+    if(!surface.observedAt||surface.freshQuoteCount===0){results.push({symbol,status:"no_fresh_quotes",contracts:surface.contractCount});continue;}
     const availableAt=new Date().toISOString();
     const candidates=[
      ["implied_vol_atm",surface.atmIv],
      ["iv_skew",surface.putCallIvSkew]
     ].flatMap(([factor,value])=>typeof value==="number"&&Number.isFinite(value)?[{
      factor:String(factor),value,source:"Alpaca options:"+surface.feed,subject:symbol,
-     observedAt:surface.generatedAt,availableAt,domain:"option" as const,
-     metadata:{contractCount:surface.contractCount,quoteCoverage:surface.quoteCoverage,backtestEligible:false}
+     observedAt:surface.observedAt,availableAt,domain:"option" as const,
+     metadata:{contractCount:surface.contractCount,freshQuoteCount:surface.freshQuoteCount,quoteCoverage:surface.quoteCoverage,feed:surface.feed,backtestEligible:false}
     }]:[]);
     const persisted=await persistEvidence(candidates);
     results.push({symbol,status:"observed_uncertified",saved:persisted.saved,accepted:persisted.accepted,contracts:surface.contractCount});
