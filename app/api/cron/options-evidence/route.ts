@@ -28,7 +28,7 @@ export async function GET(req:Request){
     ].flatMap(([factor,value])=>typeof value==="number"&&Number.isFinite(value)?[{
      factor:String(factor),value,source:"Alpaca options:"+surface.feed,subject:symbol,
      observedAt,availableAt,domain:"option" as const,
-     metadata:{contractCount:surface.contractCount,freshQuoteCount:surface.freshQuoteCount,quoteCoverage:surface.quoteCoverage,feed:surface.feed,backtestEligible:false}
+     metadata:{contractCount:surface.contractCount,freshQuoteCount:surface.freshQuoteCount,quoteCoverage:surface.quoteCoverage,feed:surface.feed,quoteEligibilityMaxAgeSeconds:surface.quoteEligibilityMaxAgeSeconds,liveFreshnessRequiredSeconds:300,backtestEligible:false}
     }]:[]);
     if(typeof surface.atmIv==="number"&&Number.isFinite(surface.atmIv)){
      const sql=db();
@@ -41,7 +41,7 @@ export async function GET(req:Request){
      if(rank!==null)candidates.push({
       factor:"iv_rank",value:rank,source:"TradeOS persisted implied-volatility history + Alpaca options:"+surface.feed,
       subject:symbol,observedAt,availableAt,domain:"option" as const,
-      metadata:{historyDays:history.length,windowDays:252,method:"(current_IV-min_IV)/(max_IV-min_IV)",feed:surface.feed,backtestEligible:false}
+      metadata:{historyDays:history.length,windowDays:252,method:"(current_IV-min_IV)/(max_IV-min_IV)",feed:surface.feed,quoteEligibilityMaxAgeSeconds:surface.quoteEligibilityMaxAgeSeconds,liveFreshnessRequiredSeconds:300,backtestEligible:false}
      });
     }
     const persisted=await persistEvidence(candidates);
