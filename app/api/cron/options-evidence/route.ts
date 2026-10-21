@@ -4,6 +4,7 @@ import {db,hasDatabase} from "../../../../lib/db";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
 import {persistEvidence} from "../../../../lib/research/persist-evidence";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
+import {computeIvRank} from "../../../../lib/research/iv-rank";
 export const dynamic="force-dynamic";
 export const maxDuration=120;
 const symbols=["SPY","QQQ","NVDA","AAPL","TSLA","AMD"];
@@ -29,6 +30,20 @@ export async function GET(req:Request){
      observedAt,availableAt,domain:"option" as const,
      metadata:{contractCount:surface.contractCount,freshQuoteCount:surface.freshQuoteCount,quoteCoverage:surface.quoteCoverage,feed:surface.feed,backtestEligible:false}
     }]:[]);
+    if(typeof surface.atmIv==="number"&&Number.isFinite(surface.atmIv)){
+     const sql=db();
+     const history=await sql`select distinct on (date_trunc('day',observed_at)) value,observed_at
+       from tradeos_factor_evidence
+       where factor_key='implied_vol_atm' and subject=${symbol} and observed_at<${observedAt}
+         and observed_at>=${observedAt}::timestamptz-interval '252 days'
+       order by date_trunc('day',observed_at),observed_at desc`;
+     const rank=computeIvRank(surface.atmIv,history.map(r=>Number(r.value)));
+     if(rank!==null)candidates.push({
+      factor:"iv_rank",value:rank,source:"TradeOS persisted implied-volatility history + Alpaca options:"+surface.feed,
+      subject:symbol,observedAt,availableAt,domain:"option" as const,
+      metadata:{historyDays:history.length,windowDays:252,method:"(current_IV-min_IV)/(max_IV-min_IV)",feed:surface.feed,backtestEligible:false}
+     });
+    }
     const persisted=await persistEvidence(candidates);
     results.push({symbol,status:"observed_uncertified",saved:persisted.saved,accepted:persisted.accepted,contracts:surface.contractCount});
    }catch(e){results.push({symbol,status:"provider_error",reason:failureDetail(e)});}
