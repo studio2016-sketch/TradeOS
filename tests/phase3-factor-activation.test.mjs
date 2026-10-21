@@ -14,7 +14,7 @@ test("Phase 3 activated factor families have explicit implementation paths",()=>
  for(const key of ["pe_trailing","price_sales","free_cash_flow_yield","return_on_equity","insider_trading"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/sec-ratio-evidence.ts");
  }
- for(const key of ["news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","geopolitical_risk","policy_announcement"]){
+ for(const key of ["news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","guidance_change","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure","regulatory_change"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/news-factor-evidence.ts");
  }
 });
