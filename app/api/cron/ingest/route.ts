@@ -31,6 +31,7 @@ import {persistDecisionMemory} from "../../../../lib/research/decisionMemory";
 import {recordCollectorReceipt} from "../../../../lib/research/collector-receipts";
 
 export const dynamic="force-dynamic";
+export const maxDuration=300;
 
 export async function GET(req:Request){
   if(!authorizeCron(req)) return NextResponse.json({error:"unauthorized"},{status:401});
