@@ -57,7 +57,7 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  try{
   const gold=await massiveGoldPreviousClose();
   if(gold.value!==null&&gold.observedAt){
-   candidates.push({factor:"gold",value:gold.value,source:"Massive Forex:C:XAUUSD previous-day aggregate",subject:"XAUUSD",observedAt:gold.observedAt,availableAt,domain:"stock",metadata:{...(gold.metadata??{}),unit:"USD_per_troy_ounce",market:"forex_XAUUSD",aggregation:"previous_trading_day"}});
+   candidates.push({factor:"gold",value:gold.value,source:"Massive Forex:C:XAUUSD previous-day aggregate",subject:"XAUUSD",observedAt:gold.observedAt,availableAt,domain:"macro",metadata:{...(gold.metadata??{}),unit:"USD_per_troy_ounce",market:"forex_XAUUSD",aggregation:"previous_trading_day"}});
   }else diagnostics.push({factor:"gold",error:gold.error});
  }catch(e){diagnostics.push({factor:"gold",error:e instanceof Error?e.message:"unknown"});}
  try{
