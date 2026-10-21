@@ -75,6 +75,7 @@ export async function GET(req:Request){
           (source_id,data_class,symbol,event_time,latency_ms,freshness_score,quality_score,payload_hash,metadata)
         values
           (${s.source},'market_snapshot',${s.symbol},${s.timestamp},${ageMs},${freshness},${market.provider==='Massive'?0.95:0.85},${payloadHash},${raw}::jsonb)
+        on conflict do nothing
       `;
     }
     results.market=market.snapshots.length;
