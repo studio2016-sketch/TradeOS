@@ -5,20 +5,31 @@ import {factorCoverageAudit} from "../../../../lib/research/factor-coverage-audi
 import {auditFactorReadiness} from "../../../../lib/research/factor-readiness";
 import {factorDependencySummary} from "../../../../lib/research/factor-dependency-inventory";
 import {phase3BlockerFor} from "../../../../lib/research/phase3-blockers";
+import {phase3CompletionGate} from "../../../../lib/research/phase3-completion";
 export const dynamic="force-dynamic";
 export async function GET(request:Request){
  if(!authorizeCron(request))return NextResponse.json({error:"unauthorized"},{status:401});
  if(!hasDatabase())return NextResponse.json({error:"database_not_configured"},{status:503});
  try{
   const sql=db();
-  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns,marketEntitlement]=await Promise.all([
+  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns,marketEntitlement,phase3Integrity]=await Promise.all([
    factorCoverageAudit(),
    sql`select factor_key,source_name,calculation_method,expected_cadence,freshness_seconds,implementation_status,permission_status from tradeos_factor_coverage_registry`,
    sql`select r.factor_key,(case when r.factor_key in ('var_95','expected_shortfall','max_drawdown') then 0 else coalesce(s.populated_count,0) end+coalesce(e.evidence_count,0))::int as populated_count,greatest(s.last_populated_at,e.latest_evidence_at) as last_populated_at from tradeos_factor_coverage_registry r left join tradeos_factor_coverage_status s using(factor_key) left join (select ev.factor_key,count(*)::int as evidence_count,max(ev.available_at) as latest_evidence_at from tradeos_factor_evidence ev where not (ev.factor_key in ('earnings_date','eps_surprise','revenue_surprise','guidance_change','regulatory_change','buyback_announcement','customer_event') and ev.source_metadata ? 'articleId' and exists(select 1 from tradeos_news_articles n where n.article_id=ev.source_metadata->>'articleId' and jsonb_array_length(n.symbols)<>1)) group by ev.factor_key) e using(factor_key)`,
    sql`select collector,status,count(*)::int as runs,max(started_at) as last_run,sum(received)::int as received,sum(saved)::int as saved from tradeos_collector_runs group by collector,status order by last_run desc`,
    sql`select count(*)::int as evidence_rows,count(distinct factor_key)::int as evidenced_factors,max(available_at) as latest_available_at from tradeos_factor_evidence`,
    sql`select provider,status,count(*)::int as runs,max(requested_at) as last_request,sum(received)::int as received from tradeos_news_ingestion_runs where requested_at>=now()-interval '24 hours' group by provider,status order by last_request desc`,
-   sql`select started_at,details from tradeos_collector_runs where collector='market_entitlement_audit' order by started_at desc limit 1`
+   sql`select started_at,details from tradeos_collector_runs where collector='market_entitlement_audit' order by started_at desc limit 1`,
+   sql`with latest as (
+      select distinct on (collector) collector,status,started_at
+      from tradeos_collector_runs
+      where collector in ('acceleration','fred_macro','sec_fundamentals','news_factors','network_crossasset','intraday_activation','alpaca_options','ingest')
+      order by collector,started_at desc
+    )
+    select
+      (select count(*)::int from tradeos_factor_evidence where available_at<observed_at) as invalid_vintages,
+      count(*) filter(where status='failed')::int as latest_collector_failures
+    from latest`
   ]);
   const readiness=auditFactorReadiness(
    registry.map(r=>({factor_key:String(r.factor_key),source_name:r.source_name as string|null,calculation_method:r.calculation_method as string|null,expected_cadence:r.expected_cadence as string|null,freshness_seconds:r.freshness_seconds as number|null,implementation_status:r.implementation_status as string|null,permission_status:r.permission_status as string|null})),
@@ -26,10 +37,13 @@ export async function GET(request:Request){
    new Date().toISOString()
   );
   const evidence=evidenceSummary[0]??{evidence_rows:0,evidenced_factors:0,latest_available_at:null};
+  const integrity=phase3Integrity[0]??{invalid_vintages:0,latest_collector_failures:0};
+  const phase3Completion=phase3CompletionGate({measuredFactorCount:coverage.measuredFactorCount,invalidEvidenceVintages:Number(integrity.invalid_vintages??0),requiredCollectorFailures:Number(integrity.latest_collector_failures??0)});
   return NextResponse.json({
    ...coverage,
    readiness,
    dependencyInventory:factorDependencySummary(),
+   phase3Completion,
    phase3MissingBlockers:coverage.missingMeasuredKeys.map(key=>phase3BlockerFor(key)??{key,category:"implementation_or_evidence_gap",requiresUserAction:false,detail:"No valid measured evidence yet; inspect dependency inventory and collector diagnostics."}),
    collectorHealth:collectorRuns.map(r=>({collector:String(r.collector),status:String(r.status),runs:Number(r.runs),lastRun:r.last_run,received:Number(r.received??0),saved:Number(r.saved??0)})),
    evidencePersistence:{rows:Number(evidence.evidence_rows??0),factors:Number(evidence.evidenced_factors??0),latestAvailableAt:evidence.latest_available_at??null},
