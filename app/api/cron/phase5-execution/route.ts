@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
-import {CHALLENGER_VERSION,TRIAL_ACTIVATION} from "../../../../lib/research/frozenChallenger";
+import {CHALLENGER_VERSION,CERTIFICATION_ACTIVATION} from "../../../../lib/research/frozenChallenger";
 import {evaluateExecutionCostResearch} from "../../../../lib/research/phase5-execution-realism";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(req:Request){
     join immutable_decision_records i on i.forecast_id=f.id
     join tradeos_decision_source_verifications v on v.immutable_decision_id=i.id
     where f.model_version=${CHALLENGER_VERSION}
-      and f.created_at>=${TRIAL_ACTIVATION}::timestamptz
+      and f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz
       and o.realized_return is not null
       and f.direction in ('bullish','bearish')
       and nullif(f.source_snapshot->>'spread','') is not null
@@ -41,7 +41,7 @@ export async function GET(req:Request){
     ${CHALLENGER_VERSION},${evaluation.samples},${evaluation.sessions},${evaluation.meanGross},
     ${evaluation.meanQuotedRoundTripSpreadCost},${evaluation.meanNetAfterQuotedSpread},${evaluation.empiricalRoundTripSlippageFraction},${evaluation.meanNetAfterAllModeledCosts},${evaluation.clustered95[0]},
     ${evaluation.clustered95[1]},${evaluation.mature},${empiricalQualified},
-    ${JSON.stringify({trialActivation:TRIAL_ACTIVATION,method:"directional realized return minus one full contemporaneous quoted spread and, when independently qualified, conservative empirical round-trip slippage; session-clustered bootstrap",policy:evaluation.policy,empiricalFillSnapshotId:fill?.id??null})}::jsonb
+    ${JSON.stringify({trialActivation:CERTIFICATION_ACTIVATION,method:"directional realized return minus one full contemporaneous quoted spread and, when independently qualified, conservative empirical round-trip slippage; session-clustered bootstrap",policy:evaluation.policy,empiricalFillSnapshotId:fill?.id??null})}::jsonb
   ) returning id,created_at`;
   await recordCollectorReceipt({collector:"phase5_execution_realism",status:"finished",received:evaluation.samples,saved:inserted.length,details:{sessions:evaluation.sessions,lowerBound:evaluation.lowerBound,modeledCostMature:evaluation.mature,executionSlippageValidated:empiricalQualified,empiricalPenalty}});
   return NextResponse.json({generatedAt:new Date().toISOString(),modelVersion:CHALLENGER_VERSION,evaluation,snapshot:inserted[0]??null,certification:{costAdjustedReturnLowerBound:empiricalQualified&&evaluation.mature?evaluation.lowerBound:null,executionSlippageValidated:empiricalQualified,reason:empiricalQualified?"Cost model includes independently time-certified empirical fill slippage.":"Quoted-spread research stress test is not actual fill-slippage validation."},liveExecutionAllowed:false},{headers:{"Cache-Control":"no-store"}});
