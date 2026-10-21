@@ -8,13 +8,13 @@ test("Phase 3 activated factor families have explicit implementation paths",()=>
  for(const key of ["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/intraday-activation-evidence.ts");
  }
- for(const key of ["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return"]){
+ for(const key of ["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/network-crossasset-evidence.ts");
  }
- for(const key of ["pe_trailing","price_sales","free_cash_flow_yield","return_on_equity"]){
+ for(const key of ["pe_trailing","price_sales","free_cash_flow_yield","return_on_equity","insider_trading"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/sec-ratio-evidence.ts");
  }
- for(const key of ["news_sentiment","corroboration","news_price_reaction"]){
+ for(const key of ["news_sentiment","corroboration","news_price_reaction","event_materiality"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/news-factor-evidence.ts");
  }
 });
