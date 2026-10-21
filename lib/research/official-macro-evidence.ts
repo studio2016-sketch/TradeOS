@@ -1,6 +1,7 @@
-import {fredSeriesHistory,latestRegimeContext,type FredHistoryResult} from "../market/fred";
+import {fredSeriesHistory,type FredHistoryResult} from "../market/fred";
 import {auditEvidence,type Evidence} from "./source-vintage-audit";
 const mapping:Record<string,string>={DGS10:"us10y_yield",DGS2:"us2y_yield",T10Y2Y:"yield_curve_slope",DFF:"fed_policy_rate",BAMLH0A0HYM2:"high_yield_spread",DCOILWTICO:"wti_crude"};
+const baseSeries=Object.keys(mapping).map(series=>({series,lookbackDays:90}));
 
 type Derivation="latest"|"year_over_year_pct";
 type MacroDefinition={factor:string;series:string;label:string;unit:string;derivation:Derivation;lookbackDays:number};
@@ -35,11 +36,12 @@ export function deriveOfficialMacroFactor(definition:MacroDefinition,result:Fred
  return Number.isFinite(value)?{value,observedAt:latest.date,reason:null}:{value:null,observedAt:null,reason:"invalid_yoy_result"};
 }
 
-async function expandedMacroResults(){
+async function macroResults(){
  const results=new Map<string,FredHistoryResult>();
- // Small batches avoid a burst against the public endpoint while staying within the route budget.
- for(let i=0;i<addedOfficialMacroFactors.length;i+=3){
-  const batch=addedOfficialMacroFactors.slice(i,i+3);
+ const definitions=[...baseSeries,...addedOfficialMacroFactors.map(({series,lookbackDays})=>({series,lookbackDays}))];
+ // Bounded batches avoid a burst while eliminating the old sequential regime-context bottleneck.
+ for(let i=0;i<definitions.length;i+=3){
+  const batch=definitions.slice(i,i+3);
   const rows=await Promise.all(batch.map(def=>fredSeriesHistory(def.series,def.lookbackDays)));
   rows.forEach(row=>results.set(row.series,row));
  }
@@ -48,23 +50,23 @@ async function expandedMacroResults(){
 
 export async function observedMacroEvidence(now=new Date()){
  const requestedAt=now.toISOString();
- const [context,expanded]=await Promise.all([latestRegimeContext(),expandedMacroResults()]);
+ const results=await macroResults();
  const receivedAt=new Date().toISOString();
  const evidence:Evidence[]=[];
  const excluded:string[]=[];
- for(const diagnostic of context.diagnostics){
-  const factor=mapping[diagnostic.series];
-  const point=diagnostic.point;
-  if(!factor||diagnostic.status!=="ok"||!point||!Number.isFinite(point.value)){excluded.push(diagnostic.series);continue;}
+ for(const definition of baseSeries){
+  const factor=mapping[definition.series];
+  const result=results.get(definition.series);
+  const point=result?.status==="ok"&&result.points.length?result.points[result.points.length-1]:null;
+  if(!factor||!point||!Number.isFinite(point.value)){excluded.push(definition.series);continue;}
   const observedAt=point.date+"T00:00:00Z";
-  if(!Number.isFinite(Date.parse(observedAt))||Date.parse(observedAt)>Date.parse(requestedAt)){excluded.push(diagnostic.series);continue;}
-  // FRED observation dates are NOT original public release timestamps.
-  // Only claim availability at actual retrieval, never retroactively.
-  evidence.push({factor,value:point.value as number,domain:"macro",source:"FRED:"+diagnostic.series,subject:"US_MACRO",observedAt,availableAt:receivedAt});
+  if(!Number.isFinite(Date.parse(observedAt))||Date.parse(observedAt)>Date.parse(requestedAt)){excluded.push(definition.series);continue;}
+  // Observation date is not assumed to be original public release time; availability begins at retrieval.
+  evidence.push({factor,value:point.value,domain:"macro",source:"FRED:"+definition.series,subject:"US_MACRO",observedAt,availableAt:receivedAt});
  }
  const addedFactors:{factor:string;series:string;label:string;unit:string;value:number|null;observedAt:string|null;status:"measured"|"unavailable";reason:string|null}[]=[];
  for(const definition of addedOfficialMacroFactors){
-  const result=expanded.get(definition.series)??{series:definition.series,points:[],status:"empty" as const};
+  const result=results.get(definition.series)??{series:definition.series,points:[],status:"empty" as const};
   const derived=deriveOfficialMacroFactor(definition,result);
   addedFactors.push({...definition,value:derived.value,observedAt:derived.observedAt,status:derived.value===null?"unavailable":"measured",reason:derived.reason});
   if(derived.value===null||!derived.observedAt){excluded.push(definition.series);continue;}
