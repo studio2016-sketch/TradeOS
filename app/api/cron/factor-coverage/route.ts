@@ -10,13 +10,14 @@ export async function GET(request:Request){
  if(!hasDatabase())return NextResponse.json({error:"database_not_configured"},{status:503});
  try{
   const sql=db();
-  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns]=await Promise.all([
+  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns,marketEntitlement]=await Promise.all([
    factorCoverageAudit(),
    sql`select factor_key,source_name,calculation_method,expected_cadence,freshness_seconds,implementation_status,permission_status from tradeos_factor_coverage_registry`,
    sql`select r.factor_key,(case when r.factor_key in ('var_95','expected_shortfall','max_drawdown') then 0 else coalesce(s.populated_count,0) end+coalesce(e.evidence_count,0))::int as populated_count,greatest(s.last_populated_at,e.latest_evidence_at) as last_populated_at from tradeos_factor_coverage_registry r left join tradeos_factor_coverage_status s using(factor_key) left join (select factor_key,count(*)::int as evidence_count,max(available_at) as latest_evidence_at from tradeos_factor_evidence group by factor_key) e using(factor_key)`,
    sql`select collector,status,count(*)::int as runs,max(started_at) as last_run,sum(received)::int as received,sum(saved)::int as saved from tradeos_collector_runs group by collector,status order by last_run desc`,
    sql`select count(*)::int as evidence_rows,count(distinct factor_key)::int as evidenced_factors,max(available_at) as latest_available_at from tradeos_factor_evidence`,
-   sql`select provider,status,count(*)::int as runs,max(requested_at) as last_request,sum(received)::int as received from tradeos_news_ingestion_runs where requested_at>=now()-interval '24 hours' group by provider,status order by last_request desc`
+   sql`select provider,status,count(*)::int as runs,max(requested_at) as last_request,sum(received)::int as received from tradeos_news_ingestion_runs where requested_at>=now()-interval '24 hours' group by provider,status order by last_request desc`,
+   sql`select started_at,details from tradeos_collector_runs where collector='market_entitlement_audit' order by started_at desc limit 1`
   ]);
   const readiness=auditFactorReadiness(
    registry.map(r=>({factor_key:String(r.factor_key),source_name:r.source_name as string|null,calculation_method:r.calculation_method as string|null,expected_cadence:r.expected_cadence as string|null,freshness_seconds:r.freshness_seconds as number|null,implementation_status:r.implementation_status as string|null,permission_status:r.permission_status as string|null})),
@@ -31,6 +32,7 @@ export async function GET(request:Request){
    collectorHealth:collectorRuns.map(r=>({collector:String(r.collector),status:String(r.status),runs:Number(r.runs),lastRun:r.last_run,received:Number(r.received??0),saved:Number(r.saved??0)})),
    evidencePersistence:{rows:Number(evidence.evidence_rows??0),factors:Number(evidence.evidenced_factors??0),latestAvailableAt:evidence.latest_available_at??null},
    newsIngestionHealth:newsRuns.map(r=>({provider:String(r.provider),status:String(r.status),runs:Number(r.runs),lastRequest:r.last_request,received:Number(r.received??0)})),
+   latestMarketEntitlementAudit:marketEntitlement[0]??null,
    approvedForTrading:false
   },{headers:{"Cache-Control":"no-store"}});
  }catch(error){
