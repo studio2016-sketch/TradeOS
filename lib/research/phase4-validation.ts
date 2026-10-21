@@ -23,7 +23,7 @@ export function pairedProspectiveValidation(raw:PairedForecastLoss[]){
 }
 
 export type Phase4InfrastructureInput={
- immutableRecords:number;immutableLinked:number;sourceAttested:number;sourceHashAttested:number;structuralPointInTime:number;
+ immutableRecords:number;immutableLinked:number;sourceAttested:number;strictSourceVerified:number;sourceHashAttested:number;structuralPointInTime:number;
  resolvedOutcomes:number;outcomeChronologyOk:number;baselineFingerprints:number;challengerFingerprints:number;
  pairedSamples:number;sessionDates:number;invalidEvidenceVintages:number;
 };
@@ -31,7 +31,8 @@ export function phase4InfrastructureGate(i:Phase4InfrastructureInput){
  const checks=[
   {id:"immutable_volume",pass:i.immutableRecords>=200,detail:"At least 200 append-only immutable decisions"},
   {id:"forecast_linkage",pass:i.immutableRecords>0&&i.immutableLinked===i.immutableRecords,detail:"Every immutable decision links to its original forecast"},
-  {id:"raw_source_attestation",pass:i.immutableRecords>0&&i.sourceAttested===i.immutableRecords,detail:"Every immutable decision has an append-only foreign-key attestation to the stored raw source observation"},
+  {id:"raw_source_attestation",pass:i.immutableRecords>0&&i.sourceAttested===i.immutableRecords,detail:"Every immutable decision has an append-only foreign-key attestation to a stored raw source observation"},
+  {id:"strict_source_point_in_time",pass:i.immutableRecords>0&&i.strictSourceVerified===i.immutableRecords,detail:"Every immutable decision resolves to a raw source row whose event and receipt times are no later than the forecast"},
   {id:"structural_point_in_time",pass:i.immutableRecords>0&&i.structuralPointInTime===i.immutableRecords,detail:"Every immutable decision observation time is not after its decision record"},
   {id:"outcome_chronology",pass:i.resolvedOutcomes>0&&i.outcomeChronologyOk===i.resolvedOutcomes,detail:"Every resolved outcome timestamp is after the forecast"},
   {id:"frozen_model_fingerprints",pass:i.baselineFingerprints===1&&i.challengerFingerprints===1,detail:"Exactly one frozen fingerprint per prospective model"},
