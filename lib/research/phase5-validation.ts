@@ -5,6 +5,7 @@ export type Phase5InfrastructureInput={
  brokerImplementation:string;
  sourceCertificationLedgerReady:boolean;
  fillSlippageLedgerReady:boolean;
+ portfolioReconciliationLedgerReady:boolean;
  appendOnlyProtectedTables:number;
  certificationFailClosed:boolean;
 };
@@ -17,7 +18,8 @@ export function phase5InfrastructureGate(i:Phase5InfrastructureInput){
   {id:"broker_reconciliation_version",pass:i.brokerImplementation==="paginated-read-only-v2",detail:"Protected brokerage reconciliation paginates orders plus trade and non-trade activities"},
   {id:"source_certification_ledger",pass:i.sourceCertificationLedgerReady,detail:"Append-only independent source-time certification ledger exists"},
   {id:"fill_slippage_ledger",pass:i.fillSlippageLedgerReady,detail:"Append-only empirical fill-slippage validation ledger exists"},
-  {id:"append_only_protections",pass:i.appendOnlyProtectedTables>=10,detail:"Phase 4/5 forecast, evidence, attestation, execution and certification ledgers reject update/delete mutation"},
+  {id:"portfolio_reconciliation_ledger",pass:i.portfolioReconciliationLedgerReady,detail:"Append-only aggregate portfolio reconciliation validation ledger exists"},
+  {id:"append_only_protections",pass:i.appendOnlyProtectedTables>=11,detail:"Phase 4/5 forecast, evidence, attestation, execution and certification ledgers reject update/delete mutation"},
   {id:"certification_fail_closed",pass:i.certificationFailClosed,detail:"Missing scientific evidence cannot authorize model promotion or live execution"}
  ];
  const blockers=checks.filter(x=>!x.pass).map(x=>x.id);
