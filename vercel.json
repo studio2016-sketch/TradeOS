@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/news-evidence",
-      "schedule": "15 * * * *"
+      "schedule": "20 * * * *"
     },
     {
       "path": "/api/cron/intraday-activation",
