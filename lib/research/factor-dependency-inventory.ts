@@ -7,6 +7,7 @@ const snapshots=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread
 const intradayActivation=new Set(["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]);
 const networkActivation=new Set(["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]);
 const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_rate","high_yield_spread","wti_crude","dxy",...addedOfficialMacroFactors.map(f=>f.factor)]);
+const treasuryIssuance=new Set(["treasury_issuance"]);
 const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth","pe_trailing","price_sales","free_cash_flow_yield","return_on_equity","insider_trading"]);
 const options=new Set(["implied_vol_atm","iv_skew"]);
 const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","sec_filing_catalyst"]);
@@ -24,6 +25,7 @@ export function factorDependencyInventory():FactorDependency[]{
   else if(intradayActivation.has(key)){sourceClass="intraday_market_evidence";sourceCandidate="Alpaca timestamped intraday bars / quote snapshots + SEC shares for turnover";implementationPath="lib/research/intraday-activation-evidence.ts";collectorPath="app/api/cron/intraday-activation/route.ts";}
   else if(networkActivation.has(key)){sourceClass="cross_asset_or_relative_market_history";sourceCandidate="Alpaca completed daily bars on explicit ETF/index proxies";implementationPath="lib/research/network-crossasset-evidence.ts";collectorPath="app/api/cron/network-crossasset/route.ts";}
   else if(snapshots.has(key)){sourceClass="market_snapshot";sourceCandidate="Alpaca IEX / snapshot provider";implementationPath="lib/research/acceleration-collector.ts";collectorPath="app/api/cron/acceleration/route.ts";}
+  else if(treasuryIssuance.has(key)){sourceClass="official_treasury_auctions";sourceCandidate="U.S. Treasury Fiscal Data auctions_query";implementationPath="lib/research/treasury-issuance-evidence.ts";collectorPath="app/api/cron/macro-evidence/route.ts";}
   else if(macro.has(key)){sourceClass="official_macro_series";sourceCandidate="FRED (public series; entitlements not verified)";implementationPath="lib/research/official-macro-evidence.ts";collectorPath="app/api/cron/macro-evidence/route.ts";}
   else if(sec.has(key)){sourceClass="sec_company_facts";sourceCandidate="SEC EDGAR XBRL";implementationPath="lib/research/sec-ratio-evidence.ts";collectorPath="app/api/cron/sec-fundamental-evidence/route.ts";}
   else if(options.has(key)){sourceClass="options_surface";sourceCandidate="Alpaca options feed (entitlements not verified)";implementationPath="app/api/cron/options-evidence/route.ts";collectorPath=implementationPath;}
