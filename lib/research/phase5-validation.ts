@@ -1,5 +1,8 @@
 export type Phase5InfrastructureInput={
  phase4Passed:boolean;
+ certificationForecasts:number;
+ immutableCleanRecords:number;
+ strictCleanVerified:number;
  executionSnapshots:number;
  executionImplementation:string;
  brokerImplementation:string;
@@ -13,6 +16,7 @@ export type Phase5InfrastructureInput={
 export function phase5InfrastructureGate(i:Phase5InfrastructureInput){
  const checks=[
   {id:"phase4_foundation",pass:i.phase4Passed,detail:"Latest Phase 4 validation infrastructure snapshot passes"},
+  {id:"clean_epoch_immutable_capture",pass:i.certificationForecasts>=2&&i.immutableCleanRecords===i.certificationForecasts&&i.strictCleanVerified===i.certificationForecasts,detail:"Clean certification epoch has live baseline/challenger forecasts and every forecast is immutable with strict pre-forecast source verification"},
   {id:"execution_realism_snapshot",pass:i.executionSnapshots>0,detail:"At least one persisted spread-adjusted execution-realism snapshot exists"},
   {id:"execution_validator_version",pass:i.executionImplementation==="quoted-spread-and-fill-slippage-v1",detail:"Quoted-spread and empirical fill-slippage validators are installed"},
   {id:"broker_reconciliation_version",pass:i.brokerImplementation==="paginated-read-only-v2",detail:"Protected brokerage reconciliation paginates orders plus trade and non-trade activities"},
