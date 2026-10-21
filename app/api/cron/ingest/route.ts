@@ -28,6 +28,7 @@ import {verifyOpenMarketAdvancement} from "../../../../lib/market/verification";
 import {certifiedModelVersions} from "../../../../lib/research/certification";
 import {evaluateInstitutionalLens} from "../../../../lib/research/institutionalLens";
 import {persistDecisionMemory} from "../../../../lib/research/decisionMemory";
+import {recordCollectorReceipt} from "../../../../lib/research/collector-receipts";
 
 export const dynamic="force-dynamic";
 
@@ -218,5 +219,12 @@ export async function GET(req:Request){
     values('ingestion_run','system',${JSON.stringify({...results,finishedAt:new Date().toISOString()})}::jsonb)
   `;
 
-  return NextResponse.json({...results,finishedAt:new Date().toISOString()});
+  const finishedAt=new Date().toISOString();
+  await recordCollectorReceipt({
+    collector:"ingest",status:"finished",
+    received:Number(results.market??0)+Number(results.news??0)+Number(results.sec??0),
+    saved:Number(results.market??0)+Number(results.news??0)+Number(results.sec??0),
+    details:{finishedAt,errors:results.errors,marketProvider:results.marketProvider,alignments:results.alignments}
+  });
+  return NextResponse.json({...results,finishedAt});
 }
