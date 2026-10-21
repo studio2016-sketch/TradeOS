@@ -38,7 +38,7 @@ export async function GET(){
   const scientificStatus=phase4ScientificBlockers({pairedSamples:paired.pairs,sessionDates:paired.sessions,pairedLowerBound:paired.lowerBound,independentlyVerifiedSourceTimes:Number(r.source_time_verified),immutableRecords:Number(r.immutable_records),costAdjustedReturnLowerBound:null,executionSlippageValidated:false,portfolioReconciled:false,publicationTimeApplicable:false,publicationTimeVerified:Number(r.publication_time_verified)});
   const evidence={
    total:Number(r.total),immutableRecords:Number(r.immutable_records),
-   sourceTimeVerified:Number(r.source_time_verified),publicationTimeVerified:Number(r.publication_time_verified),
+   sourceTimeVerified:Number(r.source_time_verified),publicationTimeApplicable:false,publicationTimeVerified:Number(r.publication_time_verified),
    outOfSamplePaired:paired.pairs,independentSessionDates:paired.sessions,
    predictiveSkillLowerBound:paired.lowerBound,
    costAdjustedReturnLowerBound:null,
