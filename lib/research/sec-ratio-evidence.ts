@@ -1,4 +1,4 @@
-import {secFundamentalsAsOf} from "../market/sec";
+import {secFundamentalsAsOf,secCatalystsWithStatus} from "../market/sec";
 import {db} from "../db";
 export type FundamentalEvidence={factor:string;value:number;source:string;subject:string;observedAt:string;availableAt:string;metadata:Record<string,unknown>};
 
@@ -51,6 +51,15 @@ export async function secRatioEvidence(symbol:string,now=new Date()):Promise<Fun
     const avg=(eqNow+eqPrior)/2;
     if(avg!==0&&p.equity_annual_end&&p.equity_prior_annual_end)results.push({factor:"return_on_equity",value:annualNet/avg,source:"SEC EDGAR XBRL",subject:symbol,observedAt:p.annual_net_income.filed+"T00:00:00Z",availableAt:current,metadata:{annualNetIncome:annualNet,equityEnd:eqNow,equityPriorEnd:eqPrior,netIncomeProvenance:p.annual_net_income,equityEndProvenance:p.equity_annual_end,equityPriorProvenance:p.equity_prior_annual_end,unit:"fraction",backtestEligible:false}});
    }
+  }
+ }catch{}
+ try{
+  const {catalysts,statuses}=await secCatalystsWithStatus([symbol],100);
+  const cutoff=now.getTime()-30*86400000;
+  const forms=catalysts.filter(x=>x.form==="4"&&x.acceptedAt&&Number.isFinite(Date.parse(x.acceptedAt))&&Date.parse(x.acceptedAt)>=cutoff&&Date.parse(x.acceptedAt)<=now.getTime());
+  if(forms.length){
+   const latest=forms.map(x=>x.acceptedAt!).sort().at(-1)!;
+   results.push({factor:"insider_trading",value:forms.length,source:"SEC EDGAR submissions",subject:symbol,observedAt:latest,availableAt:current,metadata:{windowDays:30,method:"count_of_SEC_Form_4_filings",filingIds:forms.map(x=>x.id),sourceStatuses:statuses,note:"Measures disclosed Form 4 filing activity only; does not infer buy/sell direction or economic significance.",backtestEligible:false}});
   }
  }catch{}
  return results;
