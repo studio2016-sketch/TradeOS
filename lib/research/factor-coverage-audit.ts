@@ -17,6 +17,7 @@ export async function factorCoverageAudit(){
   const r=rows.find(row=>String(row.factor_key)===key);
   const e=evidence.get(key);
   const accelerationPopulated=Number(r?.populated_count??0);
+  const eligibleAccelerationPopulated=invalidLegacyAcceleration.has(key)?0:accelerationPopulated;
   return {
    key,
    observations:Number(r?.observation_count??0),
