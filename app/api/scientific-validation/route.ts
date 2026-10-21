@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {auth} from "../../../lib/auth/server";
 import {db,hasDatabase} from "../../../lib/db";
-import {BASELINE_VERSION,CHALLENGER_VERSION,TRIAL_ACTIVATION} from "../../../lib/research/frozenChallenger";
+import {BASELINE_VERSION,CHALLENGER_VERSION,CERTIFICATION_ACTIVATION} from "../../../lib/research/frozenChallenger";
 import {evaluateProspectivePairs} from "../../../lib/research/prospectiveTrial";
 import {assessScientificValidation} from "../../../lib/research/scientific-validation";
 
@@ -17,14 +17,14 @@ export async function GET(){
   if(owner[0]?.role!=="admin"||owner[0]?.banned===true||owner[0]?.verified!==true)return NextResponse.json({error:"Verified owner session required"},{status:403,headers});
   const [summary,modelRows,pairRows]=await Promise.all([
    sql`select
-    (select count(*)::int from forecast_ledger) forecast_total,
-    (select count(*)::int from forecast_outcomes where was_correct is not null) labelled_forecasts,
-    (select count(distinct created_at::date)::int from forecast_ledger) forecast_session_dates,
-    (select count(*)::int from immutable_decision_records) immutable_records,
-    (select count(*)::int from immutable_decision_records where observed_at<=recorded_at) time_ordered_immutable_records,
-    (select count(*)::int from immutable_decision_records where observed_at>recorded_at) future_dated_immutable_records,
-    (select count(*)::int from immutable_decision_records where source_type='exchange_time_verified') independently_timestamp_verified,
-    (select count(*)::int from immutable_decision_records where source_type='primary_publication_time_verified') publication_time_verified,
+    (select count(*)::int from forecast_ledger where created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) forecast_total,
+    (select count(*)::int from forecast_outcomes o join forecast_ledger f on f.id=o.forecast_id where f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and f.model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and o.was_correct is not null) labelled_forecasts,
+    (select count(distinct created_at::date)::int from forecast_ledger where created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) forecast_session_dates,
+    (select count(*)::int from immutable_decision_records where recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) immutable_records,
+    (select count(*)::int from immutable_decision_records where recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and observed_at<=recorded_at) time_ordered_immutable_records,
+    (select count(*)::int from immutable_decision_records where recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and observed_at>recorded_at) future_dated_immutable_records,
+    (select count(*)::int from immutable_decision_records i join forecast_ledger f on f.id=i.forecast_id join tradeos_decision_source_verifications v on v.immutable_decision_id=i.id join source_observations so on so.id=v.source_observation_id where i.recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and i.model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and exists(select 1 from tradeos_source_time_certifications c where c.certification_kind='exchange_authoritative_timestamp' and lower(c.provider)=lower(split_part(so.source_id,':',1)) and lower(c.feed)=lower(split_part(so.source_id,':',2)) and c.valid_from<=f.created_at and (c.valid_to is null or c.valid_to>f.created_at))) independently_timestamp_verified,
+    (select count(*)::int from immutable_decision_records where recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and source_type='primary_publication_time_verified') publication_time_verified,
     (select count(*)::int from tradeos_acceleration_observations) acceleration_records,
     (select count(distinct recorded_at::date)::int from tradeos_acceleration_observations) acceleration_session_dates,
     (select count(*)::int from tradeos_acceleration_trials) replay_trials,
@@ -35,15 +35,9 @@ export async function GET(){
        avg(power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2)) filter(where o.was_correct is not null)::float brier
       from forecast_ledger f left join forecast_outcomes o on o.forecast_id=f.id
       group by f.model_version,f.horizon order by f.model_version,f.horizon`,
-   sql`select b.observed_at,b.symbol,f1.probability::float baseline_probability,
-       f2.probability::float challenger_probability,o1.was_correct baseline_outcome,o2.was_correct challenger_outcome
-      from immutable_decision_records b
-      join immutable_decision_records c on c.symbol=b.symbol and c.observed_at=b.observed_at and c.model_version=${CHALLENGER_VERSION}
-      join forecast_ledger f1 on f1.id=b.forecast_id join forecast_ledger f2 on f2.id=c.forecast_id
-      join forecast_outcomes o1 on o1.forecast_id=f1.id join forecast_outcomes o2 on o2.forecast_id=f2.id
-      where b.model_version=${BASELINE_VERSION} and b.observed_at>=${TRIAL_ACTIVATION}::timestamptz
-       and b.recorded_at>=${TRIAL_ACTIVATION}::timestamptz and c.recorded_at>=${TRIAL_ACTIVATION}::timestamptz
-       and o1.was_correct is not null and o2.was_correct is not null order by b.recorded_at asc limit 10000`
+   sql`with b as (select f.symbol,f.horizon,date_trunc('minute',f.created_at) bucket,f.created_at,f.probability,o.was_correct from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${BASELINE_VERSION} and f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and o.was_correct is not null),
+    c as (select f.symbol,f.horizon,date_trunc('minute',f.created_at) bucket,f.probability,o.was_correct from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${CHALLENGER_VERSION} and f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and o.was_correct is not null)
+    select b.created_at observed_at,b.symbol,b.probability::float baseline_probability,c.probability::float challenger_probability,b.was_correct baseline_outcome,c.was_correct challenger_outcome from b join c using(symbol,horizon,bucket) order by b.created_at asc limit 10000`
   ]);
   let outcomeDisagreements=0;
   const paired=[];
@@ -59,7 +53,7 @@ export async function GET(){
    prospectivePairs:prospective.pairedCount,prospectiveSessionDates:prospective.independentSessionDates,prospectiveIntervalLow:prospective.clustered95PctInterval?.[0]??null,
    executionSlippageValidated:false,brokerReconciled:false,independentReplayVerified:false,registeredHypothesisFamily:false};
   return NextResponse.json({generatedAt:new Date().toISOString(),assessment:assessScientificValidation(input),evidence:input,
-   prospective:{baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION,activatedAt:TRIAL_ACTIVATION,outcomeDisagreements,...prospective},
+   prospective:{baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION,activatedAt:CERTIFICATION_ACTIVATION,outcomeDisagreements,...prospective},
    models:(modelRows as any[]).map(r=>({model:r.model_version,horizon:r.horizon,recorded:Number(r.recorded),labelled:Number(r.labelled),sessionDates:Number(r.session_dates),brier:r.brier==null?null:Number(r.brier),status:"RESEARCH_ONLY"})),
    policy:"Measurement coverage is not predictive validation. Only independent, prospective, multiple-testing-adjusted, cost-validated evidence may become eligible for reviewed model influence."},{headers});
  }catch(error){return NextResponse.json({error:"Scientific validation evidence unavailable",reason:error instanceof Error?error.message:"unknown"},{status:503,headers});}
