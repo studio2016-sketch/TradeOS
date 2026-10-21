@@ -2,6 +2,8 @@ import {fredSeriesHistory,type FredHistoryResult} from "../market/fred";
 import {auditEvidence,type Evidence} from "./source-vintage-audit";
 const mapping:Record<string,string>={DGS10:"us10y_yield",DGS2:"us2y_yield",T10Y2Y:"yield_curve_slope",DFF:"fed_policy_rate",BAMLH0A0HYM2:"high_yield_spread",DCOILWTICO:"wti_crude"};
 const baseSeries=Object.keys(mapping).map(series=>({series,lookbackDays:90}));
+const dxySupplementalSeries=["DEXUSUK","DEXCAUS","DEXSDUS","DEXSZUS"].map(series=>({series,lookbackDays:90}));
+const dxyComponents=["DEXUSEU","DEXJPUS","DEXUSUK","DEXCAUS","DEXSDUS","DEXSZUS"] as const;
 
 type Derivation="latest"|"year_over_year_pct";
 type MacroDefinition={factor:string;series:string;label:string;unit:string;derivation:Derivation;lookbackDays:number};
@@ -43,7 +45,7 @@ export function deriveOfficialMacroFactor(definition:MacroDefinition,result:Fred
 
 async function macroResults(){
  const results=new Map<string,FredHistoryResult>();
- const definitions=[...baseSeries,...addedOfficialMacroFactors.map(({series,lookbackDays})=>({series,lookbackDays}))];
+ const definitions=[...new Map([...baseSeries,...addedOfficialMacroFactors.map(({series,lookbackDays})=>({series,lookbackDays})),...dxySupplementalSeries].map(x=>[x.series,x])).values()];
  // Bounded batches avoid a burst while eliminating the old sequential regime-context bottleneck.
  for(let i=0;i<definitions.length;i+=3){
   const batch=definitions.slice(i,i+3);
@@ -77,6 +79,17 @@ export async function observedMacroEvidence(now=new Date()){
   if(derived.value===null||!derived.observedAt){excluded.push(definition.series);continue;}
   evidence.push({factor:definition.factor,value:derived.value,domain:"macro",source:"FRED:"+definition.series,subject:"US_MACRO",observedAt:derived.observedAt+"T00:00:00Z",availableAt:receivedAt});
  }
+ const componentMaps=dxyComponents.map(series=>new Map((results.get(series)?.points??[]).map(point=>[point.date,point.value])));
+ if(componentMaps.every(map=>map.size)){
+  const common=[...componentMaps[0].keys()].filter(date=>componentMaps.every(map=>map.has(date))).sort();
+  const date=common.at(-1);
+  if(date){
+   const [eurusd,usdjpy,gbpusd,usdcad,usdsek,usdchf]=componentMaps.map(map=>map.get(date)!);
+   const dxy=50.14348112*Math.pow(eurusd,-0.576)*Math.pow(usdjpy,0.136)*Math.pow(gbpusd,-0.119)*Math.pow(usdcad,0.091)*Math.pow(usdsek,0.042)*Math.pow(usdchf,0.036);
+   if(Number.isFinite(dxy)&&dxy>0)evidence.push({factor:"dxy",value:dxy,domain:"macro",source:"FRED H.10 component rates / ICE USDX formula reconstruction",subject:"DXY_RECONSTRUCTION",observedAt:date+"T00:00:00Z",availableAt:receivedAt});
+   else excluded.push("DXY_RECONSTRUCTION_NONFINITE");
+  }else excluded.push("DXY_RECONSTRUCTION_NO_COMMON_DATE");
+ }else excluded.push("DXY_RECONSTRUCTION_COMPONENT_MISSING");
  const audit=auditEvidence(evidence,receivedAt);
  return {retrievedAt:receivedAt,requestedAt,measured:audit.measured,addedMeasured:addedFactors.filter(x=>x.status==="measured").length,addedTarget:addedOfficialMacroFactors.length,addedFactors,factors:evidence,excluded,audit,backtestEligible:false,approvedForTrading:false,warning:"FRED current-vintage observations: retrieval proves present availability, not historical release availability, predictive usefulness, or independent data vintage."};
 }
