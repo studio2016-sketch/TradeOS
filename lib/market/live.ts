@@ -121,16 +121,24 @@ export async function bestSnapshots(symbols:string[]){
       : Promise.resolve({name:"Alpaca",data:[] as MarketSnapshot[],error:"unconfigured"})
   ]);
   const picks=new Map<string,MarketSnapshot>();
-  for(const response of responses){
-    attempts.push({source:response.name,...(response.error?{error:response.error}:{}),count:response.data.length});
-    for(const snapshot of response.data){
+  const apply=(name:string,data:MarketSnapshot[],error="")=>{
+    attempts.push({source:name,...(error?{error}:{}),count:data.length});
+    for(const snapshot of data){
       if(!clean.includes(snapshot.symbol)||!Number.isFinite(snapshot.price)||snapshot.price<=0)continue;
       const stamp=Date.parse(snapshot.timestamp);
       if(!Number.isFinite(stamp)||stamp<=0||stamp>Date.now()+60_000)continue;
-      const prev=picks.get(snapshot.symbol);
-      const prevTime=prev?Date.parse(prev.timestamp):0;
+      const prev=picks.get(snapshot.symbol),prevTime=prev?Date.parse(prev.timestamp):0;
       if(!prev||stamp>prevTime)picks.set(snapshot.symbol,snapshot);
     }
+  };
+  for(const response of responses)apply(response.name,response.data,response.error);
+  const fallbackSymbols=clean.filter(symbol=>{
+    const pick=picks.get(symbol),stamp=pick?Date.parse(pick.timestamp):NaN;
+    return !Number.isFinite(stamp)||Date.now()-stamp>10*60*1000;
+  });
+  if(fallbackSymbols.length&&process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET&&process.env.ALPACA_DELAYED_SIP_FALLBACK!=="false"){
+    try{apply("Alpaca delayed_sip",await alpacaDelayedSipSnapshots(fallbackSymbols));}
+    catch(e){apply("Alpaca delayed_sip",[],e instanceof Error?e.message:String(e));}
   }
   const snapshots=clean.map(s=>picks.get(s)).filter((s):s is MarketSnapshot=>Boolean(s));
   const providers=[...new Set(snapshots.map(s=>s.source.split(":")[0]))];
