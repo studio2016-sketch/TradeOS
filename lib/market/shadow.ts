@@ -172,7 +172,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
                ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${challengerFingerprint},
                ${challengerChecksum},'research_only',${challenger[0].id})
-             on conflict(forecast_id) do nothing returning id,created_at
+             on conflict(forecast_id) do nothing returning id,recorded_at
           `;
           if(insertedChallenger.length&&Number.isFinite(last.observationId)){
             await sql`insert into tradeos_decision_source_attestations(
@@ -180,7 +180,7 @@ export async function generateShadowForecasts(symbols:string[]){
             ) values(
               ${insertedChallenger[0].id},${last.observationId},'direct_at_creation',0,${last.payloadHash},false
             ) on conflict(immutable_decision_id) do nothing`;
-            const challengerCreatedAt=new Date(insertedChallenger[0].created_at).toISOString();
+            const challengerCreatedAt=new Date(insertedChallenger[0].recorded_at).toISOString();
             if(Date.parse(last.receivedAt)<=Date.parse(challengerCreatedAt)&&last.t<=Date.parse(challengerCreatedAt)){
               await sql`insert into tradeos_decision_source_verifications(
                 immutable_decision_id,source_observation_id,verification_rule,source_event_time,source_received_at,forecast_created_at,source_payload_hash,backfilled
