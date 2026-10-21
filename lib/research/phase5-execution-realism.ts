@@ -1,4 +1,6 @@
-export const EXECUTION_REALISM_IMPLEMENTATION="quoted-spread-and-fill-slippage-v1" as const;\n\nexport type ExecutionResearchRow={
+export const EXECUTION_REALISM_IMPLEMENTATION="quoted-spread-and-fill-slippage-v1" as const;
+
+export type ExecutionResearchRow={
  time:string;direction:"bullish"|"bearish";realizedReturn:number;spreadFraction:number;
 };
 function mean(xs:number[]){return xs.reduce((a,b)=>a+b,0)/xs.length;}
