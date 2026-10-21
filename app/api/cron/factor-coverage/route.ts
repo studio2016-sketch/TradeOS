@@ -12,7 +12,7 @@ export async function GET(request:Request){
  if(!hasDatabase())return NextResponse.json({error:"database_not_configured"},{status:503});
  try{
   const sql=db();
-  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns,marketEntitlement,phase3Integrity,phase4Snapshot]=await Promise.all([
+  const [coverage,registry,status,collectorRuns,evidenceSummary,newsRuns,marketEntitlement,phase3Integrity,phase4Snapshot,phase5Snapshot,executionSnapshot]=await Promise.all([
    factorCoverageAudit(),
    sql`select factor_key,source_name,calculation_method,expected_cadence,freshness_seconds,implementation_status,permission_status from tradeos_factor_coverage_registry`,
    sql`select r.factor_key,(case when r.factor_key in ('var_95','expected_shortfall','max_drawdown') then 0 else coalesce(s.populated_count,0) end+coalesce(e.evidence_count,0))::int as populated_count,greatest(s.last_populated_at,e.latest_evidence_at) as last_populated_at from tradeos_factor_coverage_registry r left join tradeos_factor_coverage_status s using(factor_key) left join (select ev.factor_key,count(*)::int as evidence_count,max(ev.available_at) as latest_evidence_at from tradeos_factor_evidence ev where not (ev.factor_key in ('earnings_date','eps_surprise','revenue_surprise','guidance_change','regulatory_change','buyback_announcement','customer_event') and ev.source_metadata ? 'articleId' and exists(select 1 from tradeos_news_articles n where n.article_id=ev.source_metadata->>'articleId' and jsonb_array_length(n.symbols)<>1)) group by ev.factor_key) e using(factor_key)`,
@@ -30,7 +30,9 @@ export async function GET(request:Request){
       (select count(*)::int from tradeos_factor_evidence where available_at<observed_at) as invalid_vintages,
       count(*) filter(where status='failed')::int as latest_collector_failures
     from latest`,
-   sql`select created_at,payload from audit_events where event_type='phase4_validation_snapshot' order by created_at desc limit 1`
+   sql`select created_at,payload from audit_events where event_type='phase4_validation_snapshot' order by created_at desc limit 1`,
+   sql`select created_at,payload from audit_events where event_type='phase5_validation_snapshot' order by created_at desc limit 1`,
+   sql`select created_at,model_version,sample_count,session_count,mean_gross,mean_quoted_roundtrip_spread_cost,empirical_roundtrip_slippage_fraction,mean_net_after_quoted_spread,mean_net_after_all_modeled_costs,lower_bound,upper_bound,modeled_cost_mature,execution_slippage_validated from tradeos_execution_validation_snapshots order by created_at desc limit 1`
   ]);
   const readiness=auditFactorReadiness(
    registry.map(r=>({factor_key:String(r.factor_key),source_name:r.source_name as string|null,calculation_method:r.calculation_method as string|null,expected_cadence:r.expected_cadence as string|null,freshness_seconds:r.freshness_seconds as number|null,implementation_status:r.implementation_status as string|null,permission_status:r.permission_status as string|null})),
@@ -51,6 +53,8 @@ export async function GET(request:Request){
    newsIngestionHealth:newsRuns.map(r=>({provider:String(r.provider),status:String(r.status),runs:Number(r.runs),lastRequest:r.last_request,received:Number(r.received??0)})),
    latestMarketEntitlementAudit:marketEntitlement[0]??null,
    latestPhase4Validation:phase4Snapshot[0]??null,
+   latestPhase5Validation:phase5Snapshot[0]??null,
+   latestExecutionRealism:executionSnapshot[0]??null,
    approvedForTrading:false
   },{headers:{"Cache-Control":"no-store"}});
  }catch(error){
