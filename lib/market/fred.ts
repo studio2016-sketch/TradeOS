@@ -8,7 +8,7 @@ export async function fredSeriesHistory(series:string,lookbackDays=60):Promise<F
   const start=new Date(Date.now()-lookbackDays*24*60*60*1000);
   const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}&cosd=${isoDate(start)}`;
   try{
-    const res=await fetch(url,{cache:"no-store"});
+    const res=await fetch(url,{cache:"no-store",signal:AbortSignal.timeout(10000)});
     if(!res.ok)return{series,points:[],status:"error",error:`HTTP ${res.status}`};
     const text=await res.text();
     const lines=text.trim().split(/\r?\n/);
