@@ -31,7 +31,7 @@
     },
     {
       "path": "/api/cron/options-evidence",
-      "schedule": "36 13-20 * * 1-5"
+      "schedule": "48 13-20 * * 1-5"
     },
     {
       "path": "/api/cron/official-source-health",
