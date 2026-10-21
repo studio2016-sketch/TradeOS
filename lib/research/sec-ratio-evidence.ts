@@ -1,5 +1,6 @@
 import {secFundamentalsAsOf,secCatalystsWithStatus} from "../market/sec";
 import {db} from "../db";
+import {bestSnapshots} from "../market/live";
 export type FundamentalEvidence={factor:string;value:number;source:string;subject:string;observedAt:string;availableAt:string;metadata:Record<string,unknown>};
 
 export async function secRatioEvidence(symbol:string,now=new Date()):Promise<FundamentalEvidence[]>{
@@ -29,11 +30,20 @@ export async function secRatioEvidence(symbol:string,now=new Date()):Promise<Fun
   const rows=await sql`select source_id,event_time,metadata from source_observations
     where symbol=${symbol.toUpperCase()} and data_class='market_snapshot'
     order by received_at desc limit 1`;
-  const row=rows[0],price=Number((row?.metadata as any)?.price),shares=v.shares;
-  if(row&&Number.isFinite(price)&&price>0&&Number.isFinite(shares)&&shares>0){
-   const marketCap=price*shares,observedAt=new Date(row.event_time as string).toISOString();
-   const source=`${String(row.source_id)} + SEC EDGAR XBRL`;
-   const common={price,priceSource:String(row.source_id),priceObservedAt:observedAt,shares,sharesProvenance:p.shares,backtestEligible:false};
+  const row=rows[0];
+  let price=Number((row?.metadata as any)?.price);
+  let observedAt=row?new Date(row.event_time as string).toISOString():"";
+  let priceSource=row?String(row.source_id):"";
+  if(!(Number.isFinite(price)&&price>0&&observedAt)){
+   const market=await bestSnapshots([symbol.toUpperCase()]);
+   const snap=market.snapshots[0];
+   if(snap){price=snap.price;observedAt=snap.timestamp;priceSource=snap.source;}
+  }
+  const shares=v.shares;
+  if(Number.isFinite(price)&&price>0&&observedAt&&Number.isFinite(shares)&&shares>0){
+   const marketCap=price*shares;
+   const source=`${priceSource} + SEC EDGAR XBRL`;
+   const common={price,priceSource,priceObservedAt:observedAt,shares,sharesProvenance:p.shares,backtestEligible:false};
    const annualRevenue=v.annual_revenue,annualNet=v.annual_net_income;
    if(Number.isFinite(annualRevenue)&&annualRevenue>0&&p.annual_revenue){
     results.push({factor:"price_sales",value:marketCap/annualRevenue,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,annualRevenue,annualRevenueProvenance:p.annual_revenue,unit:"ratio"}});
