@@ -11,8 +11,8 @@ const treasuryIssuance=new Set(["treasury_issuance"]);
 const inputCostShock=new Set(["input_cost_shock"]);
 const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth","pe_trailing","price_sales","ev_ebitda","free_cash_flow_yield","return_on_equity","insider_trading"]);
 const options=new Set(["implied_vol_atm","iv_rank","iv_skew"]);
-const marketwideEvents=new Set(["earnings_date","eps_surprise","revenue_surprise","guidance_change","regulatory_change"]);
-const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure","sec_filing_catalyst"]);
+const marketwideEvents=new Set(["earnings_date","eps_surprise","revenue_surprise","guidance_change","buyback_announcement","regulatory_change","tariff_exposure"]);
+const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","geopolitical_risk","policy_announcement","sec_filing_catalyst"]);
 const invalidLegacy=new Set(["var_95","expected_shortfall","max_drawdown"]);
 export type FactorDependency={
  key:string;family:string;sourceClass:string;sourceCandidate:string;
