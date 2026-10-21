@@ -10,6 +10,13 @@ const ANALYST_DOWN=/\b(downgrade[sd]?|lower(?:s|ed)?|cut[s]?|slash(?:es|ed)?)\b/
 const GEO_RISK=/\b(war|armed conflict|military strike|missile|invasion|sanction(?:s|ed)?|blockade|strait of hormuz|geopolit(?:ic|ical)|ceasefire|hostilit(?:y|ies))\b/i;
 const POLICY_ACTOR=/\b(federal reserve|fed\b|white house|u\.s\. treasury|treasury department|department of energy|department of commerce|sec\b|ftc\b|doj\b|congress|president|administration)\b/i;
 const POLICY_ACTION=/\b(announc(?:e|es|ed|ement)|approv(?:e|es|ed|al)|invest(?:s|ed|ing)|rule|regulat(?:ion|ory)|tariff|sanction|executive order|rate decision|policy change|ban|restriction)\b/i;
+const GUIDANCE_CHANGE=/\b(raise[sd]?|boost(?:s|ed)?|increase[sd]?|lower(?:s|ed)?|cut[s]?|reduce[sd]?|withdraw(?:s|n)?|suspend(?:s|ed)?|reaffirm(?:s|ed)?)\b.{0,45}\b(guidance|outlook|forecast)\b|\b(guidance|outlook|forecast)\b.{0,45}\b(raise[sd]?|boost(?:s|ed)?|increase[sd]?|lower(?:s|ed)?|cut[s]?|reduce[sd]?|withdraw(?:s|n)?|suspend(?:s|ed)?|reaffirm(?:s|ed)?)\b/i;
+const GUIDANCE_UP=/\b(raise[sd]?|boost(?:s|ed)?|increase[sd]?)\b/i;
+const GUIDANCE_DOWN=/\b(lower(?:s|ed)?|cut[s]?|reduce[sd]?|withdraw(?:s|n)?|suspend(?:s|ed)?)\b/i;
+const BUYBACK=/\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|increase[sd]?)\b.{0,55}\b(buyback|share repurchase|stock repurchase)\b|\b(buyback|share repurchase|stock repurchase)\b.{0,55}\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|increase[sd]?)\b/i;
+const TARIFF=/\b(tariff(?:s)?|import dut(?:y|ies)|trade restriction(?:s)?|export restriction(?:s)?|export control(?:s)?)\b/i;
+const REGULATOR=/\b(sec|ftc|doj|fda|epa|fcc|department of justice|securities and exchange commission|federal trade commission)\b/i;
+const REGULATORY_ACTION=/\b(rule|regulat(?:ion|ory)|approv(?:e|es|ed|al)|reject(?:s|ed|ion)?|block(?:s|ed)?|sue[sd]?|lawsuit|settle(?:s|d|ment)?|investigat(?:e|es|ed|ion)|ban(?:s|ned)?|order)\b/i;
 const STOP=new Set(["the","a","an","and","or","of","to","for","in","on","with","at","by","from","as","is","are","be","this","that"]);
 function sentiment(text:string){let s=0;if(POS.test(text))s++;if(NEG.test(text))s--;return s;}
 function tokens(text:string){return new Set(text.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(x=>x.length>2&&!STOP.has(x)))}
@@ -48,6 +55,27 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
    const value=denom?directional.reduce<number>((sum,d,i)=>sum+d*weights[i],0)/denom:0;
    const observedAt=analystItems.map(n=>n.timestamp).sort().at(-1)!;
    candidates.push({factor:"analyst_revision",value,source:"CuratedNews:"+[...new Set(analystItems.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit single-symbol analyst upgrade/downgrade or price-target change headlines",articleIds:analystItems.map(n=>n.id),directions:directional,unit:"signed_direction_-1_to_1",note:"Headline-derived analyst action, not consensus-estimate revision."}});
+  }
+  const explicitGuidance=related.filter(n=>GUIDANCE_CHANGE.test(n.headline+" "+(n.summary??"")));
+  if(explicitGuidance.length){
+   const scores=explicitGuidance.map(n=>{const text=n.headline+" "+(n.summary??"");return GUIDANCE_DOWN.test(text)?-1:GUIDANCE_UP.test(text)?1:0;});
+   const observedAt=explicitGuidance.map(n=>n.timestamp).sort().at(-1)!;
+   candidates.push({factor:"guidance_change",value:scores.reduce((a,b)=>a+b,0)/scores.length,source:"CuratedNews:"+[...new Set(explicitGuidance.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit_guidance_or_outlook_change_headlines",articleIds:explicitGuidance.map(n=>n.id),directions:scores,unit:"average_direction_-1_to_1"}});
+  }
+  const buybacks=related.filter(n=>BUYBACK.test(n.headline+" "+(n.summary??"")));
+  if(buybacks.length){
+   const observedAt=buybacks.map(n=>n.timestamp).sort().at(-1)!;
+   candidates.push({factor:"buyback_announcement",value:buybacks.length,source:"CuratedNews:"+[...new Set(buybacks.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"count_of_explicit_buyback_or_repurchase_announcement_headlines",articleIds:buybacks.map(n=>n.id),unit:"event_count"}});
+  }
+  const tariffItems=related.filter(n=>TARIFF.test(n.headline+" "+(n.summary??"")));
+  if(tariffItems.length){
+   const observedAt=tariffItems.map(n=>n.timestamp).sort().at(-1)!;
+   candidates.push({factor:"tariff_exposure",value:tariffItems.length/related.length,source:"CuratedNews:"+[...new Set(tariffItems.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"share_of_symbol_news_explicitly_referencing_tariffs_or_trade_restrictions",articleIds:tariffItems.map(n=>n.id),unit:"fraction"}});
+  }
+  const regulatory=related.filter(n=>{const text=n.headline+" "+(n.summary??"");return REGULATOR.test(text)&&REGULATORY_ACTION.test(text);});
+  if(regulatory.length){
+   const observedAt=regulatory.map(n=>n.timestamp).sort().at(-1)!;
+   candidates.push({factor:"regulatory_change",value:regulatory.length,source:"CuratedNews:"+[...new Set(regulatory.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"count_of_explicit_regulator_action_headlines",articleIds:regulatory.map(n=>n.id),unit:"event_count",note:"Secondary-source observation; primary regulatory document verification remains a certification gate."}});
   }
   const corroboration=maxCorroboration(related);
   candidates.push(
