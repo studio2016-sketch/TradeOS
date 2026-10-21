@@ -1,4 +1,7 @@
 export const TRIAL_ACTIVATION="2026-10-19T13:30:00.000Z";
+// Clean certification epoch begins only after the challenger immutable-write bug was fixed and deployed.
+// Earlier prospective forecasts remain valid research history but are excluded from certification because some challenger rows lack contemporaneous immutable records.
+export const CERTIFICATION_ACTIVATION="2026-10-21T17:15:00.000Z";
 export const BASELINE_VERSION="shadow-trend-v1";
 export const CHALLENGER_VERSION="shadow-trend-v2-frozen-20261018";
 /** Prospectively specified and frozen before October 19 market session.
