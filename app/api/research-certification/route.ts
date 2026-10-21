@@ -32,7 +32,7 @@ export async function GET(){
     )
     select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
     from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
-   sql`select * from tradeos_execution_validation_snapshots order by created_at desc limit 1`,
+   sql`select * from tradeos_execution_validation_snapshots where details->>'trialActivation'=${CERTIFICATION_ACTIVATION} order by created_at desc limit 1`,
    sql`select * from tradeos_portfolio_reconciliation_validations order by created_at desc limit 1`
   ]);
   const r=(counts as any[])[0];
