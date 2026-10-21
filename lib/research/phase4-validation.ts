@@ -5,21 +5,24 @@ function mean(xs:number[]){return xs.reduce((a,b)=>a+b,0)/xs.length;}
 export function pairedProspectiveValidation(raw:PairedForecastLoss[]){
  const rows=raw.filter(r=>Number.isFinite(Date.parse(r.time))&&Number.isFinite(r.baselineLoss)&&Number.isFinite(r.challengerLoss))
   .sort((a,b)=>Date.parse(a.time)-Date.parse(b.time));
- if(!rows.length)return {pairs:0,sessions:0,meanImprovement:null,bootstrap95:[null,null] as [number|null,number|null],lowerBound:null,mature:false};
+ if(!rows.length)return {pairs:0,sessions:0,meanImprovement:null,bootstrapMethod:"session_clustered",bootstrap95:[null,null] as [number|null,number|null],lowerBound:null,mature:false};
  const improvements=rows.map(r=>r.baselineLoss-r.challengerLoss);
- const sessions=new Set(rows.map(r=>new Date(r.time).toISOString().slice(0,10))).size;
+ const bySession=new Map<string,number[]>();
+ rows.forEach((r,i)=>{const day=new Date(r.time).toISOString().slice(0,10),xs=bySession.get(day)??[];xs.push(improvements[i]);bySession.set(day,xs);});
+ const sessions=[...bySession.values()];
+ if(sessions.length<2)return {pairs:rows.length,sessions:sessions.length,meanImprovement:mean(improvements),bootstrapMethod:"session_clustered",bootstrap95:[null,null] as [number|null,number|null],lowerBound:null,mature:false};
  let state=2166136261>>>0;
  const gains:number[]=[];
- const rounds=2000;
+ const rounds=4000;
  const rand=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
  for(let k=0;k<rounds;k++){
-  let sum=0;
-  for(let i=0;i<improvements.length;i++)sum+=improvements[Math.floor(rand()*improvements.length)];
-  gains.push(sum/improvements.length);
+  const sampled:number[]=[];
+  for(let i=0;i<sessions.length;i++)sampled.push(...sessions[Math.floor(rand()*sessions.length)]);
+  gains.push(mean(sampled));
  }
  gains.sort((a,b)=>a-b);
  const low=gains[Math.floor(.025*(rounds-1))],high=gains[Math.floor(.975*(rounds-1))];
- return {pairs:rows.length,sessions,meanImprovement:mean(improvements),bootstrap95:[low,high] as [number,number],lowerBound:low,mature:rows.length>=200&&sessions>=20&&low>0};
+ return {pairs:rows.length,sessions:sessions.length,meanImprovement:mean(improvements),bootstrapMethod:"session_clustered",bootstrap95:[low,high] as [number,number],lowerBound:low,mature:rows.length>=200&&sessions.length>=20&&low>0};
 }
 
 export type Phase4InfrastructureInput={
