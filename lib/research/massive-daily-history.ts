@@ -7,9 +7,9 @@ export async function massiveDailyHistory(symbol:string,asOf:string):Promise<His
  const end=new Date(cutoff-86400000).toISOString().slice(0,10);
  const start=new Date(cutoff-800*86400000).toISOString().slice(0,10);
  const url=new URL("https://api.massive.com/v2/aggs/ticker/"+encodeURIComponent(symbol)+"/range/1/day/"+start+"/"+end);
- url.searchParams.set("adjusted","false");url.searchParams.set("sort","asc");url.searchParams.set("limit","50000");
+ url.searchParams.set("apiKey",key);url.searchParams.set("adjusted","false");url.searchParams.set("sort","asc");url.searchParams.set("limit","50000");
  try{
-  const res=await fetch(url,{headers:{"Authorization":"Bearer "+key},cache:"no-store",signal:AbortSignal.timeout(12000)});
+  const res=await fetch(url,{cache:"no-store",signal:AbortSignal.timeout(12000)});
   if(!res.ok)return {source:"Massive",bars:[],error:"http_"+res.status};
   const j=await res.json() as {results?:Array<{t:number;o:number;h:number;l:number;c:number;v:number}>;next_url?:string};
   if(j.next_url)return {source:"Massive",bars:[],error:"pagination_incomplete"};
