@@ -52,6 +52,24 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
   diagnostics.push({pair:"SPY/TLT",spyBars:spy.length,tltBars:tlt.length});
  }catch(e){diagnostics.push({pair:"SPY/TLT",error:e instanceof Error?e.message:"unknown"});}
 
+ try{
+  const sectorEtfs=["XLB","XLC","XLE","XLF","XLI","XLK","XLP","XLRE","XLU","XLV","XLY"];
+  const rows=await Promise.all(sectorEtfs.map(async symbol=>({symbol,bars:await get(symbol)})));
+  const latest=rows.flatMap(({symbol,bars})=>{
+   const r=ret(bars,1),bar=bars.at(-1);
+   return r!=null&&Number.isFinite(r)&&bar?[{symbol,value:r,date:bar.t.slice(0,10),observedAt:bar.t}]:[];
+  });
+  const counts=new Map<string,number>();for(const x of latest)counts.set(x.date,(counts.get(x.date)??0)+1);
+  const commonDate=[...counts.entries()].sort((a,b)=>b[1]-a[1]||b[0].localeCompare(a[0]))[0]?.[0];
+  const sameDay=commonDate?latest.filter(x=>x.date===commonDate):[];
+  if(sameDay.length>=8){
+   const breadth=sameDay.filter(x=>x.value>0).length/sameDay.length;
+   const observedAt=sameDay.map(x=>x.observedAt).sort().at(-1)!;
+   candidates.push({factor:"sector_breadth",value:breadth,source:`Alpaca:${feed}:1Day`,subject:"US_SECTOR_ETFS",observedAt,availableAt,domain:"stock",metadata:{method:"fraction_of_sector_etfs_with_positive_completed_session_return",sessionDate:commonDate,constituents:sameDay,unit:"fraction",feed}});
+  }
+  diagnostics.push({factor:"sector_breadth",eligible:latest.length,commonDate,commonCount:sameDay.length});
+ }catch(e){diagnostics.push({factor:"sector_breadth",error:e instanceof Error?e.message:"unknown"});}
+
  for(const symbol of ["NVDA","AMD","PLTR"]){
   try{
    const sector=sectorMap[symbol],industry=industryMap[symbol];
