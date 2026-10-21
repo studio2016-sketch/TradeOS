@@ -5,7 +5,7 @@ import {observedMacroEvidence} from "../../../../lib/research/official-macro-evi
 import {persistEvidence} from "../../../../lib/research/persist-evidence";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
-export const maxDuration=60;
+export const maxDuration=120;
 export async function GET(request:Request){
  if(!authorizeCron(request))return NextResponse.json({error:"unauthorized"},{status:401});
  if(!hasDatabase())return NextResponse.json({error:"database_not_configured"},{status:503});
