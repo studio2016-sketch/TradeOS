@@ -5,7 +5,7 @@ import {addedOfficialMacroFactors} from "./official-macro-evidence";
 const historical=new Set(["sma_5","sma_20","sma_50","sma_200","return_1d","return_5d","intraday_range","dollar_volume","gap_pct","price_acceleration","relative_volume","atr_14","realized_vol_5","realized_vol_20","volatility_regime","vol_of_vol","ema_9","ema_21","macd","macd_signal","adx","breakout_strength","overnight_vol","gap_frequency"]);
 const snapshots=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread_bps","quoted_depth","order_imbalance"]);
 const intradayActivation=new Set(["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]);
-const networkActivation=new Set(["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]);
+const networkActivation=new Set(["gold","treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]);
 const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_rate","high_yield_spread","wti_crude","dxy",...addedOfficialMacroFactors.map(f=>f.factor)]);
 const treasuryIssuance=new Set(["treasury_issuance"]);
 const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth","pe_trailing","price_sales","ev_ebitda","free_cash_flow_yield","return_on_equity","insider_trading"]);
