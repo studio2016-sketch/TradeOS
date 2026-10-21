@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
 
-type Obs={event_time:string;source_id:string;metadata:any;freshness_score:number|null;quality_score:number|null};
+type Obs={id:number;event_time:string;source_id:string;payload_hash:string|null;metadata:any;freshness_score:number|null;quality_score:number|null};
 
 function clamp(n:number,min:number,max:number){return Math.max(min,Math.min(max,n));}
 
@@ -12,7 +12,7 @@ export async function generateShadowForecasts(symbols:string[]){
 
   for(const symbol of symbols.filter(s=>!["VIX"].includes(s))){
     const recent=await sql`
-      select event_time,source_id,metadata,freshness_score,quality_score
+      select id,event_time,source_id,payload_hash,metadata,freshness_score,quality_score
       from source_observations
       where data_class='market_snapshot'
         and symbol=${symbol}
@@ -25,6 +25,8 @@ export async function generateShadowForecasts(symbols:string[]){
 
     const rows=recent.map(r=>({
       t:new Date(r.event_time).getTime(),
+      observationId:Number(r.id),
+      payloadHash:r.payload_hash?String(r.payload_hash):null,
       sourceId:String(r.source_id??"unknown"),
       quoteObservedAt:typeof r.metadata?.quoteTimestamp==="string"?r.metadata.quoteTimestamp:null,
       p:Number(r.metadata?.price??0),
@@ -112,6 +114,14 @@ export async function generateShadowForecasts(symbols:string[]){
         on conflict(forecast_id) do nothing returning id
       `;
       recorded=applied.length===1;
+      if(recorded&&applied[0]?.id&&Number.isFinite(last.observationId)){
+        await sql`insert into tradeos_decision_source_attestations(
+          immutable_decision_id,source_observation_id,match_method,time_distance_ms,source_payload_hash,backfilled
+        ) values(
+          ${applied[0].id},${last.observationId},'direct_at_creation',
+          ${Math.abs(last.t-Date.parse(new Date(last.t).toISOString()))},${last.payloadHash},false
+        ) on conflict(immutable_decision_id) do nothing`;
+      }
     }catch(_){recorded=false;}
     // Prospective challenger only: never backfill historical predictions.
     if(recorded && Date.now()>=Date.parse(TRIAL_ACTIVATION)){
@@ -154,6 +164,13 @@ export async function generateShadowForecasts(symbols:string[]){
                ${challengerChecksum},'research_only',${challenger[0].id})
              on conflict(forecast_id) do nothing returning id
           `;
+          if(insertedChallenger.length&&Number.isFinite(last.observationId)){
+            await sql`insert into tradeos_decision_source_attestations(
+              immutable_decision_id,source_observation_id,match_method,time_distance_ms,source_payload_hash,backfilled
+            ) values(
+              ${insertedChallenger[0].id},${last.observationId},'direct_at_creation',0,${last.payloadHash},false
+            ) on conflict(immutable_decision_id) do nothing`;
+          }
           results.push({symbol,status:insertedChallenger.length?"prospective_challenger_recorded":"prospective_challenger_missing_immutable_record",version:CHALLENGER_VERSION});
         }
       }
