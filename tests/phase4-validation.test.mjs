@@ -31,7 +31,7 @@ test("Phase 4 infrastructure gate is independent from scientific certification",
  const pass=phase4InfrastructureGate({
   immutableRecords:335,immutableLinked:335,sourceAttested:335,strictSourceVerified:335,sourceHashAttested:32,structuralPointInTime:335,
   resolvedOutcomes:288,outcomeChronologyOk:288,baselineFingerprints:1,challengerFingerprints:1,
-  pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0
+  pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0,factorEvidenceRows:2589,factorEvidenceFactors:103,invalidFactorEvidenceRows:0
  });
  assert.equal(pass.passed,true);
  assert.equal(pass.scientificCertificationGranted,false);
@@ -39,7 +39,7 @@ test("Phase 4 infrastructure gate is independent from scientific certification",
  const fail=phase4InfrastructureGate({...{
   immutableRecords:335,immutableLinked:335,sourceAttested:335,strictSourceVerified:335,sourceHashAttested:32,structuralPointInTime:335,
   resolvedOutcomes:288,outcomeChronologyOk:288,baselineFingerprints:1,challengerFingerprints:1,
-  pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0
+  pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0,factorEvidenceRows:2589,factorEvidenceFactors:103,invalidFactorEvidenceRows:0
  },outcomeChronologyOk:287});
  assert.equal(fail.passed,false);
  assert.ok(fail.blockers.includes("outcome_chronology"));
