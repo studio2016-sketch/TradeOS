@@ -13,7 +13,7 @@ export async function GET(request:Request){
   const [coverage,registry,status,collectorRuns,evidenceSummary]=await Promise.all([
    factorCoverageAudit(),
    sql`select factor_key,source_name,calculation_method,expected_cadence,freshness_seconds,implementation_status,permission_status from tradeos_factor_coverage_registry`,
-   sql`select factor_key,populated_count,last_populated_at from tradeos_factor_coverage_status`,
+   sql`select r.factor_key,(coalesce(s.populated_count,0)+coalesce(e.evidence_count,0))::int as populated_count,greatest(s.last_populated_at,e.latest_evidence_at) as last_populated_at from tradeos_factor_coverage_registry r left join tradeos_factor_coverage_status s using(factor_key) left join (select factor_key,count(*)::int as evidence_count,max(available_at) as latest_evidence_at from tradeos_factor_evidence group by factor_key) e using(factor_key)`,
    sql`select collector,status,count(*)::int as runs,max(started_at) as last_run,sum(received)::int as received,sum(saved)::int as saved from tradeos_collector_runs group by collector,status order by last_run desc`,
    sql`select count(*)::int as evidence_rows,count(distinct factor_key)::int as evidenced_factors,max(available_at) as latest_available_at from tradeos_factor_evidence`
   ]);
