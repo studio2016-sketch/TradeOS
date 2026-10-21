@@ -12,9 +12,9 @@ Phase 3 does **not** equate “measured” with “scientifically certified,” 
 
 - Canonical factor catalog: **120**
 - Phase 2 completion baseline: **56/120**
-- Phase 3 measured factors: **101/120 (84.2%)**
-- Net gain versus Phase 2: **+45 factors**
-- Unmeasured factors: **19/120**
+- Phase 3 measured factors: **103/120 (85.8%)**
+- Net gain versus Phase 2: **+47 factors**
+- Unmeasured factors: **17/120**
 - Invalid evidence vintages at completion: **0**
 - Latest required-collector failures: **0**
 - Registry source/calculation/cadence/freshness requirements: **120/120 defined**
@@ -114,11 +114,9 @@ Four option-factor evidence rows were stored. The provider is explicitly labeled
 
 An `iv_rank` implementation is also present, but it remains unavailable until at least 20 distinct historical ATM-IV daily observations with sufficient variation have accumulated.
 
-## Remaining 19 factors
+## Remaining 17 factors
 
-### Authorized portfolio context required — 10
-- beta
-- rolling_correlation
+### Authorized portfolio context required — 8
 - portfolio_exposure
 - single_name_weight
 - sector_concentration
@@ -129,6 +127,14 @@ An `iv_rank` implementation is also present, but it remains unavailable until at
 - risk_budget_remaining
 
 TradeOS will not substitute single-security calculations for these portfolio-risk measurements. They require an explicitly authorized point-in-time portfolio/position source.
+
+### Security-market risk activated after initial completion checkpoint
+
+The final Phase 3 reconciliation additionally activated:
+- beta
+- rolling_correlation
+
+Both are measured as **security-level market-risk factors versus SPY** from synchronized completed daily bars. They do not require portfolio holdings. This raised the final measured count from the 101-factor completion threshold to **103/120**.
 
 ### Additional licensed/history sources required — 5
 - iv_rank — requires sufficient persisted historical ATM-IV daily observations
@@ -162,8 +168,8 @@ The implementation exists, but no qualifying explicit buyback/repurchase announc
 
 ## Phase 3 completion status
 
-**COMPLETE — 101/120 genuine measured factors.**
+**COMPLETE — 103/120 genuine measured factors, exceeding the 101-factor Phase 3 gate.**
 
-This satisfies the approved measured-factor target while retaining fail-closed controls. The remaining 19 factors are explicit source, history, event, relationship, or portfolio-context blockers rather than fabricated coverage.
+This satisfies the approved measured-factor target while retaining fail-closed controls. The remaining 17 factors are explicit source, history, event, relationship, or portfolio-context blockers rather than fabricated coverage.
 
 Predictive usefulness, independent calculation certification, frozen historical-vintage validation, champion/challenger research, and model certification remain later gates. No live order authorization is granted by Phase 3.
