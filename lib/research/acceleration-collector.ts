@@ -5,8 +5,12 @@ import {db} from "../db";
 import {alpacaDailyHistory} from "./market-factor-history";
 import {calculateMarketFactors} from "./market-factor-engine";
 import {secCatalystsWithStatus,secFundamentalsAsOf} from "../market/sec";
+import {persistEvidence,type PersistableEvidence} from "./persist-evidence";
 const START="2026-10-20T00:00:00Z";
 const STUDY_MS=7*86400000;
+const SNAPSHOT_EVIDENCE=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread_bps","quoted_depth","order_imbalance"]);
+const NEWS_EVIDENCE=new Set(["headline_count","headline_novelty","news_source_diversity"]);
+
 function studyKey(now:Date){const index=Math.floor((now.getTime()-Date.parse(START))/STUDY_MS);const start=new Date(Date.parse(START)+index*STUDY_MS).toISOString().slice(0,10);return `${start}-volume-100`; }
 type Active={symbol:string;volume:number;trade_count:number};
 export async function active100(now=new Date()):Promise<{symbols:string[];mode:string;asOf:string}>{
@@ -60,6 +64,7 @@ export async function accelerationTick(now=new Date()){
  }));
  const sql=db();
  let saved=0,skipped=0,historyBars=0,derivedValues=0;
+ const evidenceCandidates:PersistableEvidence[]=[];
  const historyFailures:Record<string,number>={};
  for(const snap of snapshots.snapshots){
   const rank=universe.symbols.indexOf(snap.symbol);
@@ -128,6 +133,36 @@ export async function accelerationTick(now=new Date()){
   const runId=timestamp.slice(0,16)+":"+batch;
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
+  const availableAt=new Date().toISOString();
+  for(const [key,value] of Object.entries(factors)){
+   if(value===null||!Number.isFinite(value))continue;
+   if(SNAPSHOT_EVIDENCE.has(key)){
+    evidenceCandidates.push({factor:key,value,source:snap.source,subject:snap.symbol,observedAt:snap.timestamp,availableAt,domain:"stock",metadata:{runId,provider:snap.source,kind:"snapshot"}});
+    continue;
+   }
+   const derivedItem=derived[key];
+   if(derivedItem?.value!==null&&derivedItem?.value!==undefined&&history?.source){
+    evidenceCandidates.push({factor:key,value,source:history.source,subject:snap.symbol,observedAt:derivedItem.asOf??snap.timestamp,availableAt,domain:"stock",metadata:{runId,kind:"completed_daily_bars",inputCount:derivedItem.inputCount}});
+    continue;
+   }
+   if(NEWS_EVIDENCE.has(key)&&related.length>0){
+    evidenceCandidates.push({factor:key,value,source:"news:"+[...sources].sort().join(","),subject:snap.symbol,observedAt:snap.timestamp,availableAt,domain:"news",metadata:{runId,articleCount:related.length,articleIds:related.map(n=>n.id)}});
+    continue;
+   }
+   if(key==="sec_filing_catalyst"&&secStatus?.status==="ok"&&secError===null){
+    evidenceCandidates.push({factor:key,value,source:"SEC EDGAR",subject:snap.symbol,observedAt:snap.timestamp,availableAt,domain:"news",metadata:{runId,lookbackDays:30}});
+    continue;
+   }
+   if(key==="market_cap"&&fundamentals?.status==="ok"&&fundamentals.provenance.shares){
+    evidenceCandidates.push({factor:key,value,source:snap.source+" + SEC EDGAR XBRL",subject:snap.symbol,observedAt:snap.timestamp,availableAt,domain:"stock",metadata:{runId,shares:fundamentals.provenance.shares}});
+    continue;
+   }
+   if(key==="net_margin"&&fundamentals?.status==="ok"){
+    const filings=[fundamentals.provenance.revenue?.filed,fundamentals.provenance.net_income?.filed].filter((x):x is string=>Boolean(x)).sort();
+    if(filings.length)evidenceCandidates.push({factor:key,value,source:"SEC EDGAR XBRL",subject:snap.symbol,observedAt:filings.at(-1)!+"T00:00:00Z",availableAt,domain:"stock",metadata:{runId,revenue:fundamentals.provenance.revenue,netIncome:fundamentals.provenance.net_income}});
+   }
+  }
  }
- return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,fundamentalsQueried:fundamentalBySymbol.size,fundamentalsStatuses:[...fundamentalBySymbol.values()].map(f=>({symbol:f.symbol,status:f.status,error:f.error??null,fields:Object.keys(f.values)})),secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
+ const evidence=await persistEvidence(evidenceCandidates);
+ return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,evidenceReceived:evidence.received,evidenceAccepted:evidence.accepted,evidenceSaved:evidence.saved,evidenceRejected:evidence.rejected.length,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,fundamentalsQueried:fundamentalBySymbol.size,fundamentalsStatuses:[...fundamentalBySymbol.values()].map(f=>({symbol:f.symbol,status:f.status,error:f.error??null,fields:Object.keys(f.values)})),secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
 }
