@@ -70,13 +70,14 @@ export async function GET(req:Request){
       const freshness=Math.max(0,Math.min(1,1-ageMs/(20*60*1000)));
       const raw=JSON.stringify(s);
       const payloadHash=createHash("sha256").update(raw).digest("hex");
-      await sql`
+      const stored=await sql`
         insert into source_observations
           (source_id,data_class,symbol,event_time,latency_ms,freshness_score,quality_score,payload_hash,metadata)
         values
           (${s.source},'market_snapshot',${s.symbol},${s.timestamp},${ageMs},${freshness},${market.provider==='Massive'?0.95:0.85},${payloadHash},${raw}::jsonb)
-        on conflict do nothing
+        on conflict do nothing returning id
       `;
+      results.marketSaved=(results.marketSaved??0)+stored.length;
     }
     results.market=market.snapshots.length;
     results.marketProvider=market.provider;
@@ -228,7 +229,7 @@ export async function GET(req:Request){
   await recordCollectorReceipt({
     collector:"ingest",status:"finished",
     received:Number(results.market??0)+Number(results.news??0)+Number(results.sec??0),
-    saved:Number(results.market??0)+Number(results.news??0)+Number(results.sec??0),
+    saved:Number(results.marketSaved??0),
     details:{finishedAt,errors:results.errors,marketProvider:results.marketProvider,alignments:results.alignments}
   });
   return NextResponse.json({...results,finishedAt});
