@@ -39,7 +39,7 @@
     },
     {
       "path": "/api/cron/sec-fundamental-evidence",
-      "schedule": "38 * * * *"
+      "schedule": "41 * * * *"
     },
     {
       "path": "/api/cron/market-entitlements",
@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/news-evidence",
-      "schedule": "37 * * * *"
+      "schedule": "40 * * * *"
     },
     {
       "path": "/api/cron/intraday-activation",
