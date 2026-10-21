@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {parseReportedSurprises,parseEarningsDate,guidanceDirection} from "../lib/research/marketwide-event-evidence.ts";
+import {parseReportedSurprises,parseEarningsDate,guidanceDirection,customerEventDirection} from "../lib/research/marketwide-event-evidence.ts";
 
 test("market-wide event parser extracts explicit reported EPS and revenue surprises",()=>{
  const out=parseReportedSurprises("Q3 EPS $1.43 Misses $1.65 Estimate, Sales $79.704M Miss $80.200M Estimate");
@@ -18,4 +18,10 @@ test("guidance parser distinguishes raised lowered and explicitly maintained gui
  assert.equal(guidanceDirection("Company cuts revenue outlook"),-1);
  assert.equal(guidanceDirection("Full-year 2026 guidance maintained"),0);
  assert.equal(guidanceDirection("Management discussed demand"),null);
+});
+
+test("customer event parser requires explicit win or loss language",()=>{
+ assert.equal(customerEventDirection("The company disclosed the loss of a major customer (Chime)."),-1);
+ assert.equal(customerEventDirection("The company secured a new customer contract."),1);
+ assert.equal(customerEventDirection("Management discussed customer acquisition."),null);
 });
