@@ -76,6 +76,10 @@
     {
       "path": "/api/cron/source-time-audit",
       "schedule": "49 14-21 * * 1-5"
+    },
+    {
+      "path": "/api/cron/historical-source-comparison",
+      "schedule": "20 22 * * 1-5"
     }
   ]
 }
