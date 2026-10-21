@@ -6,7 +6,7 @@ const baseSeries=Object.keys(mapping).map(series=>({series,lookbackDays:90}));
 type Derivation="latest"|"year_over_year_pct";
 type MacroDefinition={factor:string;series:string;label:string;unit:string;derivation:Derivation;lookbackDays:number};
 
-/** Fifteen additional catalog factors backed by public, current-vintage FRED observations. */
+/** Additional catalog factors backed by public, current-vintage FRED observations. */
 export const addedOfficialMacroFactors:MacroDefinition[]=[
  {factor:"real_yield",series:"DFII10",label:"10-Year Treasury Inflation-Indexed Security",unit:"percent",derivation:"latest",lookbackDays:90},
  {factor:"investment_grade_spread",series:"BAMLC0A0CM",label:"US Corporate Option-Adjusted Spread",unit:"percent",derivation:"latest",lookbackDays:90},
@@ -22,7 +22,12 @@ export const addedOfficialMacroFactors:MacroDefinition[]=[
  {factor:"nonfarm_payrolls",series:"PAYEMS",label:"Total Nonfarm Payroll Employment",unit:"thousands of persons",derivation:"latest",lookbackDays:180},
  {factor:"consumer_confidence",series:"UMCSENT",label:"University of Michigan Consumer Sentiment",unit:"index",derivation:"latest",lookbackDays:180},
  {factor:"capacity_utilization",series:"TCU",label:"Total Industry Capacity Utilization",unit:"percent",derivation:"latest",lookbackDays:180},
- {factor:"natural_gas",series:"DHHNGSP",label:"Henry Hub Natural Gas Spot Price",unit:"USD per MMBtu",derivation:"latest",lookbackDays:90}
+ {factor:"natural_gas",series:"DHHNGSP",label:"Henry Hub Natural Gas Spot Price",unit:"USD per MMBtu",derivation:"latest",lookbackDays:90},
+ {factor:"eurusd",series:"DEXUSEU",label:"US Dollars to Euro Exchange Rate",unit:"USD per EUR",derivation:"latest",lookbackDays:90},
+ {factor:"usdjpy",series:"DEXJPUS",label:"Japanese Yen to US Dollar Exchange Rate",unit:"JPY per USD",derivation:"latest",lookbackDays:90},
+ {factor:"bitcoin",series:"CBBTCUSD",label:"Coinbase Bitcoin",unit:"USD per BTC",derivation:"latest",lookbackDays:90},
+ {factor:"copper",series:"PCOPPUSDM",label:"Global Price of Copper",unit:"USD per metric ton",derivation:"latest",lookbackDays:500},
+ {factor:"pmi_manufacturing",series:"NAPM",label:"ISM Manufacturing PMI",unit:"index",derivation:"latest",lookbackDays:500}
 ];
 
 export function deriveOfficialMacroFactor(definition:MacroDefinition,result:FredHistoryResult){
