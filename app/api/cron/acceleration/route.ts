@@ -10,10 +10,20 @@ export async function GET(request:Request){
  if(!hasDatabase())return NextResponse.json({error:"database_not_configured"},{status:503});
  try{
   const result=await accelerationTick();
-  await recordCollectorReceipt({collector:"acceleration",status:"finished",received:result.snapshotCount??0,saved:result.saved??0,details:{timestamp:result.timestamp,selected:result.selected,historyBars:result.historyBars,historyFailures:result.historyFailures,newsErrors:result.newsErrors}});
+  const persisted=(result.saved??0)+(result.evidenceSaved??0);
+  await recordCollectorReceipt({
+   collector:"acceleration",status:"finished",received:result.snapshotCount??0,saved:persisted,
+   details:{
+    timestamp:result.timestamp,selected:result.selected,observationRowsSaved:result.saved,
+    evidenceReceived:result.evidenceReceived,evidenceAccepted:result.evidenceAccepted,
+    evidenceSaved:result.evidenceSaved,evidenceRejected:result.evidenceRejected,
+    historyBars:result.historyBars,historyFailures:result.historyFailures,newsErrors:result.newsErrors
+   }
+  });
   return NextResponse.json(result,{headers:{"Cache-Control":"no-store"}});
  }catch(error){
-  try{await recordCollectorReceipt({collector:"acceleration",status:"failed",received:0,saved:0,details:{error:failureDetail(error)}});}catch(receiptError){console.error("acceleration_receipt_write_failed",failureDetail(receiptError));}
-  return NextResponse.json({status:"collection_failed",reason:error instanceof Error?error.message:"Unknown",executionAllowed:false},{status:503,headers:{"Cache-Control":"no-store"}});
+  try{await recordCollectorReceipt({collector:"acceleration",status:"failed",received:0,saved:0,details:{error:failureDetail(error)}});}
+  catch(receiptError){console.error("acceleration_receipt_write_failed",failureDetail(receiptError));}
+  return NextResponse.json({status:"collection_failed",reason:failureDetail(error),executionAllowed:false},{status:503,headers:{"Cache-Control":"no-store"}});
  }
 }
