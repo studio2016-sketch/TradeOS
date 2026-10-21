@@ -63,7 +63,7 @@
     },
     {
       "path": "/api/cron/phase4-validation",
-      "schedule": "29 * * * *"
+      "schedule": "44 * * * *"
     }
   ]
 }
