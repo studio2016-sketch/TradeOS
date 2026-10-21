@@ -13,6 +13,8 @@ export interface OptionSurface{
   dealerGammaProxy:null;
   note:string;
   generatedAt:string;
+  observedAt:string|null;
+  freshQuoteCount:number;
 }
 
 function iso(d:Date){return d.toISOString().slice(0,10)}
@@ -48,7 +50,7 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
   if(!entries.length)return{
     provider:"Alpaca",feed,underlying,contractCount:0,quoteCoverage:0,averageSpreadPct:null,
     atmIv:null,putCallIvSkew:null,expectedMovePct30d:null,liquidityScore:null,volatilitySuitability:null,
-    dealerGammaProxy:null,note:"No option snapshots returned for requested horizon.",generatedAt:new Date().toISOString()
+    dealerGammaProxy:null,note:"No option snapshots returned for requested horizon.",generatedAt:new Date().toISOString(),observedAt:null,freshQuoteCount:0
   };
 
   const rows=entries.map(([symbol,s]:any)=>{
@@ -59,21 +61,27 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
     const spreadPct=mid>0?(ask-bid)/mid*100:null;
     const iv=Number(s?.impliedVolatility??s?.implied_volatility??NaN);
     const delta=Number(s?.greeks?.delta??NaN);
-    return{symbol,meta,bid,ask,spreadPct,iv:Number.isFinite(iv)?iv:null,delta:Number.isFinite(delta)?delta:null};
+    const quoteTimestamp=String(q.t??q.timestamp??"");
+    const quoteTime=Date.parse(quoteTimestamp);
+    const age=Date.now()-quoteTime;
+    const freshQuote=Number.isFinite(quoteTime)&&age>=0&&age<=15*60*1000;
+    return{symbol,meta,bid,ask,spreadPct,iv:Number.isFinite(iv)?iv:null,delta:Number.isFinite(delta)?delta:null,quoteTimestamp,quoteTime,freshQuote};
   });
 
-  const quoted=rows.filter(r=>r.bid>0&&r.ask>0&&r.spreadPct!=null);
+  const quoted=rows.filter(r=>r.freshQuote&&r.bid>0&&r.ask>0&&r.spreadPct!=null);
   const quoteCoverage=rows.length?quoted.length/rows.length:0;
   const avgSpread=quoted.length?quoted.reduce((s,r)=>s+(r.spreadPct as number),0)/quoted.length:null;
-  const atm=rows.filter(r=>{
+  const eligibleRows=rows.filter(r=>r.freshQuote);
+  const observedAt=eligibleRows.length?new Date(Math.max(...eligibleRows.map(r=>r.quoteTime))).toISOString():null;
+  const atm=eligibleRows.filter(r=>{
     if(r.iv==null)return false;
     if(r.delta!=null)return Math.abs(Math.abs(r.delta)-.5)<=.15;
     if(spot&&r.meta)return Math.abs(r.meta.strike-spot)/spot<=.05;
     return false;
   });
   const atmIv=median(atm.map(r=>r.iv as number));
-  const puts=rows.filter(r=>r.iv!=null&&r.meta?.type==="put"&&(r.delta==null||Math.abs(r.delta)>=.15&&Math.abs(r.delta)<=.4));
-  const calls=rows.filter(r=>r.iv!=null&&r.meta?.type==="call"&&(r.delta==null||Math.abs(r.delta)>=.15&&Math.abs(r.delta)<=.4));
+  const puts=eligibleRows.filter(r=>r.iv!=null&&r.meta?.type==="put"&&(r.delta==null||Math.abs(r.delta)>=.15&&Math.abs(r.delta)<=.4));
+  const calls=eligibleRows.filter(r=>r.iv!=null&&r.meta?.type==="call"&&(r.delta==null||Math.abs(r.delta)>=.15&&Math.abs(r.delta)<=.4));
   const putIv=median(puts.map(r=>r.iv as number)),callIv=median(calls.map(r=>r.iv as number));
   const skew=putIv!=null&&callIv!=null?putIv-callIv:null;
   const expectedMovePct30d=atmIv==null?null:atmIv*Math.sqrt(30/365)*100;
@@ -96,6 +104,6 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
     volatilitySuitability:volatilitySuitability==null?null:+volatilitySuitability.toFixed(1),
     dealerGammaProxy:null,
     note:feed==="opra"?"Real-time OPRA option surface.":"Indicative option feed; use for context, not execution-quality confirmation.",
-    generatedAt:new Date().toISOString()
+    generatedAt:new Date().toISOString(),observedAt,freshQuoteCount:eligibleRows.length
   };
 }
