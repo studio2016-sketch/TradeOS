@@ -10,26 +10,26 @@ export async function GET(){
  try{
   const sql=db();
   const [counts,pairs]=await Promise.all([
-   sql\`select
-     (select count(*)::int from forecast_ledger where created_at>=\${TRIAL_ACTIVATION}::timestamptz and model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION})) as total,
-     (select count(*)::int from immutable_decision_records where recorded_at>=\${TRIAL_ACTIVATION}::timestamptz and model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION})) as immutable_records,
-     (select count(*)::int from immutable_decision_records where recorded_at>=\${TRIAL_ACTIVATION}::timestamptz and model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION}) and observed_at<=recorded_at+interval '1 minute') as structural_point_in_time,
-     (select count(*)::int from immutable_decision_records where recorded_at>=\${TRIAL_ACTIVATION}::timestamptz and model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION}) and source_type='exchange_time_verified') as source_time_verified,
-     (select count(*)::int from immutable_decision_records where recorded_at>=\${TRIAL_ACTIVATION}::timestamptz and model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION}) and source_type='primary_publication_time_verified') as publication_time_verified,
-     (select count(*)::int from forecast_outcomes o join forecast_ledger f on f.id=o.forecast_id where f.created_at>=\${TRIAL_ACTIVATION}::timestamptz and f.model_version in (\${BASELINE_VERSION},\${CHALLENGER_VERSION}) and o.resolved_at<f.created_at) as invalid_outcome_chronology\`,
-   sql\`with b as (
+   sql`select
+     (select count(*)::int from forecast_ledger where created_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as total,
+     (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as immutable_records,
+     (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and observed_at<=recorded_at+interval '1 minute') as structural_point_in_time,
+     (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and source_type='exchange_time_verified') as source_time_verified,
+     (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and source_type='primary_publication_time_verified') as publication_time_verified,
+     (select count(*)::int from forecast_outcomes o join forecast_ledger f on f.id=o.forecast_id where f.created_at>=${TRIAL_ACTIVATION}::timestamptz and f.model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and o.resolved_at<f.created_at) as invalid_outcome_chronology`,
+   sql`with b as (
       select f.symbol,f.horizon,date_trunc('minute',f.created_at) as bucket,f.created_at,
         power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2) as loss
       from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
-      where f.model_version=\${BASELINE_VERSION} and f.created_at>=\${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
+      where f.model_version=${BASELINE_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
     ), c as (
       select f.symbol,f.horizon,date_trunc('minute',f.created_at) as bucket,
         power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2) as loss
       from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
-      where f.model_version=\${CHALLENGER_VERSION} and f.created_at>=\${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
+      where f.model_version=${CHALLENGER_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
     )
     select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
-    from b join c using(symbol,horizon,bucket) order by b.created_at asc\`
+    from b join c using(symbol,horizon,bucket) order by b.created_at asc`
   ]);
   const r=(counts as any[])[0];
   const paired=pairedProspectiveValidation((pairs as any[]).map(x=>({time:new Date(x.time).toISOString(),baselineLoss:Number(x.baseline_loss),challengerLoss:Number(x.challenger_loss)})));
