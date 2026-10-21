@@ -13,10 +13,10 @@ test("Missing source time remains explicitly undated",()=>{
  assert.equal(result.metadata.undatedEdges,2);
 });
 test("Research authority fails closed despite favorable numerical scores",()=>{
- const result=certifyResearch({total:300,immutableRecords:300,sourceTimeVerified:300,publicationTimeVerified:300,outOfSamplePaired:250,independentSessionDates:30,predictiveSkillLowerBound:.1,costAdjustedReturnLowerBound:.05,portfolioReconciled:true,executionSlippageValidated:true});
+ const result=certifyResearch({total:300,immutableRecords:300,sourceTimeVerified:300,publicationTimeApplicable:true,publicationTimeVerified:300,outOfSamplePaired:250,independentSessionDates:30,predictiveSkillLowerBound:.1,costAdjustedReturnLowerBound:.05,portfolioReconciled:true,executionSlippageValidated:true});
  assert.equal(result.modelPromotionAllowed,false);assert.equal(result.certified,false);
 });
 test("Missing point-in-time evidence prevents certification",()=>{
- const result=certifyResearch({total:300,immutableRecords:0,sourceTimeVerified:0,publicationTimeVerified:0,outOfSamplePaired:300,independentSessionDates:40,predictiveSkillLowerBound:.5,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false});
+ const result=certifyResearch({total:300,immutableRecords:0,sourceTimeVerified:0,publicationTimeApplicable:false,publicationTimeVerified:0,outOfSamplePaired:300,independentSessionDates:40,predictiveSkillLowerBound:.5,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false});
  assert.ok(result.failedChecks.includes("immutable_point_in_time"));assert.equal(result.liveExecutionAllowed,false);
 });
