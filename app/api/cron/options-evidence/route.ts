@@ -1,4 +1,5 @@
 import {NextResponse} from "next/server";
+import {validateEvidence} from "../../../../lib/research/evidence-gate";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
@@ -20,6 +21,7 @@ export async function GET(req:Request){
    for(const [factor,value] of values){
     if(value===null||!Number.isFinite(value))continue;
     const observedAt=surface.generatedAt,availableAt=new Date().toISOString();
+    const gate=validateEvidence({factor,value,source:"Alpaca options:"+surface.feed,subject:symbol,observedAt,availableAt,domain:"option"});if(!gate.accepted)continue;
     const rows=await sql`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata)
     values(${factor},'option',${symbol},${value},${"Alpaca options:"+surface.feed},${observedAt},${availableAt},${JSON.stringify({contractCount:surface.contractCount,quoteCoverage:surface.quoteCoverage,backtestEligible:false})}::jsonb)
     on conflict do nothing returning id`;
