@@ -8,6 +8,9 @@ permissions:
 jobs:
   storage-validation:
     runs-on: ubuntu-latest
+    env:
+      NEON_AUTH_BASE_URL: https://ci.invalid
+      NEON_AUTH_COOKIE_SECRET: ci-build-only-cookie-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
