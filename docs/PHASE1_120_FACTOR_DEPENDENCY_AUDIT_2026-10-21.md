@@ -145,3 +145,6 @@
 
 ## Completion standard
 Every factor is inventoried above. Phase 1 **diagnostic inventory** is complete when this report, the protected audit endpoint, and passing CI are verified; Phase 2 must address missing collector receipts and evidence. **120/120 operational remains a separate milestone.**
+
+## Production cron authorization repair
+On 2026-10-21 the production `CRON_SECRET` was found present but empty, which caused every protected Vercel Cron route to fail closed before collector execution. A new non-empty sensitive production secret was installed in Vercel. This commit intentionally triggers a fresh production deployment so the runtime and Vercel Cron scheduler use the repaired credential. Verification remains evidence-based: a successful deployment plus persisted collector receipts is required before declaring cron execution healthy.
