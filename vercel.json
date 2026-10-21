@@ -43,7 +43,7 @@
     },
     {
       "path": "/api/cron/market-entitlements",
-      "schedule": "18 * * * *"
+      "schedule": "40 14-20 * * 1-5"
     },
     {
       "path": "/api/cron/factor-coverage",
