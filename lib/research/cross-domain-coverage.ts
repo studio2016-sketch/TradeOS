@@ -6,7 +6,7 @@ export function assessCrossDomainCoverage(records:FactorObservation[],asOf:strin
  for(const r of records){
   const time=Date.parse(r.observedAt);
   let reason="";
-  if(!FACTOR_KEYS.includes(r.key))reason="unknown_factor";
+  if(!(FACTOR_KEYS as readonly string[]).includes(r.key))reason="unknown_factor";
   else if(!Number.isFinite(r.value))reason="invalid_value";
   else if(!r.source.trim())reason="missing_source";
   else if(!Number.isFinite(time)||time>clock)reason="unavailable_at_decision_time";
