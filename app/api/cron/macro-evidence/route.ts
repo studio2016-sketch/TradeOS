@@ -17,6 +17,7 @@ export async function GET(request:Request){
    const rows=await sql`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata) values(${item.factor},${item.domain},${item.subject},${item.value},${item.source},${item.observedAt},${item.availableAt},${JSON.stringify({retrievedAt:data.retrievedAt,backtestEligible:false})}::jsonb) on conflict do nothing returning id`;
    saved+=rows.length;
   }
+  await sql`insert into tradeos_collector_runs(collector,status,received,saved,details) values('fred_macro','finished',${data.factors.length},${saved},${JSON.stringify({excluded:data.excluded})}::jsonb)`;
   return NextResponse.json({status:"stored_research_evidence",received:data.factors.length,saved,retrievedAt:data.retrievedAt,excluded:data.excluded,ordersAllowed:false});
  }catch(e){return NextResponse.json({status:"official_macro_ingestion_failed",error:e instanceof Error?e.message:"Unknown"},{status:503});}
 }
