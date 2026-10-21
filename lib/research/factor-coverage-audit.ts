@@ -12,6 +12,7 @@ export async function factorCoverageAudit(){
  const populated=rows.reduce((n,r)=>n+Number(r.populated_count),0);
  const registered=new Set(rows.map(r=>String(r.factor_key)));
  const evidence=new Map(evidenceRows.map(r=>[String(r.factor_key),{count:Number(r.evidence_count),latest:r.latest_evidence_at}]));
+ const invalidLegacyAcceleration=new Set(["var_95","expected_shortfall","max_drawdown"]);
  const factors=FACTOR_KEYS.map(key=>{
   const r=rows.find(row=>String(row.factor_key)===key);
   const e=evidence.get(key);
@@ -20,11 +21,13 @@ export async function factorCoverageAudit(){
    key,
    observations:Number(r?.observation_count??0),
    populated:accelerationPopulated,
+   eligibleAccelerationPopulated,
+   legacyAccelerationIgnored:invalidLegacyAcceleration.has(key)&&accelerationPopulated>0,
    coveragePct:r?.populated_pct===null||r?.populated_pct===undefined?null:Number(r.populated_pct),
    lastPopulatedAt:r?.last_populated_at??null,
    evidenceCount:e?.count??0,
    latestEvidenceAt:e?.latest??null,
-   hasMeasuredEvidence:accelerationPopulated>0||(e?.count??0)>0,
+   hasMeasuredEvidence:eligibleAccelerationPopulated>0||(e?.count??0)>0,
    implementationStatus:r?.implementation_status??null,
    permissionStatus:r?.permission_status??null
   };
