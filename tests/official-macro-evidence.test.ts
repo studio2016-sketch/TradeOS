@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {addedOfficialMacroFactors,deriveOfficialMacroFactor} from "../lib/research/official-macro-evidence.ts";
 import {FACTOR_KEYS} from "../lib/research/acceleration-factors.ts";
 
-test("registers fifteen additional official macro factors in the canonical catalog",()=>{
- assert.equal(addedOfficialMacroFactors.length,15);
- assert.equal(new Set(addedOfficialMacroFactors.map(x=>x.factor)).size,15);
+test("registers twenty additional official macro and cross-asset factors in the canonical catalog",()=>{
+ assert.equal(addedOfficialMacroFactors.length,20);
+ assert.equal(new Set(addedOfficialMacroFactors.map(x=>x.factor)).size,20);
  for(const factor of addedOfficialMacroFactors)assert.ok(FACTOR_KEYS.some(key=>key===factor.factor),factor.factor);
 });
 
