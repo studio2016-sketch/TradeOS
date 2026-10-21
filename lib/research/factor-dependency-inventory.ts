@@ -6,6 +6,7 @@ const historical=new Set(["sma_5","sma_20","sma_50","sma_200","return_1d","retur
 const snapshots=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread_bps","quoted_depth","order_imbalance"]);
 const intradayActivation=new Set(["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]);
 const networkActivation=new Set(["gold","treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]);
+const marketRiskActivation=new Set(["beta","rolling_correlation"]);
 const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_rate","high_yield_spread","wti_crude","dxy",...addedOfficialMacroFactors.map(f=>f.factor)]);
 const treasuryIssuance=new Set(["treasury_issuance"]);
 const inputCostShock=new Set(["input_cost_shock"]);
@@ -27,7 +28,6 @@ export function factorDependencyInventory():FactorDependency[]{
   else if(intradayActivation.has(key)){sourceClass="intraday_market_evidence";sourceCandidate="Alpaca timestamped intraday bars / quote snapshots + SEC shares for turnover";implementationPath="lib/research/intraday-activation-evidence.ts";collectorPath="app/api/cron/intraday-activation/route.ts";}
   else if(networkActivation.has(key)){sourceClass="cross_asset_or_relative_market_history";sourceCandidate="Alpaca completed daily bars on explicit ETF/index proxies";implementationPath="lib/research/network-crossasset-evidence.ts";collectorPath="app/api/cron/network-crossasset/route.ts";}
   else if(marketRiskActivation.has(key)){sourceClass="security_market_risk_history";sourceCandidate="Synchronized security and SPY completed daily bars";implementationPath="lib/research/network-crossasset-evidence.ts";collectorPath="app/api/cron/network-crossasset/route.ts";}
-  else if(false){sourceClass="cross_asset_or_relative_market_history";sourceCandidate="Alpaca completed daily bars on explicit ETF/index proxies";implementationPath="lib/research/network-crossasset-evidence.ts";collectorPath="app/api/cron/network-crossasset/route.ts";}
   else if(snapshots.has(key)){sourceClass="market_snapshot";sourceCandidate="Alpaca IEX / snapshot provider";implementationPath="lib/research/acceleration-collector.ts";collectorPath="app/api/cron/acceleration/route.ts";}
   else if(inputCostShock.has(key)){sourceClass="official_input_cost_series";sourceCandidate="FRED PPIACO / U.S. Bureau of Labor Statistics";implementationPath="lib/research/input-cost-evidence.ts";collectorPath="app/api/cron/macro-evidence/route.ts";}
   else if(treasuryIssuance.has(key)){sourceClass="official_treasury_auctions";sourceCandidate="U.S. Treasury Fiscal Data auctions_query";implementationPath="lib/research/treasury-issuance-evidence.ts";collectorPath="app/api/cron/macro-evidence/route.ts";}
