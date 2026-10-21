@@ -6,7 +6,7 @@ export async function GET(req:Request){
  if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return NextResponse.json({status:"unconfigured",assets:[],message:"Asset directory unavailable."},{headers:{"Cache-Control":"no-store"}});
  try{
   const endpoint=process.env.ALPACA_TRADING_ENV==="live"?"https://api.alpaca.markets":"https://paper-api.alpaca.markets";
-  const r=await fetch(endpoint+"/v2/assets?status=active&asset_class=us_equity",{headers:{"APCA-API-KEY-ID":process.env.ALPACA_API_KEY,"APCA-API-SECRET-KEY":process.env.ALPACA_API_SECRET},next:{revalidate:3600},signal:AbortSignal.timeout(12000)});
+  const r=await fetch(endpoint+"/v2/assets?status=active&asset_class=us_equity",{headers:{"APCA-API-KEY-ID":process.env.ALPACA_API_KEY,"APCA-API-SECRET-KEY":process.env.ALPACA_API_SECRET},cache:"no-store",signal:AbortSignal.timeout(12000)});
   if(!r.ok)return NextResponse.json({status:"unavailable",assets:[],message:"Provider asset directory HTTP "+r.status},{status:502});
   const raw=await r.json() as any[];
   const sourceCount=Array.isArray(raw)?raw.length:0;
