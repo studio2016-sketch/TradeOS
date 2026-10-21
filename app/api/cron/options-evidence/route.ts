@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
-import {persistEvidence} from "../../../../lib/research/persist-evidence";
+import {persistEvidence,type PersistableEvidence} from "../../../../lib/research/persist-evidence";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 import {computeIvRank} from "../../../../lib/research/iv-rank";
 export const dynamic="force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(req:Request){
     const observedAt=surface.observedAt;
     if(!observedAt||surface.freshQuoteCount===0){results.push({symbol,status:"no_fresh_quotes",contracts:surface.contractCount});continue;}
     const availableAt=new Date().toISOString();
-    const candidates=[
+    const candidates:PersistableEvidence[]=[
      ["implied_vol_atm",surface.atmIv],
      ["iv_skew",surface.putCallIvSkew]
     ].flatMap(([factor,value])=>typeof value==="number"&&Number.isFinite(value)?[{
