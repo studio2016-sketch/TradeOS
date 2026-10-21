@@ -28,7 +28,7 @@ export function pairedProspectiveValidation(raw:PairedForecastLoss[]){
 export type Phase4InfrastructureInput={
  immutableRecords:number;immutableLinked:number;sourceAttested:number;strictSourceVerified:number;sourceHashAttested:number;structuralPointInTime:number;
  resolvedOutcomes:number;outcomeChronologyOk:number;baselineFingerprints:number;challengerFingerprints:number;
- pairedSamples:number;sessionDates:number;invalidEvidenceVintages:number;
+ pairedSamples:number;sessionDates:number;invalidEvidenceVintages:number;factorEvidenceRows:number;factorEvidenceFactors:number;invalidFactorEvidenceRows:number;
 };
 export function phase4InfrastructureGate(i:Phase4InfrastructureInput){
  const checks=[
@@ -40,7 +40,8 @@ export function phase4InfrastructureGate(i:Phase4InfrastructureInput){
   {id:"outcome_chronology",pass:i.resolvedOutcomes>0&&i.outcomeChronologyOk===i.resolvedOutcomes,detail:"Every resolved outcome timestamp is after the forecast"},
   {id:"frozen_model_fingerprints",pass:i.baselineFingerprints===1&&i.challengerFingerprints===1,detail:"Exactly one frozen fingerprint per prospective model"},
   {id:"paired_trial_running",pass:i.pairedSamples>=100&&i.sessionDates>=3,detail:"At least 100 matched prospective pairs across at least 3 sessions"},
-  {id:"evidence_vintage_integrity",pass:i.invalidEvidenceVintages===0,detail:"No factor evidence is available before it is observed"}
+  {id:"evidence_vintage_integrity",pass:i.invalidEvidenceVintages===0,detail:"No factor evidence is available before it is observed"},
+  {id:"factor_evidence_integrity",pass:i.factorEvidenceRows>0&&i.factorEvidenceFactors>=101&&i.invalidFactorEvidenceRows===0,detail:"At least 101 measured factors have structurally valid persisted evidence with attributed sources and valid chronology"}
  ];
  const blockers=checks.filter(x=>!x.pass).map(x=>x.id);
  return {phase:"4",scope:"validation_infrastructure",passed:blockers.length===0,checks,blockers,sourceHashAttested:i.sourceHashAttested,sourceHashCoverage:i.immutableRecords?i.sourceHashAttested/i.immutableRecords:0,
