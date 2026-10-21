@@ -4,30 +4,29 @@
 
 ## Phase 3 objective
 
-Activate the highest-confidence missing research factors using real, timestamped source evidence; persist that evidence through the shared evidence gate; verify the collectors in production; and increase genuine measured-factor coverage without weakening point-in-time, freshness, applicability, or provenance rules.
+Activate the highest-confidence missing research factors using real, timestamped source evidence; persist that evidence through the shared evidence gate; verify the collectors in production; and meet the approved **101/120 measured-factor target** without weakening point-in-time, freshness, applicability, provenance, or portfolio-context rules.
 
 Phase 3 does **not** equate “measured” with “scientifically certified,” and it does not authorize trading.
 
 ## Final verified production state
 
 - Canonical factor catalog: **120**
-- Measured factors: **91/120 (75.8%)**
-- Unmeasured factors: **29/120**
-- Dedicated factor-evidence rows: **753**
-- Distinct factors represented in dedicated evidence: **87**
-- Evidence rows with `available_at < observed_at`: **0**
-- Registry entries with explicit source requirement: **120/120**
-- Registry entries with explicit calculation requirement: **120/120**
-- Registry entries with cadence and freshness policy: **120/120**
-- Registry factors independently marked `implementation_status=verified`: **0**
-- Registry factors independently marked `permission_status=verified`: **0**
+- Phase 2 completion baseline: **56/120**
+- Phase 3 measured factors: **101/120 (84.2%)**
+- Net gain versus Phase 2: **+45 factors**
+- Unmeasured factors: **19/120**
+- Invalid evidence vintages at completion: **0**
+- Latest required-collector failures: **0**
+- Registry source/calculation/cadence/freshness requirements: **120/120 defined**
+- Predictive/scientific certification automatically granted by measurement: **0**
 - Trading authorization: **false**
 
-The Phase 2 completion milestone was 56 genuine measured factors. Scheduled Phase 2 collectors continued to populate the database during the transition and the live Phase 3 baseline at 12:20 UTC was 59. Phase 3 closes at 91: **+32 factors during the Phase 3 execution window and +35 versus the documented Phase 2 milestone.**
+The measured count excludes legacy single-security values labeled as portfolio VaR, expected shortfall, and max drawdown. It also excludes ambiguous multi-symbol issuer-event evidence from eligible issuer-event coverage even when those raw rows remain retained for audit history.
 
-## Factors newly activated during the Phase 3 execution window
+## Production activation results
 
 ### Intraday market and liquidity
+Activated:
 - return_1m
 - return_5m
 - return_15m
@@ -36,29 +35,59 @@ The Phase 2 completion milestone was 56 genuine measured factors. Scheduled Phas
 - turnover
 - slippage_estimate
 
-These are derived from timestamped Alpaca intraday bars/quotes, with SEC shares outstanding used for turnover. Previous-session observations remain explicitly previous-session evidence and are not mislabeled as live.
+These use timestamped Alpaca intraday bars/quotes, with SEC shares outstanding used for turnover. Stale or future observations fail closed.
 
 ### Cross-asset and industry context
+Activated:
+- gold
 - treasury_etf_return
 - equity_bond_correlation
 - sector_relative_return
 - industry_relative_return
 - sector_breadth
-- gold
 
-Gold was ultimately activated from the **Massive C:XAUUSD previous-day aggregate**, after the attempted FRED LBMA series was unavailable in the production retrieval. The verified gold evidence was USD 4,113.84/oz for the previous trading day and was labeled as such.
+Gold is sourced from the Massive `C:XAUUSD` previous-day forex aggregate and is classified as cross-asset/macro evidence rather than stock evidence.
 
-### Official macro and Treasury evidence
+### Official macro, rates, and Treasury
+Expanded/activated:
+- real_yield
+- investment_grade_spread
+- repo_rate
+- credit_conditions
+- cpi_yoy
+- core_cpi
+- pce_yoy
+- gdp_growth
+- retail_sales
+- jobless_claims
+- unemployment
+- nonfarm_payrolls
+- consumer_confidence
+- capacity_utilization
+- natural_gas
 - eurusd
 - usdjpy
 - bitcoin
 - copper
 - dxy
 - treasury_issuance
+- input_cost_shock
 
-DXY is a transparent reconstruction from six FRED H.10 component exchange-rate series using the published USDX weighting formula. Treasury issuance is the trailing seven-calendar-day sum of accepted auction issuance from U.S. Treasury Fiscal Data.
+DXY is reconstructed transparently from six synchronized FRED H.10 currency series using the published USDX geometric weighting formula. Treasury issuance uses accepted auction amounts from U.S. Treasury Fiscal Data. Input-cost shock is a standardized latest monthly change in FRED PPIACO/BLS all-commodities producer prices.
 
-### News and event measurements
+### SEC fundamentals and issuer events
+Activated:
+- pe_trailing
+- price_sales
+- ev_ebitda
+- free_cash_flow_yield
+- return_on_equity
+- insider_trading
+
+Existing SEC-backed market_cap, net_margin, revenue_growth, earnings_growth, and sec_filing_catalyst evidence continues to persist. Insider activity is explicitly a Form 4 filing-activity count and does not infer transaction direction or economic significance.
+
+### News and structured events
+Activated:
 - news_sentiment
 - corroboration
 - news_price_reaction
@@ -66,37 +95,28 @@ DXY is a transparent reconstruction from six FRED H.10 component exchange-rate s
 - analyst_revision
 - geopolitical_risk
 - policy_announcement
+- tariff_exposure
+- earnings_date
+- eps_surprise
+- revenue_surprise
+- guidance_change
+- regulatory_change
+- customer_event
 
-These remain descriptive measurements. For example, geopolitical_risk is explicitly a news-intensity measure, not a substitute for the academic GPR index; analyst_revision is limited to explicit single-symbol analyst-action headlines and is not represented as consensus-estimate revision data.
+Company-specific structured events require an unambiguous single-symbol article. Ambiguous multi-symbol raw rows remain auditable but are excluded from eligible factor coverage. Missing events are never converted to zero; an explicit maintained/reaffirmed guidance event may legitimately produce a zero-direction observation.
 
-Additional fail-closed implementations were added for guidance_change, buyback_announcement, tariff_exposure, and regulatory_change. They remain unmeasured because no qualifying event existed in the current covered observation window; absence of a retrieved event was **not** converted to zero.
+### Options
+A verified production post-open Alpaca options run checked **NVDA** and **AAPL**, returned **1,000 contracts per underlying**, and persisted:
+- implied_vol_atm
+- iv_skew
 
-### SEC-derived fundamentals and events
-- pe_trailing
-- price_sales
-- free_cash_flow_yield
-- return_on_equity
-- ev_ebitda
-- insider_trading
+Four option-factor evidence rows were stored. The provider is explicitly labeled `Alpaca options:indicative`. Research observation eligibility is separate from the stricter **300-second live-freshness requirement**.
 
-The valuation ratios use point-in-time SEC EDGAR XBRL facts combined with explicitly labeled market-price observations. EV/EBITDA uses reported debt, cash, annual operating income, and depreciation/amortization; insider_trading measures timestamped Form 4 filing activity only and does not infer transaction direction or economic significance.
+An `iv_rank` implementation is also present, but it remains unavailable until at least 20 distinct historical ATM-IV daily observations with sufficient variation have accumulated.
 
-## Production collector verification
+## Remaining 19 factors
 
-The Phase 3 production verification established successful persisted runs for:
-- acceleration
-- primary ingest
-- intraday_activation
-- network_crossasset
-- fred_macro / Treasury Fiscal Data
-- news_factors
-- sec_fundamentals
-
-The existing options collector also executed successfully but persisted no IV evidence during its verification because fresh eligible option quotes were not available at that time. The freshness gate therefore worked correctly.
-
-## Current unmeasured factors — 29
-
-### Requires authorized portfolio context — 10
+### Authorized portfolio context required — 10
 - beta
 - rolling_correlation
 - portfolio_exposure
@@ -108,67 +128,42 @@ The existing options collector also executed successfully but persisted no IV ev
 - position_volatility
 - risk_budget_remaining
 
-These remain unavailable because TradeOS does not substitute single-security proxies for actual portfolio measurements.
+TradeOS will not substitute single-security calculations for these portfolio-risk measurements. They require an explicitly authorized point-in-time portfolio/position source.
 
-### Requires fresh options evidence — 3
-- implied_vol_atm
-- iv_rank
-- iv_skew
+### Additional licensed/history sources required — 5
+- iv_rank — requires sufficient persisted historical ATM-IV daily observations
+- pe_forward — requires licensed point-in-time forward earnings consensus
+- estimate_revision — requires licensed point-in-time consensus estimate history
+- earnings_call_sentiment — requires timestamped transcript/audio-derived text
+- pmi_manufacturing — current FRED NAPM retrieval is unavailable; an authorized/licensed PMI source is required
 
-The options integration returned contracts during verification, but the option quotes did not pass the freshness gate.
-
-### Requires earnings, transcript, or forward-estimate data — 6
-- earnings_date
-- eps_surprise
-- revenue_surprise
-- estimate_revision
-- earnings_call_sentiment
-- pe_forward
-
-Massive's structured Benzinga earnings/analyst partner dataset was tested during Phase 3 and is not included in the current connected Massive entitlement. These factors were therefore not backfilled from weaker substitutes.
-
-### Event-driven implementations with no qualifying current observation — 4
-- buyback_announcement
-- guidance_change
-- regulatory_change
-- tariff_exposure
-
-### Requires deeper corporate/industry relationship evidence — 5
+### Independent corporate relationship evidence required — 3
 - supplier_event
-- customer_event
 - competitor_event
-- input_cost_shock
 - geographic_exposure
 
-### Official survey source currently unavailable — 1
-- pmi_manufacturing
+These require independently sourced relationship/geographic evidence rather than keyword co-mentions.
 
-The configured FRED NAPM retrieval remained unavailable, so TradeOS did not relabel another manufacturing indicator as PMI.
+### Event-driven — 1
+- buyback_announcement
 
-## Reliability and safety properties retained
+The implementation exists, but no qualifying explicit buyback/repurchase announcement was observed in the current evidence window. Absence remains unavailable rather than zero.
 
-- Legacy single-security values labeled as portfolio VaR, expected shortfall, or max drawdown remain excluded from genuine measured coverage.
-- Missing observations remain unavailable rather than zero.
-- News/event factors only appear when the qualifying event is actually observed.
-- Evidence is rejected for invalid vintages.
-- Provider and source labels are retained.
-- Delayed SIP remains labeled delayed and does not become “real-time.”
-- No factor is scientifically certified merely because it is measured.
-- No trade was placed and no live-trading permission was enabled.
+## Reliability work completed
 
-## Deployment verification
-
-The final Phase 3 production schedules were restored after temporary verification windows:
-- macro evidence: 13:15 UTC weekdays
-- SEC fundamentals: 16:25 UTC weekdays
-- news evidence: :01, :16, :31, :46 hourly
-- intraday activation: :04, :19, :34, :49 during 13:00–23:00 UTC weekdays
-- network/cross-asset: 21:30 UTC weekdays
-
-The final schedule-restoration commit passed GitHub CI, including automated tests and the production Next.js build, and the corresponding Vercel production deployment reached READY.
+- Added the explicit Phase 3 completion gate: **101 measured factors**, **0 invalid vintages**, **0 latest required-collector failures**.
+- Added persisted blocker reasons for every remaining unmeasured factor.
+- Added regression tests for DXY reconstruction, Treasury issuance, input-cost shock, IV rank, option quote eligibility, structured earnings events, customer events, and issuer ambiguity.
+- Separated indicative-option research eligibility from live freshness.
+- Excluded invalid legacy single-security portfolio proxies from genuine coverage.
+- Excluded ambiguous multi-symbol issuer-event rows from eligible coverage without deleting their audit history.
+- Staggered acceleration collection away from the five-minute primary ingest cadence to reduce Alpaca request collisions.
+- Restored sustainable production collector schedules after verification.
 
 ## Phase 3 completion status
 
-**COMPLETE**
+**COMPLETE — 101/120 genuine measured factors.**
 
-Phase 3 closes with **91/120 genuine measured factors**, while preserving all fail-closed scientific and trading controls. The remaining 29 factors are explicit blockers or context-dependent measurements rather than fabricated coverage.
+This satisfies the approved measured-factor target while retaining fail-closed controls. The remaining 19 factors are explicit source, history, event, relationship, or portfolio-context blockers rather than fabricated coverage.
+
+Predictive usefulness, independent calculation certification, frozen historical-vintage validation, champion/challenger research, and model certification remain later gates. No live order authorization is granted by Phase 3.
