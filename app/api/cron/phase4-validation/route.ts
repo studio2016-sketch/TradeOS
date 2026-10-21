@@ -45,7 +45,10 @@ export async function GET(req:Request){
     )
     select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
     from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
-   sql`select count(*)::int as invalid_vintages from tradeos_factor_evidence where available_at<observed_at`
+   sql`select count(*)::int as evidence_rows,count(distinct factor_key)::int as evidence_factors,
+      count(*) filter(where available_at<observed_at)::int as invalid_vintages,
+      count(*) filter(where available_at<observed_at or available_at>now()+interval '1 minute' or trim(source_name)='' or trim(subject)='' or domain not in ('stock','option','macro','news','portfolio') or value::text in ('NaN','Infinity','-Infinity'))::int as invalid_rows
+      from tradeos_factor_evidence`
   ]);
   const paired=pairedProspectiveValidation(pairs.map((r:any)=>({time:new Date(r.time).toISOString(),baselineLoss:Number(r.baseline_loss),challengerLoss:Number(r.challenger_loss)})));
   const x=integrity[0] as any;
@@ -55,7 +58,7 @@ export async function GET(req:Request){
    structuralPointInTime:Number(x.structural_point_in_time??0),resolvedOutcomes:Number(x.resolved_outcomes??0),
    outcomeChronologyOk:Number(x.outcome_chronology_ok??0),baselineFingerprints:Number(x.baseline_fingerprints??0),
    challengerFingerprints:Number(x.challenger_fingerprints??0),pairedSamples:paired.pairs,sessionDates:paired.sessions,
-   invalidEvidenceVintages:Number((invalid[0] as any)?.invalid_vintages??0)
+   invalidEvidenceVintages:Number((invalid[0] as any)?.invalid_vintages??0),factorEvidenceRows:Number((invalid[0] as any)?.evidence_rows??0),factorEvidenceFactors:Number((invalid[0] as any)?.evidence_factors??0),invalidFactorEvidenceRows:Number((invalid[0] as any)?.invalid_rows??0)
   });
   const scientificStatus=phase4ScientificBlockers({pairedSamples:paired.pairs,sessionDates:paired.sessions,pairedLowerBound:paired.lowerBound,independentlyVerifiedSourceTimes:Number(x.independently_verified_source_times??0),immutableRecords:Number(x.immutable_records??0),costAdjustedReturnLowerBound:null,executionSlippageValidated:false,portfolioReconciled:false,publicationTimeApplicable:false,publicationTimeVerified:0});
   const payload={generatedAt:new Date().toISOString(),trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,integrity:x,paired,gate,scientificStatus};
