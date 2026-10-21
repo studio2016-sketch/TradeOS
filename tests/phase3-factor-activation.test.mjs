@@ -8,14 +8,20 @@ test("Phase 3 activated factor families have explicit implementation paths",()=>
  for(const key of ["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/intraday-activation-evidence.ts");
  }
- for(const key of ["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]){
+ for(const key of ["gold","treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/network-crossasset-evidence.ts");
  }
- for(const key of ["pe_trailing","price_sales","free_cash_flow_yield","return_on_equity","insider_trading"]){
+ for(const key of ["pe_trailing","price_sales","ev_ebitda","free_cash_flow_yield","return_on_equity","insider_trading"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/sec-ratio-evidence.ts");
  }
- for(const key of ["news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","guidance_change","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure","regulatory_change"]){
+ for(const key of ["news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure"]){
   assert.equal(byKey.get(key)?.implementationPath,"lib/research/news-factor-evidence.ts");
+ }
+ for(const key of ["earnings_date","eps_surprise","revenue_surprise","guidance_change","regulatory_change"]){
+  assert.equal(byKey.get(key)?.implementationPath,"lib/research/marketwide-event-evidence.ts");
+ }
+ for(const key of ["implied_vol_atm","iv_rank","iv_skew"]){
+  assert.equal(byKey.get(key)?.implementationPath,"app/api/cron/options-evidence/route.ts");
  }
 });
 
