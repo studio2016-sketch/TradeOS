@@ -11,6 +11,6 @@ export function validateEvidence(e:EvidenceCandidate,now=new Date()){
  if(Number.isFinite(availability)&&clock-availability>ages[e.domain])reasons.push("stale_ingestion");
  if(e.factor==="implied_vol_atm"&&(e.value<=0||e.value>10))reasons.push("invalid_implied_volatility");
  if(e.factor==="iv_skew"&&Math.abs(e.value)>10)reasons.push("implausible_iv_skew");
- if(e.factor==="net_margin"&&Math.abs(e.value)>10000)reasons.push("implausible_net_margin");
+ if(e.factor==="net_margin"&&(e.value< -100||e.value>1))reasons.push("implausible_net_margin_fraction");
  return {accepted:reasons.length===0,reasons,sourceVerified:false,calculationVerified:false,scientificallyCertified:false};
 }
