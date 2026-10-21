@@ -14,6 +14,7 @@ const BUYBACK_ACTION=/\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|
 const CUSTOMER_NEG=/\b(?:loss|lost|loses|losing)\s+(?:of\s+)?(?:a\s+)?(?:major\s+|key\s+)?customer\b|\b(?:customer|client)\b.{0,35}\b(?:terminat(?:e|es|ed)|cancel(?:s|ed)?|ends?|leaves?)\b/i;
 const CUSTOMER_POS=/\b(?:wins?|lands?|adds?|secure(?:s|d)?|signs?)\b.{0,45}\b(?:new\s+|major\s+|key\s+)?(?:customer|client)\b|\b(?:customer|client)\b.{0,35}\b(?:award(?:s|ed)?|expands?|renews?)\b/i;
 
+export function isUnambiguousIssuerArticle(symbols:string[]){return symbols.length===1;}
 function money(raw:string,suffix:string|undefined){
  const n=Number(raw.replace(/,/g,""));if(!Number.isFinite(n))return null;
  const m=!suffix?1:suffix.toUpperCase()==="K"?1e3:suffix.toUpperCase()==="M"?1e6:suffix.toUpperCase()==="B"?1e9:suffix.toUpperCase()==="T"?1e12:1;
@@ -78,7 +79,7 @@ export async function observedMarketwideEventEvidence(now=new Date()){
   const surprises=parseReportedSurprises(text);
   // Company-specific structured events require an unambiguous single-symbol article.
   // Multi-symbol articles remain usable for market-wide exposure measures (for example tariff exposure) but not for issuer events.
-  if(a.symbols.length!==1)continue;
+  if(!isUnambiguousIssuerArticle(a.symbols))continue;
   for(const symbol of a.symbols){
    const base={articleId:a.article_id,headline:a.headline,sourceName:a.source_name,symbolCount:1};
    if(surprises.eps)candidates.push({factor:"eps_surprise",value:surprises.eps.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,...surprises.eps,unit:"fraction_vs_reported_estimate"}});
