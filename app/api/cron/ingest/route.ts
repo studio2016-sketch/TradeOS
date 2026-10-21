@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto";
 import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
@@ -67,11 +68,13 @@ export async function GET(req:Request){
       const eventTime=new Date(s.timestamp);
       const ageMs=Math.max(0,Date.now()-eventTime.getTime());
       const freshness=Math.max(0,Math.min(1,1-ageMs/(20*60*1000)));
+      const raw=JSON.stringify(s);
+      const payloadHash=createHash("sha256").update(raw).digest("hex");
       await sql`
         insert into source_observations
-          (source_id,data_class,symbol,event_time,latency_ms,freshness_score,quality_score,metadata)
+          (source_id,data_class,symbol,event_time,latency_ms,freshness_score,quality_score,payload_hash,metadata)
         values
-          (${s.source},'market_snapshot',${s.symbol},${s.timestamp},${ageMs},${freshness},${market.provider==='Massive'?0.95:0.85},${JSON.stringify(s)}::jsonb)
+          (${s.source},'market_snapshot',${s.symbol},${s.timestamp},${ageMs},${freshness},${market.provider==='Massive'?0.95:0.85},${payloadHash},${raw}::jsonb)
       `;
     }
     results.market=market.snapshots.length;
