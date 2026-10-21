@@ -8,6 +8,9 @@ const GUIDANCE_UP=/\b(raise[sd]?|boost(?:s|ed)?|increase[sd]?)\b/i;
 const GUIDANCE_DOWN=/\b(lower(?:s|ed)?|cut[s]?|reduce[sd]?|withdraw(?:s|n)?|suspend(?:s|ed)?)\b/i;
 const REGULATOR=/\b(sec|ftc|doj|fda|epa|fcc|department of justice|securities and exchange commission|federal trade commission|food and drug administration)\b/i;
 const REG_ACTION=/\b(rule|regulat(?:ion|ory)|approv(?:e|es|ed|al)|reject(?:s|ed|ion)?|block(?:s|ed)?|sue[sd]?|lawsuit|settle(?:s|d|ment)?|investigat(?:e|es|ed|ion)|ban(?:s|ned)?|order)\b/i;
+const TARIFF=/\b(tariff(?:s)?|import dut(?:y|ies)|trade restriction(?:s)?|export restriction(?:s)?|export control(?:s)?)\b/i;
+const BUYBACK=/\b(buyback|share repurchase|stock repurchase)\b/i;
+const BUYBACK_ACTION=/\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|increase[sd]?|launch(?:es|ed)?)\b/i;
 
 function money(raw:string,suffix:string|undefined){
  const n=Number(raw.replace(/,/g,""));if(!Number.isFinite(n))return null;
@@ -52,6 +55,16 @@ export async function observedMarketwideEventEvidence(now=new Date()){
    from tradeos_news_articles where published_at>=now()-interval '7 days' order by published_at desc limit 1000`;
  const articles:CachedArticle[]=rows.map(r=>({article_id:String(r.article_id),published_at:new Date(r.published_at as string).toISOString(),headline:String(r.headline),summary:String(r.summary??""),symbols:Array.isArray(r.symbols)?r.symbols as string[]:[],source_name:String(r.source_name)}));
  const candidates:PersistableEvidence[]=[];
+ const symbolTotals=new Map<string,number>(),symbolTariffs=new Map<string,CachedArticle[]>();
+ for(const a of articles)for(const symbol of a.symbols){
+  symbolTotals.set(symbol,(symbolTotals.get(symbol)??0)+1);
+  if(TARIFF.test(a.headline+" "+a.summary)){const arr=symbolTariffs.get(symbol)??[];arr.push(a);symbolTariffs.set(symbol,arr);}
+ }
+ for(const [symbol,items] of symbolTariffs){
+  const total=symbolTotals.get(symbol)??0;if(!total||!items.length)continue;
+  const latest=items.map(x=>x.published_at).sort().at(-1)!;
+  candidates.push({factor:"tariff_exposure",value:items.length/total,source:"Persisted Alpaca/Massive news cache",subject:symbol,observedAt:latest,availableAt,domain:"news",metadata:{method:"share_of_symbol_news_explicitly_referencing_tariffs_or_trade_restrictions",windowDays:7,matchedArticles:items.length,totalArticles:total,articleIds:items.map(x=>x.article_id),unit:"fraction"}});
+ }
  for(const a of articles){
   if(!a.symbols.length)continue;
   const text=a.headline+" "+a.summary;
@@ -65,6 +78,7 @@ export async function observedMarketwideEventEvidence(now=new Date()){
    const gd=guidanceDirection(text);
    if(gd!==null)candidates.push({factor:"guidance_change",value:gd,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"direction_-1_0_1",method:"explicit_guidance_outlook_or_forecast_change"}});
    if(REGULATOR.test(text)&&REG_ACTION.test(text))candidates.push({factor:"regulatory_change",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_named_regulator_action_headline_or_summary"}});
+   if(BUYBACK.test(text)&&BUYBACK_ACTION.test(text))candidates.push({factor:"buyback_announcement",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_buyback_or_repurchase_announcement"}});
   }
  }
  const unique=new Map<string,PersistableEvidence>();
