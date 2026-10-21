@@ -69,8 +69,11 @@ export async function observedMarketwideEventEvidence(now=new Date()){
   if(!a.symbols.length)continue;
   const text=a.headline+" "+a.summary;
   const surprises=parseReportedSurprises(text);
-  for(const symbol of a.symbols.slice(0,4)){
-   const base={articleId:a.article_id,headline:a.headline,sourceName:a.source_name};
+  // Company-specific structured events require an unambiguous single-symbol article.
+  // Multi-symbol articles remain usable for market-wide exposure measures (for example tariff exposure) but not for issuer events.
+  if(a.symbols.length!==1)continue;
+  for(const symbol of a.symbols){
+   const base={articleId:a.article_id,headline:a.headline,sourceName:a.source_name,symbolCount:1};
    if(surprises.eps)candidates.push({factor:"eps_surprise",value:surprises.eps.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,...surprises.eps,unit:"fraction_vs_reported_estimate"}});
    if(surprises.revenue)candidates.push({factor:"revenue_surprise",value:surprises.revenue.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,...surprises.revenue,unit:"fraction_vs_reported_estimate"}});
    const earnings=parseEarningsDate(text,a.published_at);
