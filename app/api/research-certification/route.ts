@@ -14,6 +14,7 @@ export async function GET(){
      (select count(*)::int from forecast_ledger where created_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as total,
      (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as immutable_records,
      (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and observed_at<=recorded_at+interval '1 minute') as structural_point_in_time,
+     (select count(*)::int from tradeos_decision_source_verifications v join immutable_decision_records i on i.id=v.immutable_decision_id where i.recorded_at>=${TRIAL_ACTIVATION}::timestamptz and i.model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as strict_source_verified,
      (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and source_type='exchange_time_verified') as source_time_verified,
      (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and source_type='primary_publication_time_verified') as publication_time_verified,
      (select count(*)::int from forecast_outcomes o join forecast_ledger f on f.id=o.forecast_id where f.created_at>=${TRIAL_ACTIVATION}::timestamptz and f.model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION}) and o.resolved_at<f.created_at) as invalid_outcome_chronology`,
@@ -43,7 +44,7 @@ export async function GET(){
   };
   return NextResponse.json({
    generatedAt:new Date().toISOString(),trial:{activation:TRIAL_ACTIVATION,baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION},
-   structuralIntegrity:{immutableRecords:Number(r.immutable_records),structuralPointInTime:Number(r.structural_point_in_time),invalidOutcomeChronology:Number(r.invalid_outcome_chronology)},
+   structuralIntegrity:{immutableRecords:Number(r.immutable_records),structuralPointInTime:Number(r.structural_point_in_time),strictSourceVerified:Number(r.strict_source_verified),invalidOutcomeChronology:Number(r.invalid_outcome_chronology)},
    pairedValidation:paired,evidence,...certifyResearch(evidence),
    method:"Prospective matched baseline/challenger Brier-loss comparison from immutable forecast records. Stored observation event times establish structural chronology but are not relabeled as independently exchange-certified timestamps. Cost, portfolio reconciliation, and independent publication-time gates remain fail-closed."
   },{headers:{"Cache-Control":"no-store"}});
