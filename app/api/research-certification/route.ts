@@ -10,7 +10,7 @@ export async function GET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Research database disconnected"},{status:503});
  try{
   const sql=db();
-  const [counts,pairs,executionRows]=await Promise.all([
+  const [counts,pairs,executionRows,portfolioRows]=await Promise.all([
    sql`select
      (select count(*)::int from forecast_ledger where created_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as total,
      (select count(*)::int from immutable_decision_records where recorded_at>=${TRIAL_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as immutable_records,
@@ -32,26 +32,28 @@ export async function GET(){
     )
     select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
     from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
-   sql`select * from tradeos_execution_validation_snapshots order by created_at desc limit 1`
+   sql`select * from tradeos_execution_validation_snapshots order by created_at desc limit 1`,
+   sql`select * from tradeos_portfolio_reconciliation_validations order by created_at desc limit 1`
   ]);
   const r=(counts as any[])[0];
   const paired=pairedProspectiveValidation((pairs as any[]).map(x=>({time:new Date(x.time).toISOString(),baselineLoss:Number(x.baseline_loss),challengerLoss:Number(x.challenger_loss)})));
   const execution=(executionRows as any[])[0]??null;
+  const portfolio=(portfolioRows as any[])[0]??null;
   const executionSlippageValidated=Boolean(execution?.execution_slippage_validated);
   const costAdjustedReturnLowerBound=executionSlippageValidated&&Boolean(execution?.modeled_cost_mature)&&execution?.lower_bound!=null?Number(execution.lower_bound):null;
-  const scientificStatus=phase5ScientificStatus({immutableRecords:Number(r.immutable_records),independentlyCertifiedSourceTimes:Number(r.source_time_verified),pairedSamples:paired.pairs,independentSessions:paired.sessions,pairedSkillLowerBound:paired.lowerBound,modeledCostLowerBound:execution?.lower_bound==null?null:Number(execution.lower_bound),modeledCostMature:Boolean(execution?.modeled_cost_mature),empiricalSlippageValidated:executionSlippageValidated,portfolioReconciled:false});
+  const scientificStatus=phase5ScientificStatus({immutableRecords:Number(r.immutable_records),independentlyCertifiedSourceTimes:Number(r.source_time_verified),pairedSamples:paired.pairs,independentSessions:paired.sessions,pairedSkillLowerBound:paired.lowerBound,modeledCostLowerBound:execution?.lower_bound==null?null:Number(execution.lower_bound),modeledCostMature:Boolean(execution?.modeled_cost_mature),empiricalSlippageValidated:executionSlippageValidated,portfolioReconciled:Boolean(portfolio?.portfolio_reconciled)});
   const evidence={
    total:Number(r.total),immutableRecords:Number(r.immutable_records),
    sourceTimeVerified:Number(r.source_time_verified),publicationTimeApplicable:false,publicationTimeVerified:Number(r.publication_time_verified),
    outOfSamplePaired:paired.pairs,independentSessionDates:paired.sessions,
    predictiveSkillLowerBound:paired.lowerBound,
    costAdjustedReturnLowerBound,
-   portfolioReconciled:false,executionSlippageValidated
+   portfolioReconciled:Boolean(portfolio?.portfolio_reconciled),executionSlippageValidated
   };
   return NextResponse.json({
    generatedAt:new Date().toISOString(),trial:{activation:TRIAL_ACTIVATION,baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION},
    structuralIntegrity:{immutableRecords:Number(r.immutable_records),structuralPointInTime:Number(r.structural_point_in_time),strictSourceVerified:Number(r.strict_source_verified),invalidOutcomeChronology:Number(r.invalid_outcome_chronology)},
-   pairedValidation:paired,executionValidation:execution?{createdAt:execution.created_at,samples:Number(execution.sample_count),sessions:Number(execution.session_count),meanGross:execution.mean_gross,meanQuotedSpreadCost:execution.mean_quoted_roundtrip_spread_cost,meanNetAfterQuotedSpread:execution.mean_net_after_quoted_spread,empiricalRoundTripSlippageFraction:execution.empirical_roundtrip_slippage_fraction,meanNetAfterAllModeledCosts:execution.mean_net_after_all_modeled_costs,lowerBound:execution.lower_bound,upperBound:execution.upper_bound,modeledCostMature:Boolean(execution.modeled_cost_mature),executionSlippageValidated}:null,scientificStatus,evidence,...certifyResearch(evidence),
+   pairedValidation:paired,portfolioReconciliation:portfolio?{createdAt:portfolio.created_at,environment:portfolio.environment,historyComplete:Boolean(portfolio.history_complete),transactionLineageComplete:Boolean(portfolio.transaction_lineage_complete),portfolioReconciled:Boolean(portfolio.portfolio_reconciled)}:null,executionValidation:execution?{createdAt:execution.created_at,samples:Number(execution.sample_count),sessions:Number(execution.session_count),meanGross:execution.mean_gross,meanQuotedSpreadCost:execution.mean_quoted_roundtrip_spread_cost,meanNetAfterQuotedSpread:execution.mean_net_after_quoted_spread,empiricalRoundTripSlippageFraction:execution.empirical_roundtrip_slippage_fraction,meanNetAfterAllModeledCosts:execution.mean_net_after_all_modeled_costs,lowerBound:execution.lower_bound,upperBound:execution.upper_bound,modeledCostMature:Boolean(execution.modeled_cost_mature),executionSlippageValidated}:null,scientificStatus,evidence,...certifyResearch(evidence),
    method:"Prospective matched baseline/challenger Brier-loss comparison from immutable forecast records plus Phase 5 execution-realism snapshots. Source-time credit is granted only by append-only independent source-time certification records. Quoted-spread modeling alone never qualifies as empirical slippage. Portfolio reconciliation remains fail-closed."
   },{headers:{"Cache-Control":"no-store"}});
  }catch(e){
