@@ -5,7 +5,7 @@ import {secRatioEvidence} from "../../../../lib/research/sec-ratio-evidence";
 import {persistEvidence} from "../../../../lib/research/persist-evidence";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
-export const maxDuration=60;
+export const maxDuration=120;
 const symbols=["AAPL","MSFT","NVDA","AMZN","META","GOOGL","AMD","TSLA","JPM","XOM"];
 export async function GET(req:Request){
  if(!authorizeCron(req))return NextResponse.json({error:"unauthorized"},{status:401});
