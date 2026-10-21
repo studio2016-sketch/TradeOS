@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {validateEvidence} from "../lib/research/evidence-gate.ts";
+const good={factor:"implied_vol_atm",value:0.28,source:"Alpaca options",subject:"SPY",observedAt:"2026-10-21T14:00:00Z",availableAt:"2026-10-21T14:01:00Z",domain:"option"};
+const asOf=new Date("2026-10-21T14:02:00Z");
+test("eligible option evidence passes intake (not certification)",()=>{const r=validateEvidence(good,asOf);assert.equal(r.accepted,true);assert.equal(r.scientificallyCertified,false)});
+test("future availability cannot be persisted",()=>assert.equal(validateEvidence({...good,availableAt:"2026-10-21T15:00:00Z"},asOf).accepted,false));
+test("stale option evidence cannot be persisted",()=>assert.equal(validateEvidence(good,new Date("2026-10-22T14:02:00Z")).accepted,false));
+test("missing source cannot be persisted",()=>assert.equal(validateEvidence({...good,source:""},asOf).accepted,false));
+test("impossible IV is rejected",()=>assert.equal(validateEvidence({...good,value:-0.2},asOf).accepted,false));
