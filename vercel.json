@@ -27,7 +27,7 @@
     },
     {
       "path": "/api/cron/macro-evidence",
-      "schedule": "45 * * * *"
+      "schedule": "47 * * * *"
     },
     {
       "path": "/api/cron/options-evidence",
