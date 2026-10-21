@@ -7,6 +7,9 @@ const NEG=/\b(miss|misses|cut[s]?|downgrade[sd]?|investigation|lawsuit|recall|we
 const ANALYST_CHANGE=/\b(upgrade[sd]?|downgrade[sd]?|(?:raise[sd]?|lift(?:s|ed)?|hike[sd]?|boost(?:s|ed)?)\s+(?:the\s+|its\s+)?(?:price\s+)?target|(?:lower(?:s|ed)?|cut[s]?|slash(?:es|ed)?)\s+(?:the\s+|its\s+)?(?:price\s+)?target)\b/i;
 const ANALYST_UP=/\b(upgrade[sd]?|raise[sd]?|lift(?:s|ed)?|hike[sd]?|boost(?:s|ed)?)\b/i;
 const ANALYST_DOWN=/\b(downgrade[sd]?|lower(?:s|ed)?|cut[s]?|slash(?:es|ed)?)\b/i;
+const GEO_RISK=/\b(war|armed conflict|military strike|missile|invasion|sanction(?:s|ed)?|blockade|strait of hormuz|geopolit(?:ic|ical)|ceasefire|hostilit(?:y|ies))\b/i;
+const POLICY_ACTOR=/\b(federal reserve|fed\b|white house|u\.s\. treasury|treasury department|department of energy|department of commerce|sec\b|ftc\b|doj\b|congress|president|administration)\b/i;
+const POLICY_ACTION=/\b(announc(?:e|es|ed|ement)|approv(?:e|es|ed|al)|invest(?:s|ed|ing)|rule|regulat(?:ion|ory)|tariff|sanction|executive order|rate decision|policy change|ban|restriction)\b/i;
 const STOP=new Set(["the","a","an","and","or","of","to","for","in","on","with","at","by","from","as","is","are","be","this","that"]);
 function sentiment(text:string){let s=0;if(POS.test(text))s++;if(NEG.test(text))s--;return s;}
 function tokens(text:string){return new Set(text.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(x=>x.length>2&&!STOP.has(x)))}
@@ -55,6 +58,20 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
    {factor:"corroboration",value:corroboration,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata:{...metadata,method:"maximum distinct source labels among headline clusters with token Jaccard >= 0.55"}}
   );
  }
+ const recentMarket=result.news.filter(n=>Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)>=start&&Date.parse(n.timestamp)<=now.getTime());
+ const geo=recentMarket.filter(n=>GEO_RISK.test(n.headline+" "+(n.summary??"")));
+ if(geo.length&&recentMarket.length){
+  const sources=[...new Set(geo.map(n=>n.source))].sort();
+  const observedAt=geo.map(n=>n.timestamp).sort().at(-1)!;
+  candidates.push({factor:"geopolitical_risk",value:geo.length/recentMarket.length,source:"CuratedNews:"+sources.join(","),subject:"US_MARKET",observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit_geopolitical_headline_share_of_recent_market_news",windowHours:24,matchedArticles:geo.length,totalArticles:recentMarket.length,articleIds:geo.map(n=>n.id),unit:"fraction",note:"Descriptive news-intensity proxy, not the Caldara-Iacoviello GPR index."}});
+ }
+ const policy=recentMarket.filter(n=>POLICY_ACTOR.test(n.headline+" "+(n.summary??""))&&POLICY_ACTION.test(n.headline+" "+(n.summary??"")));
+ if(policy.length){
+  const sources=[...new Set(policy.map(n=>n.source))].sort();
+  const observedAt=policy.map(n=>n.timestamp).sort().at(-1)!;
+  candidates.push({factor:"policy_announcement",value:policy.length,source:"CuratedNews:"+sources.join(","),subject:"US_POLICY",observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"count_of_explicit_government_or_central_bank_policy_action_headlines",windowHours:24,articleIds:policy.map(n=>n.id),unit:"article_count",note:"Secondary-source observation of explicit policy actions; primary-source verification remains a certification gate."}});
+ }
+
  for(const symbol of clean.filter(s=>!["QQQ","IWM"].includes(s)).slice(0,3)){
   try{
    const reaction=await latestNewsReaction(symbol);
