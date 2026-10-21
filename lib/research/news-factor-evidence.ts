@@ -47,7 +47,11 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
   try{
    const reaction=await latestNewsReaction(symbol);
    if(reaction?.matched&&reaction.timestamp&&reaction.returnPct!=null&&Number.isFinite(reaction.returnPct)){
-    candidates.push({factor:"news_price_reaction",value:reaction.returnPct,source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.timestamp,availableAt:retrievedAt,domain:"news",metadata:{headline:reaction.headline,classification:reaction.classification,reactionScore:reaction.reactionScore,unit:"percent_return",method:"news timestamp to latest eligible bar within 120 minutes"}});
+    const reactionMetadata={headline:reaction.headline,classification:reaction.classification,reactionScore:reaction.reactionScore,unit:"percent_return",method:"news timestamp to latest eligible bar within 120 minutes"};
+    candidates.push(
+     {factor:"news_price_reaction",value:reaction.returnPct,source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.timestamp,availableAt:retrievedAt,domain:"news",metadata:reactionMetadata},
+     {factor:"event_materiality",value:Math.abs(reaction.returnPct),source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.timestamp,availableAt:retrievedAt,domain:"news",metadata:{...reactionMetadata,unit:"absolute_percent_return",method:"absolute measured post-news price reaction; descriptive materiality only"}}
+    );
    }
   }catch{}
  }
