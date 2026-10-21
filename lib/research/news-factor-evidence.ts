@@ -58,9 +58,9 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
   }
   const explicitGuidance=related.filter(n=>GUIDANCE_CHANGE.test(n.headline+" "+(n.summary??"")));
   if(explicitGuidance.length){
-   const scores=explicitGuidance.map(n=>{const text=n.headline+" "+(n.summary??"");return GUIDANCE_DOWN.test(text)?-1:GUIDANCE_UP.test(text)?1:0;});
+   const scores:number[]=explicitGuidance.map(n=>{const text=n.headline+" "+(n.summary??"");return GUIDANCE_DOWN.test(text)?-1:GUIDANCE_UP.test(text)?1:0;});
    const observedAt=explicitGuidance.map(n=>n.timestamp).sort().at(-1)!;
-   candidates.push({factor:"guidance_change",value:scores.reduce((a,b)=>a+b,0)/scores.length,source:"CuratedNews:"+[...new Set(explicitGuidance.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit_guidance_or_outlook_change_headlines",articleIds:explicitGuidance.map(n=>n.id),directions:scores,unit:"average_direction_-1_to_1"}});
+   candidates.push({factor:"guidance_change",value:scores.reduce<number>((a,b)=>a+b,0)/scores.length,source:"CuratedNews:"+[...new Set(explicitGuidance.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit_guidance_or_outlook_change_headlines",articleIds:explicitGuidance.map(n=>n.id),directions:scores,unit:"average_direction_-1_to_1"}});
   }
   const buybacks=related.filter(n=>BUYBACK.test(n.headline+" "+(n.summary??"")));
   if(buybacks.length){
