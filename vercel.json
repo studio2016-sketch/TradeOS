@@ -27,7 +27,7 @@
     },
     {
       "path": "/api/cron/macro-evidence",
-      "schedule": "15 13 * * 1-5"
+      "schedule": "31 * * * *"
     },
     {
       "path": "/api/cron/options-evidence",
@@ -39,7 +39,7 @@
     },
     {
       "path": "/api/cron/sec-fundamental-evidence",
-      "schedule": "25 16 * * 1-5"
+      "schedule": "33 * * * *"
     },
     {
       "path": "/api/cron/market-entitlements",
@@ -51,11 +51,15 @@
     },
     {
       "path": "/api/cron/news-evidence",
-      "schedule": "1,16,31,46 * * * *"
+      "schedule": "32 * * * *"
     },
     {
       "path": "/api/cron/intraday-activation",
-      "schedule": "4,19,34,49 13-23 * * 1-5"
+      "schedule": "29 * * * *"
+    },
+    {
+      "path": "/api/cron/network-crossasset",
+      "schedule": "30 * * * *"
     }
   ]
 }
