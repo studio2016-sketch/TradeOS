@@ -63,7 +63,15 @@
     },
     {
       "path": "/api/cron/phase4-validation",
-      "schedule": "59 * * * *"
+      "schedule": "44 * * * *"
+    },
+    {
+      "path": "/api/cron/phase5-execution",
+      "schedule": "50 * * * *"
+    },
+    {
+      "path": "/api/cron/phase5-validation",
+      "schedule": "55 * * * *"
     }
   ]
 }
