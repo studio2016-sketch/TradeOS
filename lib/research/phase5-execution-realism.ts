@@ -9,14 +9,15 @@ export function evaluateExecutionCostResearch(raw:ExecutionResearchRow[],empiric
  const rows=raw.filter(r=>Number.isFinite(Date.parse(r.time))&&Number.isFinite(r.realizedReturn)&&Number.isFinite(r.spreadFraction)&&r.spreadFraction>=0&&r.spreadFraction<=.1);
  if(!rows.length)return {samples:0,sessions:0,meanGross:null,meanQuotedRoundTripSpreadCost:null,meanNetAfterQuotedSpread:null,clustered95:[null,null] as [number|null,number|null],lowerBound:null,mature:false,executionSlippageValidated:false};
  const bySession=new Map<string,number[]>();
- const gross:number[]=[],cost:number[]=[],net:number[]=[];
+ const gross:number[]=[],cost:number[]=[],netQuoted:number[]=[],netAll:number[]=[];
  for(const r of rows){
   const directional=(r.direction==="bearish"?-1:1)*r.realizedReturn;
   // Entering at the adverse side of the quote and exiting across a comparable spread
   // costs roughly one full quoted spread versus midpoint-to-midpoint return.
   const quotedRoundTrip=Math.max(0,r.spreadFraction);
-  const after=directional-quotedRoundTrip-extra;
-  gross.push(directional);cost.push(quotedRoundTrip);net.push(after);
+  const afterQuoted=directional-quotedRoundTrip;
+  const after=afterQuoted-extra;
+  gross.push(directional);cost.push(quotedRoundTrip);netQuoted.push(afterQuoted);netAll.push(after);
   const day=new Date(r.time).toISOString().slice(0,10),xs=bySession.get(day)??[];xs.push(after);bySession.set(day,xs);
  }
  const sessions=[...bySession.values()];
@@ -33,7 +34,7 @@ export function evaluateExecutionCostResearch(raw:ExecutionResearchRow[],empiric
  }
  return {
   samples:rows.length,sessions:sessions.length,meanGross:mean(gross),meanQuotedRoundTripSpreadCost:mean(cost),
-  meanNetAfterQuotedSpread:mean(net),empiricalRoundTripSlippageFraction:extra,meanNetAfterAllModeledCosts:mean(net),clustered95:[lower,upper] as [number|null,number|null],lowerBound:lower,
+  meanNetAfterQuotedSpread:mean(netQuoted),empiricalRoundTripSlippageFraction:extra,meanNetAfterAllModeledCosts:mean(netAll),clustered95:[lower,upper] as [number|null,number|null],lowerBound:lower,
   mature:rows.length>=200&&sessions.length>=20&&lower!==null&&lower>0,
   executionSlippageValidated:false,
   policy:extra>0?"Quoted spread plus empirically supplied conservative round-trip slippage penalty. Certification still requires the supplied fill-slippage evidence itself to be independently qualified.":"Quoted-spread stress test only. It is not actual execution slippage and cannot satisfy the fill-slippage certification gate."
