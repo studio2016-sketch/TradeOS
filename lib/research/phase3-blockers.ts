@@ -1,4 +1,4 @@
-const portfolio=new Set(["beta","rolling_correlation","portfolio_exposure","single_name_weight","sector_concentration","expected_shortfall","max_drawdown","var_95","position_volatility","risk_budget_remaining"]);
+const portfolio=new Set(["portfolio_exposure","single_name_weight","sector_concentration","expected_shortfall","max_drawdown","var_95","position_volatility","risk_budget_remaining"]);
 const options=new Set(["implied_vol_atm","iv_rank","iv_skew"]);
 const analyst=new Set(["pe_forward","estimate_revision"]);
 const relationshipGraph=new Set(["supplier_event","competitor_event","geographic_exposure"]);
