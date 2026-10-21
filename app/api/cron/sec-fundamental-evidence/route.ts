@@ -24,5 +24,6 @@ export async function GET(req:Request){
    results.push({symbol,status:evidence.length?"measured":"no_matching_filing",saved});
   }catch(e){results.push({symbol,status:"error",reason:e instanceof Error?e.message:"unknown"});}
  }
+ await sql`insert into tradeos_collector_runs(collector,status,received,saved,details) values('sec_fundamentals','finished',${results.length},${results.reduce((n,r)=>n+Number(r.saved??0),0)},${JSON.stringify(results)}::jsonb)`;
  return NextResponse.json({results,certified:false,ordersAllowed:false},{headers:{"Cache-Control":"no-store"}});
 }
