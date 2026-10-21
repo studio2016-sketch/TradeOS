@@ -22,3 +22,13 @@ test("fill slippage requires enough fills across independent sessions",()=>{
  assert.equal(validateFillSlippage(rows).validated,true);
  assert.equal(validateFillSlippage(rows.slice(0,20)).validated,false);
 });
+
+test("zero resolved outcomes remain persistable and fail closed",()=>{
+ const out=evaluateExecutionCostResearch([]);
+ assert.equal(out.samples,0);
+ assert.equal(out.meanGross,null);
+ assert.equal(out.meanNetAfterAllModeledCosts,null);
+ assert.deepEqual(out.clustered95,[null,null]);
+ assert.equal(out.mature,false);
+ assert.equal(out.executionSlippageValidated,false);
+});
