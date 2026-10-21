@@ -30,6 +30,14 @@ function dailyReturns(bars:Bar[],count=20){
  }
  return out;
 }
+function beta(a:Map<string,number>,b:Map<string,number>){
+ const dates=[...a.keys()].filter(d=>b.has(d)).sort().slice(-60);
+ if(dates.length<20)return null;
+ const x=dates.map(d=>a.get(d)!),m=dates.map(d=>b.get(d)!);
+ const mx=x.reduce((s,v)=>s+v,0)/x.length,mm=m.reduce((s,v)=>s+v,0)/m.length;
+ let cov=0,v=0;for(let i=0;i<x.length;i++){cov+=(x[i]-mx)*(m[i]-mm);v+=(m[i]-mm)*(m[i]-mm);}
+ return v>0?cov/v:null;
+}
 function correlation(a:Map<string,number>,b:Map<string,number>){
  const dates=[...a.keys()].filter(d=>b.has(d)).sort().slice(-20);
  if(dates.length<12)return null;
@@ -91,6 +99,17 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
   }
   diagnostics.push({factor:"sector_breadth",eligible:latest.length,commonDate,commonCount:sameDay.length});
  }catch(e){diagnostics.push({factor:"sector_breadth",error:e instanceof Error?e.message:"unknown"});}
+
+ for(const symbol of ["NVDA","AMD","PLTR"]){
+  try{
+   const [own,spy]=await Promise.all([get(symbol),get("SPY")]);
+   const ownR=dailyReturns(own,60),spyR=dailyReturns(spy,60);
+   const b=beta(ownR,spyR),rho=correlation(ownR,spyR);
+   const observedAt=own.length&&spy.length?new Date(Math.min(Date.parse(own.at(-1)!.t),Date.parse(spy.at(-1)!.t))).toISOString():null;
+   if(observedAt&&b!=null&&Number.isFinite(b))candidates.push({factor:"beta",value:b,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:60,method:"covariance(symbol,SPY)/variance(SPY)",feed}});
+   if(observedAt&&rho!=null&&Number.isFinite(rho))candidates.push({factor:"rolling_correlation",value:rho,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:20,method:"pearson_correlation",feed}});
+  }catch(e){diagnostics.push({symbol,riskContextError:e instanceof Error?e.message:"unknown"});}
+ }
 
  for(const symbol of ["NVDA","AMD","PLTR"]){
   try{
