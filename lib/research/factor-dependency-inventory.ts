@@ -6,7 +6,7 @@ const historical=new Set(["sma_5","sma_20","sma_50","sma_200","return_1d","retur
 const snapshots=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread_bps","quoted_depth","order_imbalance"]);
 const intradayActivation=new Set(["return_1m","return_5m","return_15m","return_1h","trade_count","turnover","slippage_estimate"]);
 const networkActivation=new Set(["treasury_etf_return","equity_bond_correlation","sector_relative_return","industry_relative_return","sector_breadth"]);
-const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_rate","high_yield_spread","wti_crude",...addedOfficialMacroFactors.map(f=>f.factor)]);
+const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_rate","high_yield_spread","wti_crude","dxy",...addedOfficialMacroFactors.map(f=>f.factor)]);
 const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth","pe_trailing","price_sales","free_cash_flow_yield","return_on_equity","insider_trading"]);
 const options=new Set(["implied_vol_atm","iv_skew"]);
 const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","sec_filing_catalyst"]);
