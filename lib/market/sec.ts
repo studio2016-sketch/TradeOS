@@ -198,8 +198,13 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
   pick("earnings_per_share",["EarningsPerShareDiluted","EarningsPerShareBasic"],"USD/shares",true);
   pickAnnual("annual_revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"]);
   pickAnnual("annual_net_income",["NetIncomeLoss"]);
+  pickAnnual("annual_operating_income",["OperatingIncomeLoss"]);
+  pickAnnual("annual_depreciation_amortization",["DepreciationDepletionAndAmortization","DepreciationDepletionAndAmortizationPropertyPlantAndEquipment","Depreciation"]);
   pickAnnual("annual_operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"]);
   pickAnnual("annual_capex",["PaymentsToAcquirePropertyPlantAndEquipment","PaymentsForAdditionsToPropertyPlantAndEquipment"]);
+  pick("cash_and_equivalents",["CashAndCashEquivalentsAtCarryingValue"]);
+  pick("debt_current",["LongTermDebtAndFinanceLeaseObligationsCurrent","LongTermDebtCurrent","ShortTermBorrowings"]);
+  pick("debt_noncurrent",["LongTermDebtAndFinanceLeaseObligationsNoncurrent","LongTermDebtNoncurrent"]);
   const annualEnd=provenance.annual_net_income?.end??provenance.annual_revenue?.end;
   if(annualEnd){
    pickInstantAt("equity_annual_end",["StockholdersEquity"],annualEnd);
