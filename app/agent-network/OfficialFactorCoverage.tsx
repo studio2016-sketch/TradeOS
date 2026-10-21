@@ -1,8 +1,8 @@
 "use client";
 import {useEffect,useState} from "react";
 
-type Evidence={factor:string;value:number;domain:"stock"|"option"|"macro"|"news"|"portfolio";source:string;observedAt:string;subject:string};
-type Response={generatedAt:string;measured:number;defined:number;operationalTarget:number;targetMet:boolean;coveragePct:number;domains:Record<string,number>;evidence:Evidence[];warning:string};
+type Evidence={factor:string;value:number;domain:string;source:string;observedAt:string;availableAt:string;subject:string};
+type Response={generatedAt:string;measurementWindowHours:number;measured:number;defined:number;operationalTarget:number;targetMet:boolean;coveragePct:number;domains:Record<string,number>;evidence:Evidence[];warning:string};
 
 export default function OfficialFactorCoverage(){
  const [data,setData]=useState<Response|null>(null),[error,setError]=useState("");
@@ -16,7 +16,7 @@ export default function OfficialFactorCoverage(){
  useEffect(()=>{void refresh();},[]);
  return <section style={{marginTop:24,padding:22,border:"1px solid #5f91a5",borderRadius:14,background:"#102a39"}}>
   <h2>Verified 120-Factor Coverage</h2>
-  <p>Coverage counts only finite, timestamped observations with identified provenance across stored market evidence, official macro sources, news, and the current option surface.</p>
+  <p>Coverage counts only finite, timestamped, provenance-backed observations persisted during the latest 24-hour evidence window.</p>
   <button type="button" onClick={()=>void refresh()} style={{padding:"10px 15px"}}>Refresh verified coverage</button>
   {error&&<p role="status">{error}</p>}
   {data&&<><div style={{fontSize:28,fontWeight:800,margin:"14px 0",color:data.targetMet?"#8fe0b7":"#e8c77b"}}>{data.measured} / {data.defined} factors measured · 60 target {data.targetMet?"MET":"NOT YET MET"}</div>
@@ -24,7 +24,7 @@ export default function OfficialFactorCoverage(){
    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:9}}>{data.evidence.map(f=><article key={f.factor} style={{padding:12,border:"1px solid #527083",borderRadius:9}}>
     <strong>{f.factor.replaceAll("_"," ")}</strong><div style={{fontSize:12,color:"#8fe0b7"}}>MEASURED · {f.domain.toUpperCase()}</div>
     <div>{Number(f.value).toLocaleString(undefined,{maximumFractionDigits:4})}</div>
-    <small>{f.source} · {f.subject} · observed {new Date(f.observedAt).toLocaleDateString()}</small>
+    <small>{f.source} · {f.subject} · observed {new Date(f.observedAt).toLocaleString()} · available {new Date(f.availableAt).toLocaleString()}</small>
    </article>)}</div>
    <p style={{fontSize:12,lineHeight:1.6}}>{data.warning}</p></>}
  </section>;
