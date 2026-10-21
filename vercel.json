@@ -36,6 +36,10 @@
     {
       "path": "/api/cron/official-source-health",
       "schedule": "5 15 * * 1-5"
+    },
+    {
+      "path": "/api/cron/sec-fundamental-evidence",
+      "schedule": "25 16 * * 1-5"
     }
   ]
 }
