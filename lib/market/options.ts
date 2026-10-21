@@ -15,8 +15,12 @@ export interface OptionSurface{
   generatedAt:string;
   observedAt:string|null;
   freshQuoteCount:number;
+  quoteEligibilityMaxAgeSeconds:number;
 }
 
+export function optionQuoteEligibilityMaxAgeSeconds(feed:string){
+ return feed==="opra"?300:1200;
+}
 function iso(d:Date){return d.toISOString().slice(0,10)}
 function median(xs:number[]){
   if(!xs.length)return null;
@@ -50,7 +54,7 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
   if(!entries.length)return{
     provider:"Alpaca",feed,underlying,contractCount:0,quoteCoverage:0,averageSpreadPct:null,
     atmIv:null,putCallIvSkew:null,expectedMovePct30d:null,liquidityScore:null,volatilitySuitability:null,
-    dealerGammaProxy:null,note:"No option snapshots returned for requested horizon.",generatedAt:new Date().toISOString(),observedAt:null,freshQuoteCount:0
+    dealerGammaProxy:null,note:"No option snapshots returned for requested horizon.",generatedAt:new Date().toISOString(),observedAt:null,freshQuoteCount:0,quoteEligibilityMaxAgeSeconds:optionQuoteEligibilityMaxAgeSeconds(feed)
   };
 
   const rows=entries.map(([symbol,s]:any)=>{
@@ -64,7 +68,8 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
     const quoteTimestamp=String(q.t??q.timestamp??"");
     const quoteTime=Date.parse(quoteTimestamp);
     const age=Date.now()-quoteTime;
-    const freshQuote=Number.isFinite(quoteTime)&&age>=0&&age<=15*60*1000;
+    const maxQuoteAgeMs=optionQuoteEligibilityMaxAgeSeconds(feed)*1000;
+    const freshQuote=Number.isFinite(quoteTime)&&age>=0&&age<=maxQuoteAgeMs;
     return{symbol,meta,bid,ask,spreadPct,iv:Number.isFinite(iv)?iv:null,delta:Number.isFinite(delta)?delta:null,quoteTimestamp,quoteTime,freshQuote};
   });
 
@@ -104,6 +109,6 @@ export async function alpacaOptionSurface(underlying:string,spot?:number):Promis
     volatilitySuitability:volatilitySuitability==null?null:+volatilitySuitability.toFixed(1),
     dealerGammaProxy:null,
     note:feed==="opra"?"Real-time OPRA option surface.":"Indicative option feed; use for context, not execution-quality confirmation.",
-    generatedAt:new Date().toISOString(),observedAt,freshQuoteCount:eligibleRows.length
+    generatedAt:new Date().toISOString(),observedAt,freshQuoteCount:eligibleRows.length,quoteEligibilityMaxAgeSeconds:optionQuoteEligibilityMaxAgeSeconds(feed)
   };
 }
