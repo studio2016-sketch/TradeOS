@@ -79,7 +79,7 @@ export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Prom
   for(const symbol of clean){
     const company=map.get(symbol);
     if(!company) continue;
-    const res=await fetch(`https://data.sec.gov/submissions/CIK${company.cik}.json`,{headers:SEC_HEADERS,next:{revalidate:60}});
+    const res=await fetch(`https://data.sec.gov/submissions/CIK${company.cik}.json`,{headers:SEC_HEADERS,cache:"no-store"});
     if(!res.ok) continue;
     const data=await res.json() as any;
     const recent=data?.filings?.recent;
