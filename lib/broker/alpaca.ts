@@ -1,4 +1,6 @@
-export const BROKER_RECONCILIATION_IMPLEMENTATION="paginated-read-only-v2" as const;\n\nexport interface BrokerAccountState{
+export const BROKER_RECONCILIATION_IMPLEMENTATION="paginated-read-only-v2" as const;
+
+export interface BrokerAccountState{
   environment:"live"|"paper";
   accountStatus:string;
   tradingBlocked:boolean;
