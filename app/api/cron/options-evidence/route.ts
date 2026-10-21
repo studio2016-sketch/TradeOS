@@ -30,5 +30,6 @@ export async function GET(req:Request){
    results.push({symbol,status:"observed_uncertified",saved,contracts:surface.contractCount});
   }catch(e){results.push({symbol,status:"provider_error",reason:e instanceof Error?e.message:"unknown"});}
  }
+ await sql`insert into tradeos_collector_runs(collector,status,received,saved,details) values('alpaca_options','finished',${results.length},${results.reduce((n,r)=>n+Number(r.saved??0),0)},${JSON.stringify(results)}::jsonb)`;
  return NextResponse.json({results,certified:false,ordersAllowed:false},{headers:{"Cache-Control":"no-store"}});
 }
