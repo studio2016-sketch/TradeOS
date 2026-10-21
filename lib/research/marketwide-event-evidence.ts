@@ -12,7 +12,7 @@ const TARIFF=/\b(tariff(?:s)?|import dut(?:y|ies)|trade restriction(?:s)?|export
 const BUYBACK=/\b(buyback|share repurchase|stock repurchase)\b/i;
 const BUYBACK_ACTION=/\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|increase[sd]?|launch(?:es|ed)?)\b/i;
 const CUSTOMER_NEG=/\b(?:loss|lost|loses|losing)\s+(?:of\s+)?(?:a\s+)?(?:major\s+|key\s+)?customer\b|\b(?:customer|client)\b.{0,35}\b(?:terminat(?:e|es|ed)|cancel(?:s|ed)?|ends?|leaves?)\b/i;
-const CUSTOMER_POS=/\b(?:wins?|lands?|adds?|secures?|signs?)\b.{0,45}\b(?:new\s+|major\s+|key\s+)?(?:customer|client)\b|\b(?:customer|client)\b.{0,35}\b(?:award(?:s|ed)?|expands?|renews?)\b/i;
+const CUSTOMER_POS=/\b(?:wins?|lands?|adds?|secure(?:s|d)?|signs?)\b.{0,45}\b(?:new\s+|major\s+|key\s+)?(?:customer|client)\b|\b(?:customer|client)\b.{0,35}\b(?:award(?:s|ed)?|expands?|renews?)\b/i;
 
 function money(raw:string,suffix:string|undefined){
  const n=Number(raw.replace(/,/g,""));if(!Number.isFinite(n))return null;
