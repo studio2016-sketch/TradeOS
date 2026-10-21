@@ -143,6 +143,22 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
    if(!filtered.length)return;
    const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn,start:r.start};
   };
+  const pickAnnual=(key:string,tags:string[],unit="USD")=>{
+   const rows=tags.flatMap(tag=>(gaap[tag]?.units?.[unit]??[]).map((r:any)=>({...r,tag})));
+   const filtered=rows.filter((r:any)=>{
+    const filed=Date.parse(String(r.filed??"")+"T23:59:59Z"),end=Date.parse(String(r.end??"")+"T00:00:00Z"),start=Date.parse(String(r.start??"")+"T00:00:00Z");
+    if(!Number.isFinite(filed)||!Number.isFinite(end)||!Number.isFinite(start)||filed>=cutoff||end>cutoff||!Number.isFinite(r.val)||!r.accn)return false;
+    const days=(end-start)/86400000;return days>=300&&days<=390;
+   }).sort((a:any,b:any)=>String(b.end).localeCompare(String(a.end))||String(b.filed).localeCompare(String(a.filed)));
+   if(filtered.length){const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn,start:r.start};}
+  };
+  const pickInstantAt=(key:string,tags:string[],targetEnd:string,unit="USD")=>{
+   const rows=tags.flatMap(tag=>(gaap[tag]?.units?.[unit]??[]).map((r:any)=>({...r,tag})));
+   const filtered=rows.filter((r:any)=>r.end===targetEnd&&Number.isFinite(r.val)&&r.accn&&Date.parse(String(r.filed??"")+"T23:59:59Z")<cutoff)
+    .sort((a:any,b:any)=>String(b.filed).localeCompare(String(a.filed)));
+   if(filtered.length){const r=filtered[0];values[key]=r.val;provenance[key]={filed:r.filed,end:r.end,accession:r.accn};}
+  };
+
   pick("revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"],"USD",true);
   pick("net_income",["NetIncomeLoss"],"USD",true);
   // Select comparable prior-year quarter from filed, point-in-time XBRL facts.
@@ -180,6 +196,17 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
   }
   pick("operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"],"USD",false);
   pick("earnings_per_share",["EarningsPerShareDiluted","EarningsPerShareBasic"],"USD/shares",true);
+  pickAnnual("annual_revenue",["RevenueFromContractWithCustomerExcludingAssessedTax","Revenues","SalesRevenueNet"]);
+  pickAnnual("annual_net_income",["NetIncomeLoss"]);
+  pickAnnual("annual_operating_cash_flow",["NetCashProvidedByUsedInOperatingActivities"]);
+  pickAnnual("annual_capex",["PaymentsToAcquirePropertyPlantAndEquipment","PaymentsForAdditionsToPropertyPlantAndEquipment"]);
+  const annualEnd=provenance.annual_net_income?.end??provenance.annual_revenue?.end;
+  if(annualEnd){
+   pickInstantAt("equity_annual_end",["StockholdersEquity"],annualEnd);
+   const d=new Date(annualEnd+"T00:00:00Z");d.setUTCFullYear(d.getUTCFullYear()-1);
+   pickInstantAt("equity_prior_annual_end",["StockholdersEquity"],d.toISOString().slice(0,10));
+  }
+
   return {symbol,status:"ok",values,provenance};
  }catch(e){return {...base,status:"network_error",error:e instanceof Error?e.message:"unknown"};}
 }
