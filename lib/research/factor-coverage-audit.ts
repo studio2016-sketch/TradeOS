@@ -6,7 +6,7 @@ export async function factorCoverageAudit(){
  const sql=db();
  const [rows,evidenceRows]=await Promise.all([
   sql`select factor_key,observation_count,populated_count,populated_pct,last_populated_at,implementation_status,permission_status from tradeos_factor_coverage_status order by factor_key`,
-  sql`select factor_key,count(*)::int as evidence_count,max(available_at) as latest_evidence_at from tradeos_factor_evidence group by factor_key order by factor_key`
+  sql`select e.factor_key,count(*)::int as evidence_count,max(e.available_at) as latest_evidence_at from tradeos_factor_evidence e where not (e.factor_key in ('earnings_date','eps_surprise','revenue_surprise','guidance_change','regulatory_change','buyback_announcement') and e.source_metadata ? 'articleId' and exists(select 1 from tradeos_news_articles n where n.article_id=e.source_metadata->>'articleId' and jsonb_array_length(n.symbols)<>1)) group by e.factor_key order by e.factor_key`
  ]);
  const expected=rows.reduce((n,r)=>n+Number(r.observation_count),0);
  const populated=rows.reduce((n,r)=>n+Number(r.populated_count),0);
