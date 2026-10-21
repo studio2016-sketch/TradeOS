@@ -3,6 +3,7 @@ import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {BASELINE_VERSION,CHALLENGER_VERSION,TRIAL_ACTIVATION} from "../../../../lib/research/frozenChallenger";
 import {pairedProspectiveValidation,phase4InfrastructureGate} from "../../../../lib/research/phase4-validation";
+import {phase4ScientificBlockers} from "../../../../lib/research/phase4-blockers";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
@@ -23,7 +24,8 @@ export async function GET(req:Request){
       count(*) filter(where o.forecast_id is not null)::int as resolved_outcomes,
       count(*) filter(where o.forecast_id is not null and o.resolved_at>=f.created_at)::int as outcome_chronology_ok,
       count(distinct i.model_fingerprint) filter(where i.model_version=${BASELINE_VERSION})::int as baseline_fingerprints,
-      count(distinct i.model_fingerprint) filter(where i.model_version=${CHALLENGER_VERSION})::int as challenger_fingerprints
+      count(distinct i.model_fingerprint) filter(where i.model_version=${CHALLENGER_VERSION})::int as challenger_fingerprints,
+      count(*) filter(where i.source_type='exchange_time_verified')::int as independently_verified_source_times
     from immutable_decision_records i
     join forecast_ledger f on f.id=i.forecast_id
     left join forecast_outcomes o on o.forecast_id=f.id
@@ -55,12 +57,13 @@ export async function GET(req:Request){
    challengerFingerprints:Number(x.challenger_fingerprints??0),pairedSamples:paired.pairs,sessionDates:paired.sessions,
    invalidEvidenceVintages:Number((invalid[0] as any)?.invalid_vintages??0)
   });
-  const payload={generatedAt:new Date().toISOString(),trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,integrity:x,paired,gate};
+  const scientificStatus=phase4ScientificBlockers({pairedSamples:paired.pairs,sessionDates:paired.sessions,pairedLowerBound:paired.lowerBound,independentlyVerifiedSourceTimes:Number(x.independently_verified_source_times??0),immutableRecords:Number(x.immutable_records??0),costAdjustedReturnLowerBound:null,executionSlippageValidated:false,portfolioReconciled:false,publicationTimeApplicable:false,publicationTimeVerified:0});
+  const payload={generatedAt:new Date().toISOString(),trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,integrity:x,paired,gate,scientificStatus};
   const hour=new Date().toISOString().slice(0,13);
   await sql`insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
     select 'phase4_validation_snapshot','research_trial',${hour},${CHALLENGER_VERSION},${JSON.stringify(payload)}::jsonb
     where not exists(select 1 from audit_events where event_type='phase4_validation_snapshot' and entity_id=${hour})`;
-  await recordCollectorReceipt({collector:"phase4_validation",status:"finished",received:paired.pairs,saved:1,details:{gatePassed:gate.passed,sessions:paired.sessions,lowerBound:paired.lowerBound,scientificMaturity:paired.mature}});
+  await recordCollectorReceipt({collector:"phase4_validation",status:"finished",received:paired.pairs,saved:1,details:{gatePassed:gate.passed,sessions:paired.sessions,lowerBound:paired.lowerBound,scientificMaturity:scientificStatus.scientificallyMature}});
   return NextResponse.json({...payload,approvedForTrading:false},{headers:{"Cache-Control":"no-store"}});
  }catch(e){
   try{await recordCollectorReceipt({collector:"phase4_validation",status:"failed",received:0,saved:0,details:{error:failureDetail(e)}});}catch{}
