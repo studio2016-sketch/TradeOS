@@ -87,3 +87,21 @@ export function calculateMarketFactors(raw:PriceBar[]):Record<string,DerivedFact
  result.expected_shortfall=absent("portfolio_holdings_required",n);
  return result;
 }
+
+/** Benchmark-relative calculations require synchronized completed sessions. */
+export function calculateRelativeMarketFactors(raw:PriceBar[],benchmarkRaw:PriceBar[]):Record<string,DerivedFactor>{
+ const clean=(bars:PriceBar[])=>[...bars].sort((a,b)=>Date.parse(a.timestamp)-Date.parse(b.timestamp)).filter(b=>Number.isFinite(Date.parse(b.timestamp))&&Number.isFinite(b.close)&&b.close>0);
+ const symbol=clean(raw),benchmark=clean(benchmarkRaw),byDate=new Map(benchmark.map(b=>[b.timestamp.slice(0,10),b.close]));
+ const paired=symbol.map(b=>({date:b.timestamp.slice(0,10),symbol:b.close,benchmark:byDate.get(b.timestamp.slice(0,10))})).filter((x):x is {date:string;symbol:number;benchmark:number}=>typeof x.benchmark==="number");
+ if(paired.length<21)return {beta:absent("insufficient_synchronized_bars",paired.length),rolling_correlation:absent("insufficient_synchronized_bars",paired.length)};
+ const window=paired.slice(-21),sr:number[]=[],br:number[]=[];
+ for(let i=1;i<window.length;i++){sr.push(window[i].symbol/window[i-1].symbol-1);br.push(window[i].benchmark/window[i-1].benchmark-1);}
+ const mean=(xs:number[])=>xs.reduce((a,b)=>a+b,0)/xs.length,sm=mean(sr),bm=mean(br);
+ let covariance=0,symbolVariance=0,benchmarkVariance=0;
+ for(let i=0;i<sr.length;i++){const s=sr[i]-sm,b=br[i]-bm;covariance+=s*b;symbolVariance+=s*s;benchmarkVariance+=b*b;}
+ const count=sr.length,asOf=window[window.length-1].date+"T00:00:00Z";
+ return {
+  beta:benchmarkVariance>0?valid(covariance/benchmarkVariance,count,asOf):absent("zero_benchmark_variance",count),
+  rolling_correlation:symbolVariance>0&&benchmarkVariance>0?valid(covariance/Math.sqrt(symbolVariance*benchmarkVariance),count,asOf):absent("zero_return_variance",count)
+ };
+}

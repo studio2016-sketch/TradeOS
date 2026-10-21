@@ -14,5 +14,5 @@ export function auditEvidence(records:Evidence[],decisionTime:string){
  }
  const domains:Record<Domain,number>={stock:0,option:0,macro:0,news:0,portfolio:0};
  for(const e of accepted.values())domains[e.domain]++;
- return {measured:accepted.size,target:101,passed:accepted.size>=101,domains,missing:FACTOR_KEYS.filter(k=>!accepted.has(k)),rejected:reasons,certified:false};
+ return {measured:accepted.size,target:101,passed:accepted.size>=101,domains,missing:FACTOR_KEYS.filter(k=>!accepted.has(k)),rejected:reasons,evidence:[...accepted.values()],certified:false};
 }

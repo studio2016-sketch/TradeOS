@@ -3,7 +3,7 @@ import {bestSnapshots} from "../market/live";
 import {curatedNews} from "../market/news";
 import {db} from "../db";
 import {alpacaDailyHistory} from "./market-factor-history";
-import {calculateMarketFactors} from "./market-factor-engine";
+import {calculateMarketFactors,calculateRelativeMarketFactors} from "./market-factor-engine";
 import {secCatalystsWithStatus,secFundamentalsAsOf} from "../market/sec";
 import {persistEvidence,type PersistableEvidence} from "./persist-evidence";
 const START="2026-10-20T00:00:00Z";
@@ -50,6 +50,8 @@ export async function accelerationTick(now=new Date()){
    historyBySymbol.set(snap.symbol,await alpacaDailyHistory(snap.symbol,snap.timestamp));
   }));
  }
+ const benchmarkCutoff=eligible.map(x=>x.timestamp).sort().at(-1);
+ const benchmarkHistory=benchmarkCutoff?await alpacaDailyHistory("SPY",benchmarkCutoff):{bars:[],source:"Alpaca",error:"no_eligible_snapshot"};
  // Bound SEC requests to two symbols per tick; failures never imply zero filings.
  const secSymbols=eligible.slice(0,2).map(s=>s.symbol);
  let secResult:Awaited<ReturnType<typeof secCatalystsWithStatus>>={catalysts:[],statuses:[]};
@@ -121,15 +123,17 @@ export async function accelerationTick(now=new Date()){
   }
   const history=historyBySymbol.get(snap.symbol);
   const derived=history?.bars.length?calculateMarketFactors(history.bars):{};
+  const relative=history?.bars.length&&benchmarkHistory.bars.length?calculateRelativeMarketFactors(history.bars,benchmarkHistory.bars):{};
   historyBars+=history?.bars.length??0;
   if(!history?.bars.length){const reason=history?.error??"empty_history_or_ineligible_snapshot";historyFailures[reason]=(historyFailures[reason]??0)+1;}
-  derivedValues+=Object.values(derived).filter(v=>v.value!==null).length;
+  derivedValues+=Object.values({...derived,...relative}).filter(v=>v.value!==null).length;
   for(const [key,item] of Object.entries(derived))if(item.value!==null&&FACTOR_KEYS.some(known => known === key))factors[key]=item.value;
+  for(const [key,item] of Object.entries(relative))if(item.value!==null&&FACTOR_KEYS.some(known=>known===key))factors[key]=item.value;
   factors.var_95=null;
   factors.expected_shortfall=null;
   factors.max_drawdown=null;
   const coverage=observedFactorCoverage(factors);
-  const provenance={studyKey:studyKey(now),news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0},derivedFactors:derived,fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
+  const provenance={studyKey:studyKey(now),news:related.map(n=>({id:n.id,timestamp:n.timestamp,source:n.source,headline:n.headline})),errors:news.errors,history:{source:history?.source??"unavailable",error:history?.error??null,barCount:history?.bars.length??0,benchmarkSource:benchmarkHistory.source,benchmarkError:benchmarkHistory.error??null,benchmarkBarCount:benchmarkHistory.bars.length},derivedFactors:{...derived,...relative},fundamentals:fundamentals?{source:"SEC companyfacts",status:fundamentals.status,provenance:fundamentals.provenance,error:fundamentals.error??null}:null,sec:{source:"SEC EDGAR",queried:secSymbols.includes(snap.symbol),error:secError,status:secStatus?.status??"not_queried",httpStatus:secStatus?.httpStatus??null,lookbackDays:30}};
   const runId=timestamp.slice(0,16)+":"+batch;
   const inserted=await sql`insert into tradeos_acceleration_observations(run_id,symbol,universe_rank,universe_as_of,market_time,price,provider,features,news,missing_factors) values(${runId},${snap.symbol},${rank+1},${universe.asOf},${snap.timestamp},${snap.price},${snap.source},${JSON.stringify(factors)}::jsonb,${JSON.stringify(provenance)}::jsonb,${JSON.stringify(coverage.missing)}::jsonb) on conflict(run_id,symbol) do nothing returning symbol`;
   saved+=inserted.length;
@@ -164,5 +168,5 @@ export async function accelerationTick(now=new Date()){
   }
  }
  const evidence=await persistEvidence(evidenceCandidates);
- return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,derivedValues,evidenceReceived:evidence.received,evidenceAccepted:evidence.accepted,evidenceSaved:evidence.saved,evidenceRejected:evidence.rejected.length,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,fundamentalsQueried:fundamentalBySymbol.size,fundamentalsStatuses:[...fundamentalBySymbol.values()].map(f=>({symbol:f.symbol,status:f.status,error:f.error??null,fields:Object.keys(f.values)})),secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
+ return {status:"observed_not_certified",timestamp,universeCount:universe.symbols.length,selection:universe.mode,batch,selected:selected.length,snapshotCount:snapshots.snapshots.length,historyEligible:eligible.length,saved,skipped,historyBars,benchmarkBars:benchmarkHistory.bars.length,derivedValues,evidenceReceived:evidence.received,evidenceAccepted:evidence.accepted,evidenceSaved:evidence.saved,evidenceRejected:evidence.rejected.length,historyFailures,newsErrors:news.errors,secError,secQueried:secSymbols.length,fundamentalsQueried:fundamentalBySymbol.size,fundamentalsStatuses:[...fundamentalBySymbol.values()].map(f=>({symbol:f.symbol,status:f.status,error:f.error??null,fields:Object.keys(f.values)})),secStatuses:secResult.statuses,marketProvider:snapshots.provider,sourceAttempts:snapshots.attempts,executionAllowed:false};
 }

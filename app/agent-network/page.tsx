@@ -14,6 +14,7 @@ import ProtocolReview from "./ProtocolReview";
 import ExperimentRegistry from "./ExperimentRegistry";
 import OpportunityCoach from "./OpportunityCoach";
 import OfficialFactorCoverage from "./OfficialFactorCoverage";
+import ScientificValidation from "./ScientificValidation";
 import {researchDocket} from "../../lib/agents/network";
 import {assessDiscovery} from "../../lib/agents/discovery-validation";
 type Agent={id:string;name:string;purpose:string;state:string};
@@ -85,7 +86,7 @@ export default function AgentNetwork(){
  <small style={{color:"#efcc83"}}>{item.status.replaceAll("_"," ")}</small></article>)}
  </div></section>
  <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Research Storage</h2><p>Storage status: <strong>{researchStorage?.status?.replaceAll("_"," ")??"Checking"}</strong> · Registered artifacts: <strong>{researchStorage?.artifactsRegistered??"Not available"}</strong> · Recorded data: <strong>{typeof researchStorage?.registeredBytes==="number"?(researchStorage.registeredBytes/1024/1024).toFixed(2)+" MiB":"Not available"}</strong></p><p>Neon private bucket configuration and PostgreSQL artifact metadata are tracked separately. Recorded size excludes unregistered object files and does not represent provider billing.</p><p style={{color:"#e8c87e"}}>File transfers: {researchStorage?.uploadsEnabled?"Enabled":"Disabled pending authenticated gateway"}</p><a style={{color:"#e8c87e"}} href="/api/research-storage-status" target="_blank" rel="noopener noreferrer">Check live storage connection and metadata status ↗</a></section>
- <ArtifactIntake/><UploadResearch/><ResearchInvestigations/><EvidencePicker/><ProtocolReview/><ExperimentRegistry/><OpportunityCoach/><GlobalMacroSources/><OfficialFactorCoverage/><MarketImpactExplorer/><IntelligenceTriage/><AccelerationMonitor/>
+ <ArtifactIntake/><UploadResearch/><ResearchInvestigations/><EvidencePicker/><ProtocolReview/><ExperimentRegistry/><OpportunityCoach/><GlobalMacroSources/><OfficialFactorCoverage/><ScientificValidation/><MarketImpactExplorer/><IntelligenceTriage/><AccelerationMonitor/>
  <section style={{marginTop:24,padding:24,border:"1px solid #6c93a7",borderRadius:16}}><h2>Safety and certification</h2><p>Persistent ledger schema: <strong>{ledgerStatus.replaceAll("_"," ")}</strong> · Anonymous database changes disabled.</p><p style={{color:"#9ad5e4"}}>Hypotheses: {ledgerParts.hypothesisLedger?"Ready":"Not verified"} · Investigations: {ledgerParts.investigationLedger?"Ready":"Not verified"} · Audit events: {ledgerParts.eventsLedger?"Ready":"Not verified"}</p><p>Database availability does not grant access. Browser research remains local until authenticated storage is implemented.</p><p>No external agent accounts are connected yet; agent profiles are controlled development roles.</p>{(data?.policy.controls??[]).map(x=><p key={x}>✓ {x}</p>)}</section>
  </main>;
 }

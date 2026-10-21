@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {calculateMarketFactors} from "../lib/research/market-factor-engine.ts";
+import {calculateMarketFactors,calculateRelativeMarketFactors} from "../lib/research/market-factor-engine.ts";
 const bars=Array.from({length:21},(_,i)=>({timestamp:new Date(Date.UTC(2026,0,i+1)).toISOString(),open:100+i,high:102+i,low:99+i,close:101+i,volume:1000+i*10}));
 test("does not invent values without sufficient history",()=>{
  const x=calculateMarketFactors(bars.slice(0,3));
@@ -13,7 +13,18 @@ test("computes deterministic daily indicators",()=>{
  assert.equal(x.sma_5.value,119);
  assert.equal(x.dollar_volume.value,121*1200);
  assert.ok(x.atr_14.value!==null);
+ assert.ok(Number.isFinite(x.price_acceleration.value));
  assert.equal(x.sma_200.value,null);
+});
+test("calculates beta and rolling correlation only from synchronized completed sessions",()=>{
+ const benchmark=bars.map((bar,i)=>({...bar,close:200+i*1.3}));
+ const result=calculateRelativeMarketFactors(bars,benchmark);
+ assert.ok(Number.isFinite(result.beta.value));
+ assert.ok(Number.isFinite(result.rolling_correlation.value));
+ assert.equal(result.beta.inputCount,20);
+ const sparse=calculateRelativeMarketFactors(bars.slice(0,10),benchmark.slice(0,10));
+ assert.equal(sparse.beta.value,null);
+ assert.equal(sparse.beta.reason,"insufficient_synchronized_bars");
 });
 test("sorts input by timestamp",()=>{
  assert.deepEqual(calculateMarketFactors([...bars].reverse()),calculateMarketFactors(bars));
