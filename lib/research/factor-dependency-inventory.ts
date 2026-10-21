@@ -10,7 +10,8 @@ const macro=new Set(["us10y_yield","us2y_yield","yield_curve_slope","fed_policy_
 const treasuryIssuance=new Set(["treasury_issuance"]);
 const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth","pe_trailing","price_sales","ev_ebitda","free_cash_flow_yield","return_on_equity","insider_trading"]);
 const options=new Set(["implied_vol_atm","iv_skew"]);
-const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","guidance_change","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure","regulatory_change","sec_filing_catalyst"]);
+const marketwideEvents=new Set(["earnings_date","eps_surprise","revenue_surprise","guidance_change","regulatory_change"]);
+const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","buyback_announcement","geopolitical_risk","policy_announcement","tariff_exposure","sec_filing_catalyst"]);
 const invalidLegacy=new Set(["var_95","expected_shortfall","max_drawdown"]);
 export type FactorDependency={
  key:string;family:string;sourceClass:string;sourceCandidate:string;
@@ -29,6 +30,7 @@ export function factorDependencyInventory():FactorDependency[]{
   else if(macro.has(key)){sourceClass="official_macro_series";sourceCandidate="FRED (public series; entitlements not verified)";implementationPath="lib/research/official-macro-evidence.ts";collectorPath="app/api/cron/macro-evidence/route.ts";}
   else if(sec.has(key)){sourceClass="sec_company_facts";sourceCandidate="SEC EDGAR XBRL";implementationPath="lib/research/sec-ratio-evidence.ts";collectorPath="app/api/cron/sec-fundamental-evidence/route.ts";}
   else if(options.has(key)){sourceClass="options_surface";sourceCandidate="Alpaca options feed (entitlements not verified)";implementationPath="app/api/cron/options-evidence/route.ts";collectorPath=implementationPath;}
+  else if(marketwideEvents.has(key)){sourceClass="structured_marketwide_news_events";sourceCandidate="Persisted Alpaca/Massive news cache with explicit structured event parsing";implementationPath="lib/research/marketwide-event-evidence.ts";collectorPath="app/api/cron/news-evidence/route.ts";}
   else if(news.has(key)){sourceClass="news_or_sec_catalysts";sourceCandidate="Persisted Alpaca/Massive news cache plus SEC catalysts";implementationPath=key==="sec_filing_catalyst"?"lib/research/acceleration-collector.ts":"lib/research/news-factor-evidence.ts";collectorPath=key==="sec_filing_catalyst"?"app/api/cron/acceleration/route.ts":"app/api/cron/news-evidence/route.ts";}
   else if(family==="portfolio_risk"){sourceClass="portfolio_holdings";sourceCandidate="Authorized synchronized positions and prices";implementationPath=null;collectorPath=null;}
   const blockers=[
