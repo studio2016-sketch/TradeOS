@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/news-evidence",
-      "schedule": "12,27,42,57 * * * *"
+      "schedule": "1,16,31,46 * * * *"
     }
   ]
 }
