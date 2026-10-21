@@ -1,6 +1,6 @@
 import {latestRegimeContext} from "../market/fred";
 import {auditEvidence,type Evidence} from "./source-vintage-audit";
-const mapping:Record<string,string>={DGS10:"us10y_yield",DGS2:"us2y_yield",T10Y2Y:"yield_curve_slope",DFF:"fed_policy_rate",BAMLH0A0HYM2:"high_yield_spread",DCOILWTICO:"wti_crude",DTWEXBGS:"dxy"};
+const mapping:Record<string,string>={DGS10:"us10y_yield",DGS2:"us2y_yield",T10Y2Y:"yield_curve_slope",DFF:"fed_policy_rate",BAMLH0A0HYM2:"high_yield_spread",DCOILWTICO:"wti_crude"};
 export async function observedMacroEvidence(now=new Date()){
  const requestedAt=now.toISOString();
  const context=await latestRegimeContext();
