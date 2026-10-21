@@ -1,5 +1,5 @@
 export type EvidenceMetrics={
- total:number;immutableRecords:number;sourceTimeVerified:number;publicationTimeVerified:number;
+ total:number;immutableRecords:number;sourceTimeVerified:number;publicationTimeApplicable:boolean;publicationTimeVerified:number;
  outOfSamplePaired:number;independentSessionDates:number;
  predictiveSkillLowerBound:number|null;costAdjustedReturnLowerBound:number|null;
  portfolioReconciled:boolean;executionSlippageValidated:boolean;
@@ -8,7 +8,7 @@ export type CertificationStatus="BLOCKED"|"RESEARCH_ONLY"|"INDEPENDENTLY_VALIDAT
 export function certifyResearch(e:EvidenceMetrics){
  const checks=[
   {id:"immutable_point_in_time",pass:e.immutableRecords>=200&&e.immutableRecords===e.total&&e.sourceTimeVerified===e.total,detail:"At least 200 immutable forecasts with independently verified source timestamps"},
-  {id:"publication_time",pass:e.total>0&&e.publicationTimeVerified===e.total,detail:"Publication times precede each original decision"},
+  {id:"publication_time",pass:!e.publicationTimeApplicable||(e.total>0&&e.publicationTimeVerified===e.total),detail:e.publicationTimeApplicable?"Publication-derived inputs were publicly available before each original decision":"Not applicable: current prospective trial uses stored market observations rather than publication-derived inputs"},
   {id:"untouched_chronological_holdout",pass:e.outOfSamplePaired>=200&&e.independentSessionDates>=20,detail:"At least 200 truly prospective paired predictions across 20 sessions"},
   {id:"predictive_skill",pass:e.predictiveSkillLowerBound!==null&&e.predictiveSkillLowerBound>0,detail:"Positive lower confidence bound on paired forecast improvement"},
   {id:"execution_costs",pass:e.costAdjustedReturnLowerBound!==null&&e.costAdjustedReturnLowerBound>0&&e.executionSlippageValidated,detail:"Positive lower confidence bound after verified execution costs"},
