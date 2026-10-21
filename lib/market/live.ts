@@ -113,9 +113,9 @@ export async function bestSnapshots(symbols:string[]){
   const clean=cleanSymbols(symbols);
   const attempts:{source:string,error?:string,count?:number}[]=[];
   const responses=await Promise.all([
-    process.env.MASSIVE_API_KEY
+    process.env.MASSIVE_API_KEY&&process.env.MASSIVE_STOCK_SNAPSHOT_ENABLED==="true"
       ? massiveSnapshots(clean).then(data=>({name:"Massive",data,error:""})).catch((e:unknown)=>({name:"Massive",data:[] as MarketSnapshot[],error:e instanceof Error?e.message:String(e)}))
-      : Promise.resolve({name:"Massive",data:[] as MarketSnapshot[],error:"unconfigured"}),
+      : Promise.resolve({name:"Massive",data:[] as MarketSnapshot[],error:process.env.MASSIVE_API_KEY?"disabled_by_entitlement_policy":"unconfigured"}),
     process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET
       ? alpacaSnapshots(clean).then(data=>({name:"Alpaca",data,error:""})).catch((e:unknown)=>({name:"Alpaca",data:[] as MarketSnapshot[],error:e instanceof Error?e.message:String(e)}))
       : Promise.resolve({name:"Alpaca",data:[] as MarketSnapshot[],error:"unconfigured"})
