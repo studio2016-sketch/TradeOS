@@ -27,7 +27,7 @@
     },
     {
       "path": "/api/cron/macro-evidence",
-      "schedule": "42 * * * *"
+      "schedule": "45 * * * *"
     },
     {
       "path": "/api/cron/options-evidence",
@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/news-evidence",
-      "schedule": "40 * * * *"
+      "schedule": "46 * * * *"
     },
     {
       "path": "/api/cron/intraday-activation",
