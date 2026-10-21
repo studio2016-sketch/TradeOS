@@ -39,7 +39,7 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
   const net=denom?related.reduce((sum,n,i)=>sum+sentiment(n.headline+" "+(n.summary??""))*weights[i],0)/denom:0;
   const analystItems=related.filter(n=>n.symbols.length===1&&n.symbols[0]===symbol&&ANALYST_CHANGE.test(n.headline+" "+(n.summary??"")));
   if(analystItems.length){
-   const directional=analystItems.map(n=>{const text=n.headline+" "+(n.summary??"");return ANALYST_DOWN.test(text)?-1:ANALYST_UP.test(text)?1:0;});
+   const directional:number[]=analystItems.map(n=>{const text=n.headline+" "+(n.summary??"");return ANALYST_DOWN.test(text)?-1:ANALYST_UP.test(text)?1:0;});
    const weights=analystItems.map(n=>Math.max(.1,Number(n.sourceQuality??.5))*Math.max(.1,Number((n as any).recency??.5)));
    const denom=weights.reduce((a,b)=>a+b,0);
    const value=denom?directional.reduce((sum,d,i)=>sum+d*weights[i],0)/denom:0;
