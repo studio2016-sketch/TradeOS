@@ -11,6 +11,8 @@ const REG_ACTION=/\b(rule|regulat(?:ion|ory)|approv(?:e|es|ed|al)|reject(?:s|ed|
 const TARIFF=/\b(tariff(?:s)?|import dut(?:y|ies)|trade restriction(?:s)?|export restriction(?:s)?|export control(?:s)?)\b/i;
 const BUYBACK=/\b(buyback|share repurchase|stock repurchase)\b/i;
 const BUYBACK_ACTION=/\b(announc(?:e|es|ed)|authoriz(?:e|es|ed)|expand(?:s|ed)?|increase[sd]?|launch(?:es|ed)?)\b/i;
+const CUSTOMER_NEG=/\b(?:loss|lost|loses|losing)\s+(?:of\s+)?(?:a\s+)?(?:major\s+|key\s+)?customer\b|\b(?:customer|client)\b.{0,35}\b(?:terminat(?:e|es|ed)|cancel(?:s|ed)?|ends?|leaves?)\b/i;
+const CUSTOMER_POS=/\b(?:wins?|lands?|adds?|secures?|signs?)\b.{0,45}\b(?:new\s+|major\s+|key\s+)?(?:customer|client)\b|\b(?:customer|client)\b.{0,35}\b(?:award(?:s|ed)?|expands?|renews?)\b/i;
 
 function money(raw:string,suffix:string|undefined){
  const n=Number(raw.replace(/,/g,""));if(!Number.isFinite(n))return null;
@@ -41,6 +43,11 @@ export function parseEarningsDate(text:string,publishedAt:string){
  if(!m[3]&&date.getTime()<pub.getTime()-2*86400000)date=new Date(Date.UTC(year+1,month,Number(m[2]),12));
  const days=(date.getTime()-pub.getTime())/86400000;
  return days>=-1&&days<=180?{scheduledDate:date.toISOString().slice(0,10),daysToEarnings:days}:null;
+}
+export function customerEventDirection(text:string){
+ if(CUSTOMER_NEG.test(text))return -1;
+ if(CUSTOMER_POS.test(text))return 1;
+ return null;
 }
 export function guidanceDirection(text:string){
  if(!GUIDANCE.test(text))return null;
@@ -82,6 +89,8 @@ export async function observedMarketwideEventEvidence(now=new Date()){
    if(gd!==null)candidates.push({factor:"guidance_change",value:gd,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"direction_-1_0_1",method:"explicit_guidance_outlook_or_forecast_change"}});
    if(REGULATOR.test(text)&&REG_ACTION.test(text))candidates.push({factor:"regulatory_change",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_named_regulator_action_headline_or_summary"}});
    if(BUYBACK.test(text)&&BUYBACK_ACTION.test(text))candidates.push({factor:"buyback_announcement",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_buyback_or_repurchase_announcement"}});
+   const customerDirection=customerEventDirection(text);
+   if(customerDirection!==null)candidates.push({factor:"customer_event",value:customerDirection,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"direction_-1_1",method:"explicit_customer_or_client_win_loss_event",note:"Requires explicit customer/client relationship language in a single-symbol article."}});
   }
  }
  const unique=new Map<string,PersistableEvidence>();
