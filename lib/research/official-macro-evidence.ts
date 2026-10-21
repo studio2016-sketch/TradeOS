@@ -36,6 +36,7 @@ export const addedOfficialMacroFactors:MacroDefinition[]=[
  {factor:"usdjpy",series:"DEXJPUS",label:"Japanese Yen to US Dollar Exchange Rate",unit:"JPY per USD",derivation:"latest",lookbackDays:90},
  {factor:"bitcoin",series:"CBBTCUSD",label:"Coinbase Bitcoin",unit:"USD per BTC",derivation:"latest",lookbackDays:90},
  {factor:"copper",series:"PCOPPUSDM",label:"Global Price of Copper",unit:"USD per metric ton",derivation:"latest",lookbackDays:500},
+ {factor:"gold",series:"GOLDAMGBD228NLBM",label:"LBMA Gold Price AM",unit:"USD per troy ounce",derivation:"latest",lookbackDays:180},
  {factor:"pmi_manufacturing",series:"NAPM",label:"ISM Manufacturing PMI",unit:"index",derivation:"latest",lookbackDays:500}
 ];
 
