@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
 
-type Obs={id:number;event_time:string;source_id:string;payload_hash:string|null;metadata:any;freshness_score:number|null;quality_score:number|null};
+type Obs={id:number;event_time:string;received_at:string;source_id:string;payload_hash:string|null;metadata:any;freshness_score:number|null;quality_score:number|null};
 
 function clamp(n:number,min:number,max:number){return Math.max(min,Math.min(max,n));}
 
@@ -12,7 +12,7 @@ export async function generateShadowForecasts(symbols:string[]){
 
   for(const symbol of symbols.filter(s=>!["VIX"].includes(s))){
     const recent=await sql`
-      select id,event_time,source_id,payload_hash,metadata,freshness_score,quality_score
+      select id,event_time,received_at,source_id,payload_hash,metadata,freshness_score,quality_score
       from source_observations
       where data_class='market_snapshot'
         and symbol=${symbol}
@@ -26,6 +26,7 @@ export async function generateShadowForecasts(symbols:string[]){
     const rows=recent.map(r=>({
       t:new Date(r.event_time).getTime(),
       observationId:Number(r.id),
+      receivedAt:new Date(r.received_at).toISOString(),
       payloadHash:r.payload_hash?String(r.payload_hash):null,
       sourceId:String(r.source_id??"unknown"),
       quoteObservedAt:typeof r.metadata?.quoteTimestamp==="string"?r.metadata.quoteTimestamp:null,
@@ -121,6 +122,15 @@ export async function generateShadowForecasts(symbols:string[]){
           ${applied[0].id},${last.observationId},'direct_at_creation',
           ${Math.abs(last.t-Date.parse(new Date(last.t).toISOString()))},${last.payloadHash},false
         ) on conflict(immutable_decision_id) do nothing`;
+        const forecastCreatedAt=new Date(forecast.created_at).toISOString();
+        if(Date.parse(last.receivedAt)<=Date.parse(forecastCreatedAt)&&last.t<=Date.parse(forecastCreatedAt)){
+          await sql`insert into tradeos_decision_source_verifications(
+            immutable_decision_id,source_observation_id,verification_rule,source_event_time,source_received_at,forecast_created_at,source_payload_hash,backfilled
+          ) values(
+            ${applied[0].id},${last.observationId},'event_and_received_before_forecast',
+            ${new Date(last.t).toISOString()},${last.receivedAt},${forecastCreatedAt},${last.payloadHash},false
+          ) on conflict(immutable_decision_id) do nothing`;
+        }
       }
     }catch(_){recorded=false;}
     // Prospective challenger only: never backfill historical predictions.
@@ -162,7 +172,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
                ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${challengerFingerprint},
                ${challengerChecksum},'research_only',${challenger[0].id})
-             on conflict(forecast_id) do nothing returning id
+             on conflict(forecast_id) do nothing returning id,created_at
           `;
           if(insertedChallenger.length&&Number.isFinite(last.observationId)){
             await sql`insert into tradeos_decision_source_attestations(
@@ -170,6 +180,15 @@ export async function generateShadowForecasts(symbols:string[]){
             ) values(
               ${insertedChallenger[0].id},${last.observationId},'direct_at_creation',0,${last.payloadHash},false
             ) on conflict(immutable_decision_id) do nothing`;
+            const challengerCreatedAt=new Date(insertedChallenger[0].created_at).toISOString();
+            if(Date.parse(last.receivedAt)<=Date.parse(challengerCreatedAt)&&last.t<=Date.parse(challengerCreatedAt)){
+              await sql`insert into tradeos_decision_source_verifications(
+                immutable_decision_id,source_observation_id,verification_rule,source_event_time,source_received_at,forecast_created_at,source_payload_hash,backfilled
+              ) values(
+                ${insertedChallenger[0].id},${last.observationId},'event_and_received_before_forecast',
+                ${new Date(last.t).toISOString()},${last.receivedAt},${challengerCreatedAt},${last.payloadHash},false
+              ) on conflict(immutable_decision_id) do nothing`;
+            }
           }
           results.push({symbol,status:insertedChallenger.length?"prospective_challenger_recorded":"prospective_challenger_missing_immutable_record",version:CHALLENGER_VERSION});
         }
