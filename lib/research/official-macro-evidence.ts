@@ -5,7 +5,7 @@ const mapping:Record<string,string>={DGS10:"us10y_yield",DGS2:"us2y_yield",T10Y2
 type Derivation="latest"|"year_over_year_pct";
 type MacroDefinition={factor:string;series:string;label:string;unit:string;derivation:Derivation;lookbackDays:number};
 
-/** Ten additional catalog factors backed by public, current-vintage FRED observations. */
+/** Fifteen additional catalog factors backed by public, current-vintage FRED observations. */
 export const addedOfficialMacroFactors:MacroDefinition[]=[
  {factor:"real_yield",series:"DFII10",label:"10-Year Treasury Inflation-Indexed Security",unit:"percent",derivation:"latest",lookbackDays:90},
  {factor:"investment_grade_spread",series:"BAMLC0A0CM",label:"US Corporate Option-Adjusted Spread",unit:"percent",derivation:"latest",lookbackDays:90},
@@ -16,7 +16,12 @@ export const addedOfficialMacroFactors:MacroDefinition[]=[
  {factor:"pce_yoy",series:"PCEPI",label:"Personal Consumption Expenditures Price Index",unit:"percent year over year",derivation:"year_over_year_pct",lookbackDays:500},
  {factor:"gdp_growth",series:"A191RL1Q225SBEA",label:"Real GDP Growth",unit:"annualized percent",derivation:"latest",lookbackDays:500},
  {factor:"retail_sales",series:"RSAFS",label:"Advance Retail Sales",unit:"percent year over year",derivation:"year_over_year_pct",lookbackDays:500},
- {factor:"jobless_claims",series:"ICSA",label:"Initial Unemployment Claims",unit:"claims",derivation:"latest",lookbackDays:90}
+ {factor:"jobless_claims",series:"ICSA",label:"Initial Unemployment Claims",unit:"claims",derivation:"latest",lookbackDays:90},
+ {factor:"unemployment",series:"UNRATE",label:"US Unemployment Rate",unit:"percent",derivation:"latest",lookbackDays:180},
+ {factor:"nonfarm_payrolls",series:"PAYEMS",label:"Total Nonfarm Payroll Employment",unit:"thousands of persons",derivation:"latest",lookbackDays:180},
+ {factor:"consumer_confidence",series:"UMCSENT",label:"University of Michigan Consumer Sentiment",unit:"index",derivation:"latest",lookbackDays:180},
+ {factor:"capacity_utilization",series:"TCU",label:"Total Industry Capacity Utilization",unit:"percent",derivation:"latest",lookbackDays:180},
+ {factor:"natural_gas",series:"DHHNGSP",label:"Henry Hub Natural Gas Spot Price",unit:"USD per MMBtu",derivation:"latest",lookbackDays:90}
 ];
 
 export function deriveOfficialMacroFactor(definition:MacroDefinition,result:FredHistoryResult){
