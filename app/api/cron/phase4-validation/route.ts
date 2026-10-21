@@ -18,7 +18,8 @@ export async function GET(req:Request){
       count(*) filter(where i.forecast_id is not null)::int as immutable_linked,
       count(*) filter(where i.observed_at<=i.recorded_at+interval '1 minute')::int as structural_point_in_time,
       count(a.id)::int as source_attested,
-      count(*) filter(where a.source_payload_hash is not null and a.source_payload_hash<>'')::int as source_hash_attested,
+      count(v.id)::int as strict_source_verified,
+      count(*) filter(where coalesce(v.source_payload_hash,a.source_payload_hash) is not null and coalesce(v.source_payload_hash,a.source_payload_hash)<>'')::int as source_hash_attested,
       count(*) filter(where o.forecast_id is not null)::int as resolved_outcomes,
       count(*) filter(where o.forecast_id is not null and o.resolved_at>=f.created_at)::int as outcome_chronology_ok,
       count(distinct i.model_fingerprint) filter(where i.model_version=${BASELINE_VERSION})::int as baseline_fingerprints,
@@ -27,6 +28,7 @@ export async function GET(req:Request){
     join forecast_ledger f on f.id=i.forecast_id
     left join forecast_outcomes o on o.forecast_id=f.id
     left join tradeos_decision_source_attestations a on a.immutable_decision_id=i.id
+    left join tradeos_decision_source_verifications v on v.immutable_decision_id=i.id
     where i.recorded_at>=${TRIAL_ACTIVATION}::timestamptz`,
    sql`with b as (
       select f.symbol,f.horizon,date_trunc('minute',f.created_at) as bucket,f.created_at,
@@ -47,7 +49,7 @@ export async function GET(req:Request){
   const x=integrity[0] as any;
   const gate=phase4InfrastructureGate({
    immutableRecords:Number(x.immutable_records??0),immutableLinked:Number(x.immutable_linked??0),
-   sourceAttested:Number(x.source_attested??0),sourceHashAttested:Number(x.source_hash_attested??0),
+   sourceAttested:Number(x.source_attested??0),strictSourceVerified:Number(x.strict_source_verified??0),sourceHashAttested:Number(x.source_hash_attested??0),
    structuralPointInTime:Number(x.structural_point_in_time??0),resolvedOutcomes:Number(x.resolved_outcomes??0),
    outcomeChronologyOk:Number(x.outcome_chronology_ok??0),baselineFingerprints:Number(x.baseline_fingerprints??0),
    challengerFingerprints:Number(x.challenger_fingerprints??0),pairedSamples:paired.pairs,sessionDates:paired.sessions,
