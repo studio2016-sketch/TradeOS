@@ -56,6 +56,14 @@ export async function secRatioEvidence(symbol:string,now=new Date()):Promise<Fun
     const fcf=cfo-Math.abs(capex);
     if(Number.isFinite(fcf))results.push({factor:"free_cash_flow_yield",value:fcf/marketCap,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,operatingCashFlow:cfo,capex,freeCashFlow:fcf,cfoProvenance:p.annual_operating_cash_flow,capexProvenance:p.annual_capex,unit:"fraction"}});
    }
+   const operatingIncome=v.annual_operating_income,da=v.annual_depreciation_amortization,cash=v.cash_and_equivalents;
+   const debtParts=[v.debt_current,v.debt_noncurrent].filter(Number.isFinite) as number[];
+   if(Number.isFinite(operatingIncome)&&Number.isFinite(da)&&Number.isFinite(cash)&&debtParts.length){
+    const ebitda=operatingIncome+da,totalDebt=debtParts.reduce((sum,x)=>sum+x,0),enterpriseValue=marketCap+totalDebt-cash;
+    if(ebitda>0&&enterpriseValue>0&&p.annual_operating_income&&p.annual_depreciation_amortization&&p.cash_and_equivalents){
+     results.push({factor:"ev_ebitda",value:enterpriseValue/ebitda,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,enterpriseValue,marketCap,totalDebt,cash,ebitda,operatingIncome,depreciationAmortization:da,operatingIncomeProvenance:p.annual_operating_income,depreciationProvenance:p.annual_depreciation_amortization,cashProvenance:p.cash_and_equivalents,debtCurrentProvenance:p.debt_current??null,debtNoncurrentProvenance:p.debt_noncurrent??null,unit:"ratio",method:"market_cap_plus_reported_debt_minus_cash_divided_by_annual_operating_income_plus_DA"}});
+    }
+   }
    const eqNow=v.equity_annual_end,eqPrior=v.equity_prior_annual_end;
    if(Number.isFinite(annualNet)&&Number.isFinite(eqNow)&&Number.isFinite(eqPrior)){
     const avg=(eqNow+eqPrior)/2;
