@@ -1,5 +1,7 @@
 export const factorCoveragePolicy={
  target:101,
+ scope:"B: 120 factors across stocks, options, macroeconomics, news, and portfolio contexts; only count applicable, observed, timestamped values",
+ approval:"User selected Option B on 2026-10-20",
  denominator:120,
  eligibleValue:"finite numeric observation with documented provider, observation time, and applicability",
  forbid:["fabricated values","forward-looking information","zero used for unknown","relabeling one input as independent evidence"],
@@ -11,7 +13,7 @@ export const factorCoveragePolicy={
  "Measure portfolio risk only for a defined and timestamped portfolio",
  "Keep non-applicable factors explicitly unavailable"
  ],
- status:"Research target, not currently achieved"
+ status:"Option B approved; 101 measured factors not yet achieved"
 };
 export function coverageGate(measured:number,applicable:number){
  if(!Number.isInteger(measured)||!Number.isInteger(applicable)||applicable<0||applicable>120||measured<0||measured>applicable)throw Error("Invalid coverage");
