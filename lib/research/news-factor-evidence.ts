@@ -1,5 +1,22 @@
 import {curatedNews} from "../market/news";
+import {latestNewsReaction} from "../market/newsReaction";
 import type {PersistableEvidence} from "./persist-evidence";
+
+const POS=/\b(beat|beats|raise[sd]?|upgrade[sd]?|record|strong|growth|win[ns]?|approval|approved|partnership|expand[sd]?|surge[sd]?|bullish|outperform|positive|accelerat(?:e|es|ed|ing))\b/i;
+const NEG=/\b(miss|misses|cut[s]?|downgrade[sd]?|investigation|lawsuit|recall|weak|decline[sd]?|drop[s]?|delay[sed]?|bearish|underperform|warning|slump|fall[s]?|risk[s]?)\b/i;
+const STOP=new Set(["the","a","an","and","or","of","to","for","in","on","with","at","by","from","as","is","are","be","this","that"]);
+function sentiment(text:string){let s=0;if(POS.test(text))s++;if(NEG.test(text))s--;return s;}
+function tokens(text:string){return new Set(text.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(x=>x.length>2&&!STOP.has(x)))}
+function jaccard(a:Set<string>,b:Set<string>){const union=new Set([...a,...b]);if(!union.size)return 0;let hit=0;for(const x of a)if(b.has(x))hit++;return hit/union.size;}
+function maxCorroboration(items:Array<{headline:string;source:string}>){
+ let max=1;
+ for(let i=0;i<items.length;i++){
+  const base=tokens(items[i].headline),sources=new Set([items[i].source]);
+  for(let j=0;j<items.length;j++)if(i!==j&&jaccard(base,tokens(items[j].headline))>=.55)sources.add(items[j].source);
+  max=Math.max(max,sources.size);
+ }
+ return max;
+}
 
 export async function observedNewsFactors(symbols:string[],now=new Date()){
  const clean=[...new Set(symbols.map(s=>s.trim().toUpperCase()).filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)))].slice(0,20);
@@ -14,11 +31,25 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
   const ids=new Set(related.map(n=>n.id));
   const source="CuratedNews:"+sources.join(",");
   const metadata={windowHours:24,articleCount:related.length,articleIds:[...ids],sources,providerErrors:result.errors};
+  const weights=related.map(n=>Math.max(.1,Number(n.sourceQuality??.5))*Math.max(.1,Number((n as any).recency??.5)));
+  const denom=weights.reduce((a,b)=>a+b,0);
+  const net=denom?related.reduce((sum,n,i)=>sum+sentiment(n.headline+" "+(n.summary??""))*weights[i],0)/denom:0;
+  const corroboration=maxCorroboration(related);
   candidates.push(
    {factor:"headline_count",value:related.length,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata},
    {factor:"news_source_diversity",value:sources.length,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata},
-   {factor:"headline_novelty",value:ids.size/related.length,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata}
+   {factor:"headline_novelty",value:ids.size/related.length,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata},
+   {factor:"news_sentiment",value:net,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata:{...metadata,method:"weighted lexical polarity",unit:"signed_score_-1_to_1"}},
+   {factor:"corroboration",value:corroboration,source,subject:symbol,observedAt:retrievedAt,availableAt:retrievedAt,domain:"news",metadata:{...metadata,method:"maximum distinct source labels among headline clusters with token Jaccard >= 0.55"}}
   );
+ }
+ for(const symbol of clean.filter(s=>!["QQQ","IWM"].includes(s)).slice(0,3)){
+  try{
+   const reaction=await latestNewsReaction(symbol);
+   if(reaction?.matched&&reaction.timestamp&&reaction.returnPct!=null&&Number.isFinite(reaction.returnPct)){
+    candidates.push({factor:"news_price_reaction",value:reaction.returnPct,source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.timestamp,availableAt:retrievedAt,domain:"news",metadata:{headline:reaction.headline,classification:reaction.classification,reactionScore:reaction.reactionScore,unit:"percent_return",method:"news timestamp to latest eligible bar within 120 minutes"}});
+   }
+  }catch{}
  }
  return {retrievedAt,symbols:clean,newsCount:result.news.length,errors:result.errors,candidates};
 }
