@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/cron/acceleration",
-      "schedule": "*/15 * * * *"
+      "schedule": "2,17,32,47 * * * *"
     },
     {
       "path": "/api/cron/acceleration-replay",
