@@ -1,5 +1,5 @@
 import test from "node:test";import assert from "node:assert/strict";
-import {simulateLongAfterDecision} from "../lib/research/replaySimulator";
+import {simulateLongAfterDecision} from "../lib/research/replaySimulator.ts";
 const b=(t:string,o:number,h:number,l:number,c:number)=>({t,o,h,l,c,v:100});
 const start="2026-10-16T15:00:00Z";
 const p={symbol:"AAPL",decisionAt:start,startingEquity:10000,riskBudget:100,stopPct:2,targetPct:3,slippageBps:10,commissionPerShare:.01,maxBars:5};

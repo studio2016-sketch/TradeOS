@@ -1,6 +1,8 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {graphFromResearch} from "../../../lib/research/financialGraph";
+import {buildFinancialKnowledgeGraph} from "../../../lib/research/knowledgeGraph";
+import {graphHypotheses} from "../../../lib/research/factorDiscovery";
 export const dynamic="force-dynamic";
 export async function GET(req:Request){
  const params=new URL(req.url).searchParams;
@@ -9,11 +11,11 @@ export async function GET(req:Request){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",nodes:[],edges:[]},{status:503});
  try{
   const sql=db();
-  const rows=await sql`
+  const [rows,independentGraphResult]=await Promise.all([sql`
    select f.id,f.symbol,f.model_version,f.created_at,f.evidence,f.source_snapshot
    from forecast_ledger f where (${symbol}='' or f.symbol=${symbol})
    order by f.created_at desc limit 500
-  `;
+  `,buildFinancialKnowledgeGraph(symbol?[symbol]:["NVDA","AMD","AAPL","MSFT","SPY","QQQ","IWM"]).catch(()=>null)]);
   const mapped=(rows as any[]).map(x=>{
    const evidence=Array.isArray(x.evidence)?x.evidence:[];
    const source=x.source_snapshot&&typeof x.source_snapshot==="object"?x.source_snapshot:{};
@@ -45,8 +47,11 @@ export async function GET(req:Request){
     verificationStatus:String(x.verification_status)
    }));
   }catch{}
-  return NextResponse.json({status:"RESEARCH_LINEAGE_ONLY",generatedAt:new Date().toISOString(),symbolFilter:symbol||null,
+  const graphDerivedHypotheses=independentGraphResult?graphHypotheses(independentGraphResult):null;
+  return NextResponse.json({status:independentGraphResult?"INDEPENDENT_SOURCE_GRAPH_ACTIVE":"RESEARCH_LINEAGE_ONLY",generatedAt:new Date().toISOString(),symbolFilter:symbol||null,
    ...graph,corporateStatus,corporateRelationships,
+   independentGraph:independentGraphResult,
+   graphDerivedHypotheses,
    certifiedCorporateRelationships:corporateRelationships.length>0&&corporateRelationships.every(x=>x.verificationStatus==="INDEPENDENTLY_VERIFIED"),
    certifiedPredictiveRelationships:false},
    {headers:{"Cache-Control":"no-store"}});

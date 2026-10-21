@@ -1,4 +1,4 @@
-import {evaluatePaperRisk} from "../lib/paper/portfolioRisk";
+import {evaluatePaperRisk} from "../lib/paper/portfolioRisk.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 const input={equity:10000,cash:5000,dailyRealizedPnl:0,positions:[{symbol:"AAA",sector:"Technology",marketValue:1000}],candidate:{symbol:"BBB",sector:"Technology",notional:500,plannedRisk:30},limits:{maxPositionPct:15,maxGrossPct:40,maxDailyLoss:100,maxSectorPct:25}};

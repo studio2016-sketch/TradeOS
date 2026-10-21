@@ -1,6 +1,6 @@
 import test from "node:test";import assert from "node:assert/strict";
-import {graphFromResearch} from "../lib/research/financialGraph";
-import {certifyResearch} from "../lib/research/certificationAuthority";
+import {graphFromResearch} from "../lib/research/financialGraph.ts";
+import {certifyResearch} from "../lib/research/certificationAuthority.ts";
 test("Graph only creates evidenced lineage without inventing company suppliers",()=>{
  const graph=graphFromResearch([{symbol:"NVDA",modelVersion:"shadow-trend-v1",source:"Alpaca:iex",forecastTime:"2026-10-18T15:00:00Z",sourceObservedAt:"2026-10-18T14:55:00Z",factorLabels:["75m price trend","Spread"],forecastId:"15"}]);
  assert.equal(graph.nodes.some(n=>n.kind==="instrument"),true);

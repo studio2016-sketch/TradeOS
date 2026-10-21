@@ -1,4 +1,4 @@
-import test from "node:test";import assert from "node:assert/strict";import {historicalBars} from "../lib/market/features";
+import test from "node:test";import assert from "node:assert/strict";import {historicalBars} from "../lib/market/features.ts";
 test("historical bars request newest available data but return chronological series",async()=>{
  const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET,fetchBefore=globalThis.fetch;
  try{

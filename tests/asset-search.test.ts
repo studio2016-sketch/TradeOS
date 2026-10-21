@@ -1,4 +1,4 @@
-import test from "node:test";import assert from "node:assert/strict";import {rankAssetMatches} from "../lib/market/assetSearch";
+import test from "node:test";import assert from "node:assert/strict";import {rankAssetMatches} from "../lib/market/assetSearch.ts";
 const make=(symbol:string,name:string)=>({symbol,name,exchange:"NASDAQ",fractionable:true});
 test("An exact ticker ranks ahead of hundreds of funds mentioning the ticker in their names",()=>{
  const funds=Array.from({length:160},(_,i)=>make("ETF"+i,"Fund referencing AAPL "+i));

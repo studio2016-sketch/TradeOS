@@ -1,4 +1,4 @@
-import {simulatePaperBuy} from "../lib/paper/simulator";
+import {simulatePaperBuy} from "../lib/paper/simulator.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 const now=Date.parse("2026-10-11T16:00:00Z");

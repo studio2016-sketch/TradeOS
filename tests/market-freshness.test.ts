@@ -1,4 +1,4 @@
-import test from "node:test";import assert from "node:assert/strict";import {observationState,observedAgeMs,validHistoricalPoint} from "../lib/market/freshness";
+import test from "node:test";import assert from "node:assert/strict";import {observationState,observedAgeMs,validHistoricalPoint} from "../lib/market/freshness.ts";
 const now=Date.parse("2026-10-18T17:00:00Z");
 test("recent source timestamp is an observation, never exchange-certified",()=>assert.equal(observationState("2026-10-18T16:59:30Z",now),"recent_observation"));
 test("stale prices cannot masquerade as current",()=>assert.equal(observationState("2026-10-17T17:00:00Z",now),"stale"));

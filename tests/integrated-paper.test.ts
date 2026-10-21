@@ -1,4 +1,4 @@
-import {evaluatePaperCandidate} from "../lib/paper/integrated";
+import {evaluatePaperCandidate} from "../lib/paper/integrated.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 const now=Date.parse("2026-10-11T16:00:00Z");

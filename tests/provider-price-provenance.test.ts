@@ -1,17 +1,14 @@
-import test from "node:test";import assert from "node:assert/strict";import {alpacaSnapshots,massiveSnapshots} from "../lib/market/live";
+import test from "node:test";import assert from "node:assert/strict";import {alpacaSnapshots,massiveSnapshots} from "../lib/market/live.ts";
 test("Alpaca bar-close timestamps cannot be replaced by newer quote timestamps",async()=>{
  const oldKey=process.env.ALPACA_API_KEY,oldSecret=process.env.ALPACA_API_SECRET,oldFeed=process.env.ALPACA_FEED,oldFetch=globalThis.fetch;
  try{
   process.env.ALPACA_API_KEY="test";process.env.ALPACA_API_SECRET="test";process.env.ALPACA_FEED="iex";
-  globalThis.fetch=(async(input:RequestInfo|URL)=>{
-    const url=String(input);
-    return new Response(JSON.stringify(url.includes("quotes/latest")?{quotes:{AAPL:{t:"2026-10-18T12:00:00Z",bp:151,ap:152}}}:{bars:{AAPL:{t:"2026-10-16T19:55:00Z",c:150,v:12}}}),{status:200});
-  }) as typeof fetch;
+  globalThis.fetch=(async()=>new Response(JSON.stringify({AAPL:{latestQuote:{t:"2026-10-18T12:00:00Z",bp:151,ap:152},dailyBar:{t:"2026-10-16T19:55:00Z",c:150,v:12}}}),{status:200})) as typeof fetch;
   const [s]=await alpacaSnapshots(["AAPL"]);
   assert.equal(s.price,150);
   assert.equal(s.timestamp,"2026-10-16T19:55:00Z");
   assert.equal(s.quoteTimestamp,"2026-10-18T12:00:00Z");
-  assert.equal(s.priceKind,"bar_close");
+  assert.equal(s.priceKind,"day_close");
  }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.ALPACA_API_KEY;else process.env.ALPACA_API_KEY=oldKey;if(oldSecret===undefined)delete process.env.ALPACA_API_SECRET;else process.env.ALPACA_API_SECRET=oldSecret;if(oldFeed===undefined)delete process.env.ALPACA_FEED;else process.env.ALPACA_FEED=oldFeed}
 });
 test("Massive last trade price uses last trade's timestamp, not aggregate updated timestamp",async()=>{

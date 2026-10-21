@@ -1,7 +1,7 @@
 import test from "node:test";import assert from "node:assert/strict";
-import {evaluateDecisionCouncil} from "../lib/market/decisionCouncil";
-import type {AlignmentResult} from "../lib/alignment/engine";
-import type {SupervisoryResult} from "../lib/alignment/supervisors";
+import {evaluateDecisionCouncil} from "../lib/market/decisionCouncil.ts";
+import type {AlignmentResult} from "../lib/alignment/engine.ts";
+import type {SupervisoryResult} from "../lib/alignment/supervisors.ts";
 const now=Date.parse("2026-10-18T15:00:00Z");
 const alignment={symbol:"AAPL",readings:[{id:"a",group:"Momentum",label:"Momentum",weight:1,criticalBuy:false,hardSell:false,state:"aligned",buyScore:93,sellRisk:5,source:"historical",freshness:"observed",note:"" }],availability:100} as AlignmentResult;
 const supervisors={buyVeto:false,supervisors:[]} as unknown as SupervisoryResult;

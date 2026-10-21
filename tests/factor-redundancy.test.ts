@@ -1,5 +1,5 @@
 import test from "node:test";import assert from "node:assert/strict";
-import {factorRedundancyStudy} from "../lib/research/factorRedundancy";
+import {factorRedundancyStudy} from "../lib/research/factorRedundancy.ts";
 test("Correlated factors are detected on shared forecast rows",()=>{
  const input=Array.from({length:40},(_,i)=>[
   {forecastId:String(i),label:"Momentum",value:i+1},

@@ -1,5 +1,5 @@
 import test from "node:test";import assert from "node:assert/strict";
-import {evaluateFactorAssociation} from "../lib/research/factorIntelligence";
+import {evaluateFactorAssociation} from "../lib/research/factorIntelligence.ts";
 const samples=Array.from({length:100},(_,i)=>({label:"Recorded factor",value:i%2,outcome:(i%4===0?1:0) as 0|1,time:new Date(Date.UTC(2026,0,1)+i*86400000).toISOString()}));
 test("Factor lab publishes only descriptive association, never predictive certification",()=>{
  const [r]=evaluateFactorAssociation(samples);

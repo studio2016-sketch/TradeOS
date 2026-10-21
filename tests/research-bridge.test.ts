@@ -1,4 +1,4 @@
-import {researchToPaper} from "../lib/paper/researchBridge";
+import {researchToPaper} from "../lib/paper/researchBridge.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 const now=Date.parse("2026-10-11T16:00:00Z");
