@@ -45,12 +45,12 @@ export async function GET(req:Request){
   const independent=matched.length>0&&certifiedMatches===matched.length;
   const certified=validation.validated&&coverage>=.9&&independent&&history.historyComplete&&history.transactionLineageComplete;
   const saved=await sql`insert into tradeos_fill_slippage_validations(
-    environment,fill_count,matched_quote_count,session_count,volume_weighted_slippage_bps,reference_feeds,independently_certified_reference_time,slippage_validated,details
+    environment,fill_count,matched_quote_count,session_count,volume_weighted_slippage_bps,upper95_slippage_bps,conservative_roundtrip_slippage_fraction,reference_feeds,independently_certified_reference_time,slippage_validated,details
   ) values(
-    ${history.environment},${fills.length},${matched.length},${validation.sessions},${validation.volumeWeightedSlippageBps},
+    ${history.environment},${fills.length},${matched.length},${validation.sessions},${validation.volumeWeightedSlippageBps},${validation.upper95Bps},${validation.conservativeRoundTripSlippageFraction},
     ${JSON.stringify([...feeds].sort())}::jsonb,${independent},${certified},
     ${JSON.stringify({quoteMatchCoverage:coverage,historyComplete:history.historyComplete,transactionLineageComplete:history.transactionLineageComplete,rule:"nearest stored quote within 60 seconds that was received before fill; certification additionally requires independent source-time certification"})}::jsonb
   ) returning id,created_at`;
-  return NextResponse.json({mode:"authorized_read_only",environment:history.environment,fillsConsidered:fills.length,matchedQuoteCount:matched.length,quoteMatchCoverage:coverage,sessionCount:validation.sessions,volumeWeightedSlippageBps:validation.volumeWeightedSlippageBps,referenceFeeds:[...feeds].sort(),independentlyCertifiedReferenceTime:independent,historyComplete:history.historyComplete,transactionLineageComplete:history.transactionLineageComplete,executionSlippageValidated:certified,snapshot:saved[0]??null,liveExecutionAllowed:false},{headers});
+  return NextResponse.json({mode:"authorized_read_only",environment:history.environment,fillsConsidered:fills.length,matchedQuoteCount:matched.length,quoteMatchCoverage:coverage,sessionCount:validation.sessions,volumeWeightedSlippageBps:validation.volumeWeightedSlippageBps,upper95SlippageBps:validation.upper95Bps,conservativeRoundTripSlippageFraction:validation.conservativeRoundTripSlippageFraction,referenceFeeds:[...feeds].sort(),independentlyCertifiedReferenceTime:independent,historyComplete:history.historyComplete,transactionLineageComplete:history.transactionLineageComplete,executionSlippageValidated:certified,snapshot:saved[0]??null,liveExecutionAllowed:false},{headers});
  }catch(e){return NextResponse.json({status:"UNAVAILABLE",reason:"Empirical fill-slippage validation failed",error:e instanceof Error?e.message:"unknown",liveExecutionAllowed:false},{status:503,headers});}
 }
