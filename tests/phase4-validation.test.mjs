@@ -29,7 +29,7 @@ test("paired prospective validation remains immature before 20 independent sessi
 
 test("Phase 4 infrastructure gate is independent from scientific certification",()=>{
  const pass=phase4InfrastructureGate({
-  immutableRecords:335,immutableLinked:335,structuralPointInTime:335,
+  immutableRecords:335,immutableLinked:335,sourceAttested:335,sourceHashAttested:32,structuralPointInTime:335,
   resolvedOutcomes:288,outcomeChronologyOk:288,baselineFingerprints:1,challengerFingerprints:1,
   pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0
  });
@@ -37,7 +37,7 @@ test("Phase 4 infrastructure gate is independent from scientific certification",
  assert.equal(pass.scientificCertificationGranted,false);
  assert.equal(pass.modelPromotionAllowed,false);
  const fail=phase4InfrastructureGate({...{
-  immutableRecords:335,immutableLinked:335,structuralPointInTime:335,
+  immutableRecords:335,immutableLinked:335,sourceAttested:335,sourceHashAttested:32,structuralPointInTime:335,
   resolvedOutcomes:288,outcomeChronologyOk:288,baselineFingerprints:1,challengerFingerprints:1,
   pairedSamples:143,sessionDates:3,invalidEvidenceVintages:0
  },outcomeChronologyOk:287});
