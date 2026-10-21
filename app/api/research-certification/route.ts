@@ -3,6 +3,7 @@ import {db,hasDatabase} from "../../../lib/db";
 import {certifyResearch} from "../../../lib/research/certificationAuthority";
 import {BASELINE_VERSION,CHALLENGER_VERSION,TRIAL_ACTIVATION} from "../../../lib/research/frozenChallenger";
 import {pairedProspectiveValidation} from "../../../lib/research/phase4-validation";
+import {phase4ScientificBlockers} from "../../../lib/research/phase4-blockers";
 export const dynamic="force-dynamic";
 
 export async function GET(){
@@ -34,6 +35,7 @@ export async function GET(){
   ]);
   const r=(counts as any[])[0];
   const paired=pairedProspectiveValidation((pairs as any[]).map(x=>({time:new Date(x.time).toISOString(),baselineLoss:Number(x.baseline_loss),challengerLoss:Number(x.challenger_loss)})));
+  const scientificStatus=phase4ScientificBlockers({pairedSamples:paired.pairs,sessionDates:paired.sessions,pairedLowerBound:paired.lowerBound,independentlyVerifiedSourceTimes:Number(r.source_time_verified),immutableRecords:Number(r.immutable_records),costAdjustedReturnLowerBound:null,executionSlippageValidated:false,portfolioReconciled:false,publicationTimeApplicable:false,publicationTimeVerified:Number(r.publication_time_verified)});
   const evidence={
    total:Number(r.total),immutableRecords:Number(r.immutable_records),
    sourceTimeVerified:Number(r.source_time_verified),publicationTimeVerified:Number(r.publication_time_verified),
@@ -45,7 +47,7 @@ export async function GET(){
   return NextResponse.json({
    generatedAt:new Date().toISOString(),trial:{activation:TRIAL_ACTIVATION,baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION},
    structuralIntegrity:{immutableRecords:Number(r.immutable_records),structuralPointInTime:Number(r.structural_point_in_time),strictSourceVerified:Number(r.strict_source_verified),invalidOutcomeChronology:Number(r.invalid_outcome_chronology)},
-   pairedValidation:paired,evidence,...certifyResearch(evidence),
+   pairedValidation:paired,scientificStatus,evidence,...certifyResearch(evidence),
    method:"Prospective matched baseline/challenger Brier-loss comparison from immutable forecast records. Stored observation event times establish structural chronology but are not relabeled as independently exchange-certified timestamps. Cost, portfolio reconciliation, and independent publication-time gates remain fail-closed."
   },{headers:{"Cache-Control":"no-store"}});
  }catch(e){
