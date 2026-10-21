@@ -42,7 +42,7 @@ export async function observedNewsFactors(symbols:string[],now=new Date()){
    const directional:number[]=analystItems.map(n=>{const text=n.headline+" "+(n.summary??"");return ANALYST_DOWN.test(text)?-1:ANALYST_UP.test(text)?1:0;});
    const weights=analystItems.map(n=>Math.max(.1,Number(n.sourceQuality??.5))*Math.max(.1,Number((n as any).recency??.5)));
    const denom=weights.reduce((a,b)=>a+b,0);
-   const value=denom?directional.reduce((sum,d,i)=>sum+d*weights[i],0)/denom:0;
+   const value=denom?directional.reduce<number>((sum,d,i)=>sum+d*weights[i],0)/denom:0;
    const observedAt=analystItems.map(n=>n.timestamp).sort().at(-1)!;
    candidates.push({factor:"analyst_revision",value,source:"CuratedNews:"+[...new Set(analystItems.map(n=>n.source))].sort().join(","),subject:symbol,observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"explicit single-symbol analyst upgrade/downgrade or price-target change headlines",articleIds:analystItems.map(n=>n.id),directions:directional,unit:"signed_direction_-1_to_1",note:"Headline-derived analyst action, not consensus-estimate revision."}});
   }
