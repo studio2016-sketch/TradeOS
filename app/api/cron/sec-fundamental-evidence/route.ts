@@ -1,4 +1,5 @@
 import {NextResponse} from "next/server";
+import {validateEvidence} from "../../../../lib/research/evidence-gate";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {secRatioEvidence} from "../../../../lib/research/sec-ratio-evidence";
@@ -16,6 +17,7 @@ export async function GET(req:Request){
    const evidence=await secRatioEvidence(symbol);
    let saved=0;
    for(const item of evidence){
+    const gate=validateEvidence({...item,domain:"stock"});if(!gate.accepted)continue;
     const rows=await sql`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata) values(${item.factor},'stock',${item.subject},${item.value},${item.source},${item.observedAt},${item.availableAt},${JSON.stringify(item.metadata)}::jsonb) on conflict do nothing returning id`;
     saved+=rows.length;
    }
