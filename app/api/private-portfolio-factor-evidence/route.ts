@@ -4,6 +4,7 @@ import {hasDatabase} from "../../../lib/db";
 import {alpacaBrokerState,brokerReadStatus} from "../../../lib/broker/alpaca";
 import {portfolioRiskFactors} from "../../../lib/research/specialized-factor-calculations";
 import {persistEvidence,type PersistableEvidence} from "../../../lib/research/persist-evidence";
+import {approvedPaperDailyLossLimit,PAPER_DAILY_LOSS_POLICY} from "../../../lib/paper/approvedDailyLossPolicy";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 const headers={"Cache-Control":"private, no-store"};
@@ -32,6 +33,13 @@ export async function POST(req:Request){
   const policy=[process.env.TRADEOS_MAX_GROSS_PCT,process.env.TRADEOS_MAX_SECTOR_PCT,
    process.env.TRADEOS_MAX_DAILY_LOSS,process.env.TRADEOS_DAILY_REALIZED_PNL].map(x=>x===undefined?NaN:Number(x));
   const hasPolicy=policy.every(Number.isFinite)&&policy[0]>0&&policy[1]>0&&policy[2]>0;
+  // Approved policy is 1% of verified beginning-of-session equity, NOT current equity.
+  // Broker lastEquity is prior-day close, not a certified session-opening equity snapshot.
+  // Never infer beginning-of-day equity or realized P&L from current account fields.
+  const sessionDate=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(now));
+  const approvedLimit=approvedPaperDailyLossLimit({environment:snapshot.environment,
+   beginningOfDayEquity:NaN,equityAsOf:snapshot.generatedAt,sessionDate});
+  const riskBudgetInputStatus=approvedLimit===null?"beginning_of_day_equity_not_independently_verified":"realized_pnl_not_reconciled";
   const positions=snapshot.positions.map(p=>({symbol:p.symbol,sector:"UNVERIFIED",marketValue:Math.abs(p.marketValue)}));
   // Exposure and largest-name concentration need only authorized broker equity and
   // holdings. Sector concentration, volatility and remaining risk budget are blocked
@@ -54,7 +62,8 @@ export async function POST(req:Request){
    measuredFactors:eligible.map(x=>x.factor),blockedFactors:{
     sector_concentration:"verified_sector_mapping_required",
     position_volatility:"synchronized_historical_returns_and_covariance_required",
-    risk_budget_remaining:hasPolicy?"authoritative_daily_realized_pnl_required":"risk_policy_and_realized_pnl_required"},
+    risk_budget_remaining:riskBudgetInputStatus},
+   riskPolicy:{id:PAPER_DAILY_LOSS_POLICY.id,environment:"paper",maxDailyLossFraction:0.01,liveTradingApproved:false,appliedToMeasurement:false},
    certificationGranted:false,modelPromotionAllowed:false,ordersAllowed:false},{headers});
  }catch(e){return NextResponse.json({status:"provider_or_persistence_error",
   reason:e instanceof Error?e.message:"unknown",saved:0},{status:503,headers});}
