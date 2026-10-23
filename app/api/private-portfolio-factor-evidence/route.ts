@@ -5,6 +5,7 @@ import {alpacaBrokerState,brokerReadStatus} from "../../../lib/broker/alpaca";
 import {portfolioRiskFactors} from "../../../lib/research/specialized-factor-calculations";
 import {persistEvidence,type PersistableEvidence} from "../../../lib/research/persist-evidence";
 import {approvedPaperDailyLossLimit,PAPER_DAILY_LOSS_POLICY} from "../../../lib/paper/approvedDailyLossPolicy";
+import {readPaperRiskAccounting} from "../../../lib/broker/paperRiskAccounting";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 const headers={"Cache-Control":"private, no-store"};
@@ -39,7 +40,9 @@ export async function POST(req:Request){
   const sessionDate=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(now));
   const approvedLimit=approvedPaperDailyLossLimit({environment:snapshot.environment,
    beginningOfDayEquity:NaN,equityAsOf:snapshot.generatedAt,sessionDate});
-  const riskBudgetInputStatus=approvedLimit===null?"beginning_of_day_equity_not_independently_verified":"realized_pnl_not_reconciled";
+  const accounting=snapshot.environment==="paper"?await readPaperRiskAccounting(sessionDate):null;
+  const riskBudgetInputStatus=approvedLimit===null?"beginning_of_day_equity_not_independently_verified":
+   accounting?.reason??"realized_pnl_not_reconciled";
   const positions=snapshot.positions.map(p=>({symbol:p.symbol,sector:"UNVERIFIED",marketValue:Math.abs(p.marketValue)}));
   // Exposure and largest-name concentration need only authorized broker equity and
   // holdings. Sector concentration, volatility and remaining risk budget are blocked
@@ -63,6 +66,8 @@ export async function POST(req:Request){
     sector_concentration:"verified_sector_mapping_required",
     position_volatility:"synchronized_historical_returns_and_covariance_required",
     risk_budget_remaining:riskBudgetInputStatus},
+   accountingStatus:{verified:accounting?.verified??false,reason:accounting?.reason??"paper_only",
+    fillCount:accounting&&"fillCount" in accounting?accounting.fillCount:null},
    riskPolicy:{id:PAPER_DAILY_LOSS_POLICY.id,environment:"paper",maxDailyLossFraction:0.01,liveTradingApproved:false,appliedToMeasurement:false},
    certificationGranted:false,modelPromotionAllowed:false,ordersAllowed:false},{headers});
  }catch(e){return NextResponse.json({status:"provider_or_persistence_error",
