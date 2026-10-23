@@ -35,13 +35,13 @@ export async function GET(req:Request){
      const history=await sql`select distinct on (date_trunc('day',observed_at)) value,observed_at
        from tradeos_factor_evidence
        where factor_key='implied_vol_atm' and subject=${symbol} and observed_at<${observedAt}
-         and observed_at>=${observedAt}::timestamptz-interval '252 days'
+         and observed_at>=${observedAt}::timestamptz-interval '550 days'
        order by date_trunc('day',observed_at),observed_at desc`;
-     const rank=computeIvRank(surface.atmIv,history.map(r=>Number(r.value)));
+     // 252 distinct prior observation days, not 20 points or 252 calendar days.\n     const rank=computeIvRank(surface.atmIv,history.map(r=>Number(r.value)));
      if(rank!==null)candidates.push({
       factor:"iv_rank",value:rank,source:"TradeOS persisted implied-volatility history + Alpaca options:"+surface.feed,
       subject:symbol,observedAt,availableAt,domain:"option" as const,
-      metadata:{historyDays:history.length,windowDays:252,method:"(current_IV-min_IV)/(max_IV-min_IV)",feed:surface.feed,quoteEligibilityMaxAgeSeconds:surface.quoteEligibilityMaxAgeSeconds,liveFreshnessRequiredSeconds:300,backtestEligible:false}
+      metadata:{historyDays:history.length,minHistoricalSessions:252,lookbackCalendarDays:550,method:"(current_IV-min_IV)/(max_IV-min_IV)",feed:surface.feed,quoteEligibilityMaxAgeSeconds:surface.quoteEligibilityMaxAgeSeconds,liveFreshnessRequiredSeconds:300,backtestEligible:false}
      });
     }
     const persisted=await persistEvidence(candidates);
