@@ -16,7 +16,7 @@ export async function GET(req:Request){
    r.implementation_status,r.permission_status,
    coalesce(s.populated_count,0)::int as acceleration_samples,
    coalesce(e.evidence_count,0)::int as evidence_samples,
-   e.latest_evidence
+   e.latest_evidence,r.freshness_seconds
   from tradeos_factor_coverage_registry r
   left join tradeos_factor_coverage_status s using(factor_key)
   left join (
@@ -47,28 +47,34 @@ export async function GET(req:Request){
    ["iv_rank"].includes(key)?"derivatives":
    ["estimate_revision","pe_forward","pmi_manufacturing"].includes(key)?"fundamentals_macro":
    ["competitor_event","supplier_event","earnings_call_sentiment","geographic_exposure"].includes(key)?"event_intelligence":"other";
+  const latestMs=r.latest_evidence?Date.parse(String(r.latest_evidence)):NaN;
+  const freshnessSeconds=Number(r.freshness_seconds);
+  const evidenceFresh=Number.isFinite(latestMs)&&Number.isFinite(freshnessSeconds)&&freshnessSeconds>0&&latestMs<=Date.now()&&Date.now()-latestMs<=freshnessSeconds*1000;
   const blockers=[
    ...(samples===0?["no_numeric_observations"]:[]),
+   ...(!evidenceFresh?["freshness_not_demonstrated"]:[]),
    ...(["unknown","unverified"].includes(permission)?["permission_not_verified"]:[]),
    ...(["unknown","unverified"].includes(implementation)?["implementation_not_verified"]:[])
   ];
   return {factor:key,domain,accelerationSamples:Number(r.acceleration_samples),
    evidenceSamples:Number(r.evidence_samples),latestEvidence:r.latest_evidence,
+   freshnessSeconds,evidenceFresh,
    implementationStatus:implementation,permissionStatus:permission,
    calculationSmokeCheck:arithmeticChecks[key]===undefined?"not_implemented":arithmeticChecks[key]?"passed":"failed",
-   providerPermissionCheck:permission==="verified"?"registry_attested_not_reprobed":"not_verified",
-   verifiedImplementation:implementation==="verified",
-   verifiedPermission:permission==="verified",
+   providerPermissionCheck:"not_reprobed",
+   verifiedImplementation:implementation==="verified"&&evidenceFresh,
+   verifiedPermission:false,
    blockers,requiredSource:r.source_name,requiredCalculation:r.calculation_method};
  });
  const calculationChecksPassed=Object.values(arithmeticChecks).filter(Boolean).length;
  const summary={calculationChecksPassed,calculationChecksAttempted:Object.keys(arithmeticChecks).length,registered:factors.length,numericMeasured:factors.filter(x=>x.accelerationSamples+x.evidenceSamples>0).length,
   missingNumeric:factors.filter(x=>x.accelerationSamples+x.evidenceSamples===0).map(x=>x.factor),
+  freshEvidence:factors.filter(x=>x.evidenceFresh).length,
   verifiedImplementation:factors.filter(x=>x.verifiedImplementation).length,
   verifiedPermission:factors.filter(x=>x.verifiedPermission).length,
   fullyVerified:factors.filter(x=>x.verifiedImplementation&&x.verifiedPermission).length};
  return NextResponse.json({generatedAt:new Date().toISOString(),summary,factors,
   certificationGranted:false,modelPromotionAllowed:false,liveExecutionAllowed:false,
-  warning:"Calculation smoke checks execute deterministic samples only. Permission requires authenticated vendor entitlement evidence; no factor is promoted by smoke checks alone."},
+  warning:"Calculation smoke checks execute deterministic samples only. Freshness is checked against latest available_at and the registered SLA; vendor permission is not re-probed, so permission remains unverified regardless of stored labels. No factor is promoted."},
   {headers:{"Cache-Control":"no-store"}});
 }
