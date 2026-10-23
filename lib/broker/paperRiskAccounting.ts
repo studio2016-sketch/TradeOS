@@ -57,10 +57,28 @@ export async function readPaperRiskAccounting(date:string){
   const next=String(rows.at(-1)?.id??"");
   if(!next||next===token)break;token=next;
  }
+
+ // Non-trade activities must be enumerated before net P&L can be certified.
+ const nonTradeTypes=new Set<string>();let nonTradeComplete=false,nonTradeToken="";
+ for(let page=0;page<100;page++){
+  const u=new URL(base+"/v2/account/activities");
+  u.searchParams.set("category","non_trade_activity");
+  u.searchParams.set("direction","asc");u.searchParams.set("page_size","100");
+  if(nonTradeToken)u.searchParams.set("page_token",nonTradeToken);
+  const response=await fetch(u,{headers,cache:"no-store",signal:AbortSignal.timeout(12000)});
+  if(!response.ok)return {verified:false as const,reason:"non_trade_activity_http_"+response.status,fillCount:fills.length,historyComplete:false};
+  const rows=await response.json() as any[];
+  if(!Array.isArray(rows))return {verified:false as const,reason:"invalid_non_trade_activity_response"};
+  for(const row of rows)nonTradeTypes.add(String(row.activity_type??row.type??"UNKNOWN"));
+  if(rows.length<100){nonTradeComplete=true;break;}
+  const next=String(rows.at(-1)?.id??"");
+  if(!next||next===nonTradeToken)break;nonTradeToken=next;
+ }
  const pnl=reconcileDailyRealizedPnl(fills,date,complete);
  // Fees, corporate actions, transfers and cost-basis adjustments require separate
  // reconciliation. Gross FIFO results are diagnostic, not certified net realized P&L.
  return {...pnl,verified:false as const,reason:pnl.verified?
   "gross_fifo_requires_fee_corporate_action_and_cost_basis_reconciliation":pnl.reason,
-  fillCount:fills.length,historyComplete:complete};
+  fillCount:fills.length,historyComplete:complete&&nonTradeComplete,
+  nonTradeActivityTypes:[...nonTradeTypes].sort(),nonTradeHistoryComplete:nonTradeComplete};
 }
