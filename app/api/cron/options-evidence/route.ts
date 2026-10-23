@@ -37,7 +37,8 @@ export async function GET(req:Request){
        where factor_key='implied_vol_atm' and subject=${symbol} and observed_at<${observedAt}
          and observed_at>=${observedAt}::timestamptz-interval '550 days'
        order by date_trunc('day',observed_at),observed_at desc`;
-     // 252 distinct prior observation days, not 20 points or 252 calendar days.\n     const rank=computeIvRank(surface.atmIv,history.map(r=>Number(r.value)));
+     // 252 distinct prior observation days, not 20 points or 252 calendar days.
+     const rank=computeIvRank(surface.atmIv,history.map(r=>Number(r.value)));
      if(rank!==null)candidates.push({
       factor:"iv_rank",value:rank,source:"TradeOS persisted implied-volatility history + Alpaca options:"+surface.feed,
       subject:symbol,observedAt,availableAt,domain:"option" as const,
