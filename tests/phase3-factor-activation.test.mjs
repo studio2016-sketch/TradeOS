@@ -25,8 +25,9 @@ test("Phase 3 activated factor families have explicit implementation paths",()=>
  }
 });
 
-test("portfolio-risk factors remain fail-closed until real portfolio context exists",()=>{
- for(const key of ["var_95","expected_shortfall","max_drawdown"]){
-  assert.equal(byKey.get(key)?.mappingState,"legacy_semantics_invalid");
+test("portfolio-risk factors use the authorized portfolio engine and reject legacy security proxies",()=>{
+ for(const key of ["portfolio_exposure","single_name_weight","position_volatility","var_95","expected_shortfall","max_drawdown"]){
+  assert.equal(byKey.get(key)?.implementationPath,"lib/research/portfolio-factor-engine.ts");
+  assert.equal(byKey.get(key)?.mappingState,"code_candidate_unverified");
  }
 });

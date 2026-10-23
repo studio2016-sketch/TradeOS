@@ -14,7 +14,8 @@ const sec=new Set(["market_cap","net_margin","revenue_growth","earnings_growth",
 const options=new Set(["implied_vol_atm","iv_rank","iv_skew"]);
 const marketwideEvents=new Set(["earnings_date","eps_surprise","revenue_surprise","guidance_change","buyback_announcement","customer_event","regulatory_change","tariff_exposure"]);
 const news=new Set(["headline_count","headline_novelty","news_source_diversity","news_sentiment","corroboration","news_price_reaction","event_materiality","analyst_revision","geopolitical_risk","policy_announcement","sec_filing_catalyst"]);
-const invalidLegacy=new Set(["var_95","expected_shortfall","max_drawdown"]);
+const portfolioActivation=new Set(["portfolio_exposure","single_name_weight","position_volatility","var_95","expected_shortfall","max_drawdown"]);
+const rejectedLegacyProxy=new Set(["var_95","expected_shortfall","max_drawdown"]);
 export type FactorDependency={
  key:string;family:string;sourceClass:string;sourceCandidate:string;
  implementationPath:string|null;collectorPath:string|null;
@@ -36,15 +37,16 @@ export function factorDependencyInventory():FactorDependency[]{
   else if(options.has(key)){sourceClass="options_surface";sourceCandidate="Alpaca options feed (entitlements not verified)";implementationPath="app/api/cron/options-evidence/route.ts";collectorPath=implementationPath;}
   else if(marketwideEvents.has(key)){sourceClass="structured_marketwide_news_events";sourceCandidate="Persisted Alpaca/Massive news cache with explicit structured event parsing";implementationPath="lib/research/marketwide-event-evidence.ts";collectorPath="app/api/cron/news-evidence/route.ts";}
   else if(news.has(key)){sourceClass="news_or_sec_catalysts";sourceCandidate="Persisted Alpaca/Massive news cache plus SEC catalysts";implementationPath=key==="sec_filing_catalyst"?"lib/research/acceleration-collector.ts":"lib/research/news-factor-evidence.ts";collectorPath=key==="sec_filing_catalyst"?"app/api/cron/acceleration/route.ts":"app/api/cron/news-evidence/route.ts";}
+  else if(portfolioActivation.has(key)){sourceClass="authorized_portfolio_snapshot_and_synchronized_history";sourceCandidate="Read-only Alpaca account positions plus completed daily market history";implementationPath="lib/research/portfolio-factor-engine.ts";collectorPath="app/api/cron/portfolio-factor-evidence/route.ts";}
   else if(family==="portfolio_risk"){sourceClass="portfolio_holdings";sourceCandidate="Authorized synchronized positions and prices";implementationPath=null;collectorPath=null;}
   const blockers=[
    "SOURCE_ENTITLEMENT_UNVERIFIED","CALCULATION_INDEPENDENTLY_UNVERIFIED",
    "POINT_IN_TIME_AND_FRESHNESS_UNVERIFIED","EVIDENCE_PERSISTENCE_UNVERIFIED"
   ];
   if(!implementationPath)blockers.unshift("NO_IMPLEMENTATION_IDENTIFIED");
-  if(invalidLegacy.has(key))blockers.unshift("LEGACY_SINGLE_SECURITY_PROXY_NOT_PORTFOLIO_RISK");
+  if(rejectedLegacyProxy.has(key))blockers.unshift("LEGACY_SINGLE_SECURITY_PROXY_REJECTED_USE_PORTFOLIO_ENGINE");
   return {key,family,sourceClass,sourceCandidate,implementationPath,collectorPath,
-   mappingState:invalidLegacy.has(key)?"legacy_semantics_invalid":implementationPath?"code_candidate_unverified":"no_implementation_identified",
+   mappingState:implementationPath?"code_candidate_unverified":rejectedLegacyProxy.has(key)?"legacy_semantics_invalid":"no_implementation_identified",
    blockers,certified:false};
  });
 }

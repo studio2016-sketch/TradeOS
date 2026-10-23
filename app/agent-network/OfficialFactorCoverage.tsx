@@ -15,9 +15,9 @@ export default function OfficialFactorCoverage(){
  }
  useEffect(()=>{void refresh();},[]);
  return <section style={{marginTop:24,padding:22,border:"1px solid #5f91a5",borderRadius:14,background:"#102a39"}}>
-  <h2>Verified 120-Factor Coverage</h2>
+  <h2>Measured 120-Factor Coverage</h2>
   <p>Coverage counts only finite, timestamped, provenance-backed observations persisted during the latest 24-hour evidence window.</p>
-  <button type="button" onClick={()=>void refresh()} style={{padding:"10px 15px"}}>Refresh verified coverage</button>
+  <button type="button" onClick={()=>void refresh()} style={{padding:"10px 15px"}}>Refresh measured coverage</button>
   {error&&<p role="status">{error}</p>}
   {data&&<><div style={{fontSize:28,fontWeight:800,margin:"14px 0",color:data.targetMet?"#8fe0b7":"#e8c77b"}}>{data.measured} / {data.defined} factors measured · 60 target {data.targetMet?"MET":"NOT YET MET"}</div>
    <p style={{fontSize:12}}>Audited {new Date(data.generatedAt).toLocaleString()} · {data.coveragePct}% catalog coverage · {Object.entries(data.domains).map(([domain,count])=>`${domain} ${count}`).join(" · ")}</p>

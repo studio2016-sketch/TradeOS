@@ -16,6 +16,7 @@ test("only identifiable implementation paths are declared code candidates",()=>{
   if(item.mappingState==="code_candidate_unverified")assert.ok(item.implementationPath&&item.collectorPath);
   else assert.ok(item.blockers.length>0);
  }
- assert.equal(items.find(x=>x.key==="var_95")?.mappingState,"legacy_semantics_invalid");
+ assert.equal(items.find(x=>x.key==="var_95")?.mappingState,"code_candidate_unverified");
+ assert.equal(items.find(x=>x.key==="var_95")?.implementationPath,"lib/research/portfolio-factor-engine.ts");
  assert.equal(items.find(x=>x.key==="cpi_yoy")?.sourceClass,"official_macro_series");
 });

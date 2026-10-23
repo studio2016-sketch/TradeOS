@@ -38,6 +38,10 @@
       "schedule": "5 15 * * 1-5"
     },
     {
+      "path": "/api/cron/source-time-certification",
+      "schedule": "12 12 * * 1-5"
+    },
+    {
       "path": "/api/cron/sec-fundamental-evidence",
       "schedule": "25 16 * * 1-5"
     },
@@ -62,6 +66,10 @@
       "schedule": "30 21 * * 1-5"
     },
     {
+      "path": "/api/cron/portfolio-factor-evidence",
+      "schedule": "50 21 * * 1-5"
+    },
+    {
       "path": "/api/cron/phase4-validation",
       "schedule": "44 * * * *"
     },
@@ -72,18 +80,6 @@
     {
       "path": "/api/cron/phase5-validation",
       "schedule": "23 * * * *"
-    },
-    {
-      "path": "/api/cron/source-time-audit",
-      "schedule": "49 14-21 * * 1-5"
-    },
-    {
-      "path": "/api/cron/historical-source-comparison",
-      "schedule": "20 22 * * 1-5"
-    },
-    {
-      "path": "/api/cron/independent-price-check",
-      "schedule": "35 22 * * 1-5"
     }
   ]
 }

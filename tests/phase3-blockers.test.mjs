@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {phase3BlockerFor} from "../lib/research/phase3-blockers.ts";
 
 test("Phase 3 blocker classifier preserves hard source/context boundaries",()=>{
- assert.equal(phase3BlockerFor("var_95")?.category,"portfolio_context_required");
+ assert.equal(phase3BlockerFor("var_95")?.category,"authorized_portfolio_evidence_pending");
  assert.equal(phase3BlockerFor("pmi_manufacturing")?.category,"source_permission_required");
  assert.equal(phase3BlockerFor("pe_forward")?.category,"licensed_analyst_consensus_required");
  assert.equal(phase3BlockerFor("earnings_call_sentiment")?.category,"transcript_source_required");

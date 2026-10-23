@@ -2,22 +2,12 @@ import {db} from "../db";
 import {historicalBars,type Bar} from "../market/features";
 import {secFundamentalsAsOf} from "../market/sec";
 import type {PersistableEvidence} from "./persist-evidence";
+import {halfSpreadSlippageBps,returnAtMinutes,sessionTradeCount,turnoverFromVolumeShares} from "./intraday-factor-engine";
 
 function nyDay(ts:string|number|Date){
  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(ts));
 }
 function finite(v:unknown):v is number{return typeof v==="number"&&Number.isFinite(v)}
-function returnAtMinutes(bars:Bar[],minutes:number){
- if(bars.length<2)return null;
- const last=bars[bars.length-1],lastTime=Date.parse(last.t),target=lastTime-minutes*60000;
- let prior:Bar|null=null;
- for(const bar of bars){const t=Date.parse(bar.t);if(t<=target)prior=bar;else break;}
- if(!prior||prior.c<=0)return null;
- const gap=Math.abs(Date.parse(prior.t)-target);
- const tolerance=minutes<=1?90000:minutes<=15?3*60000:6*60000;
- if(gap>tolerance)return null;
- return {value:last.c/prior.c-1,observedAt:last.t,priorAt:prior.t};
-}
 
 export async function observedIntradayActivationEvidence(now=new Date()){
  const feed=process.env.ALPACA_FEED||"iex";
@@ -39,11 +29,8 @@ export async function observedIntradayActivationEvidence(now=new Date()){
     const measured=returnAtMinutes(session,minutes);
     if(measured)candidates.push({factor,value:measured.value,source,subject:symbol,observedAt:measured.observedAt,availableAt,domain:"stock",metadata:{timeframe:"1Min",minutes,priorAt:measured.priorAt,sessionDay:chosenDay,feed,currentFresh}});
    }
-   const tradeBars=session.filter(b=>finite(b.n));
-   if(session.length&&tradeBars.length/session.length>=.9){
-    const count=tradeBars.reduce((n,b)=>n+Number(b.n),0);
-    if(Number.isFinite(count)&&count>=0)candidates.push({factor:"trade_count",value:count,source,subject:symbol,observedAt:session.at(-1)!.t,availableAt,domain:"stock",metadata:{sessionDay:chosenDay,bars:session.length,barsWithTradeCount:tradeBars.length,feed}});
-   }
+   const tradeBars=session.filter(b=>finite(b.n)),count=sessionTradeCount(session);
+   if(count!==null)candidates.push({factor:"trade_count",value:count,source,subject:symbol,observedAt:session.at(-1)!.t,availableAt,domain:"stock",metadata:{sessionDay:chosenDay,bars:session.length,barsWithTradeCount:tradeBars.length,feed}});
    diagnostics.push({symbol,bars:bars.length,sessionDay:chosenDay,sessionBars:session.length,currentFresh});
   }catch(e){diagnostics.push({symbol,error:e instanceof Error?e.message:"unknown"});}
  }
@@ -54,9 +41,8 @@ export async function observedIntradayActivationEvidence(now=new Date()){
   const daily=await historicalBars(symbol,"1Day",new Date(now.getTime()-45*86400000).toISOString(),100,feed,end);
   const completed=daily.filter(b=>nyDay(b.t)<nyDay(now));
   const last=completed.at(-1),shares=filing.values.shares;
-  if(last&&finite(last.v)&&last.v>=0&&finite(shares)&&shares>0){
-   candidates.push({factor:"turnover",value:last.v/shares,source:`Alpaca:${feed}:1Day + SEC EDGAR XBRL`,subject:symbol,observedAt:last.t,availableAt,domain:"stock",metadata:{volume:last.v,shares,sharesProvenance:filing.provenance.shares,unit:"fraction_of_shares_outstanding"}});
-  }
+  const turnover=last&&finite(last.v)&&finite(shares)?turnoverFromVolumeShares(last.v,shares):null;
+  if(last&&turnover!==null)candidates.push({factor:"turnover",value:turnover,source:`Alpaca:${feed}:1Day + SEC EDGAR XBRL`,subject:symbol,observedAt:last.t,availableAt,domain:"stock",metadata:{volume:last.v,shares,sharesProvenance:filing.provenance.shares,unit:"fraction_of_shares_outstanding"}});
  }catch(e){diagnostics.push({symbol:"NVDA",turnoverError:e instanceof Error?e.message:"unknown"});}
 
  try{
@@ -66,9 +52,8 @@ export async function observedIntradayActivationEvidence(now=new Date()){
       and (metadata->>'bid') is not null and (metadata->>'ask') is not null
     order by received_at desc limit 1`;
   const row=rows[0],m=row?.metadata as any;
-  const bid=Number(m?.bid),ask=Number(m?.ask),mid=(bid+ask)/2;
-  if(row&&bid>0&&ask>=bid&&mid>0){
-   const value=((ask-bid)/2)/mid*10000;
+  const bid=Number(m?.bid),ask=Number(m?.ask),value=halfSpreadSlippageBps(bid,ask);
+  if(row&&value!==null){
    const quoteTime=Number.isFinite(Date.parse(String(m?.quoteTimestamp??"")))?String(m.quoteTimestamp):new Date(row.event_time as string).toISOString();
    candidates.push({factor:"slippage_estimate",value,source:String(row.source_id),subject:"SPY",observedAt:quoteTime,availableAt,domain:"stock",metadata:{method:"half_quoted_spread_bps_within_top_of_book_depth",bid,ask,bidSize:m?.bidSize??null,askSize:m?.askSize??null,unit:"bps"}});
   }

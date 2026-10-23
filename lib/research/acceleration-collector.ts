@@ -6,6 +6,7 @@ import {alpacaDailyHistory} from "./market-factor-history";
 import {calculateMarketFactors,calculateRelativeMarketFactors} from "./market-factor-engine";
 import {secCatalystsWithStatus,secFundamentalsAsOf} from "../market/sec";
 import {persistEvidence,type PersistableEvidence} from "./persist-evidence";
+import {calculateSnapshotFactors} from "./snapshot-factor-engine";
 const START="2026-10-20T00:00:00Z";
 const STUDY_MS=7*86400000;
 const SNAPSHOT_EVIDENCE=new Set(["daily_volume","distance_vwap","bid_ask_spread","spread_bps","quoted_depth","order_imbalance"]);
@@ -73,22 +74,7 @@ export async function accelerationTick(now=new Date()){
   const marketTime=Date.parse(snap.timestamp),age=now.getTime()-marketTime;
   if(rank<0||!Number.isFinite(snap.price)||snap.price<=0||!Number.isFinite(marketTime)||age< -5000||age>600000){skipped++;continue;}
   const factors:Record<string,number|null>=Object.fromEntries(FACTOR_KEYS.map(k=>[k,null]));
-  if(Number.isFinite(snap.volume))factors.daily_volume=snap.volume;
-  if(Number.isFinite(snap.vwap)&&snap.vwap!>0)factors.distance_vwap=(snap.price-snap.vwap!)/snap.vwap!;
-  const quoteTime=Date.parse(snap.quoteTimestamp??"");
-  const quoteAge=marketTime-quoteTime;
-  if(Number.isFinite(quoteTime)&&quoteAge>=0&&quoteAge<=60000&&
-     Number.isFinite(snap.bid)&&Number.isFinite(snap.ask)&&snap.ask!>=snap.bid!&&snap.bid!>0){
-   factors.bid_ask_spread=snap.ask!-snap.bid!;
-   factors.spread_bps=(snap.ask!-snap.bid!)/((snap.ask!+snap.bid!)/2)*10000;
-  }
-  if(Number.isFinite(quoteTime)&&quoteAge>=0&&quoteAge<=60000&&
-     Number.isFinite(snap.bidSize)&&Number.isFinite(snap.askSize)&&
-     snap.bidSize!>=0&&snap.askSize!>=0){
-    const bidSize=snap.bidSize!,askSize=snap.askSize!;
-    factors.quoted_depth=bidSize+askSize;
-    if(bidSize+askSize>0)factors.order_imbalance=(bidSize-askSize)/(bidSize+askSize);
-  }
+  Object.assign(factors,calculateSnapshotFactors(snap));
   const related=news.news.filter(n=>n.symbols.includes(snap.symbol)&&Number.isFinite(Date.parse(n.timestamp))&&Date.parse(n.timestamp)<=marketTime).slice(0,12);
   factors.headline_count=related.length;
   // Count distinct, independently named news providers; do not infer sentiment or causality.

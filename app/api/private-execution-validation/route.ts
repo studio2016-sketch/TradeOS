@@ -24,6 +24,7 @@ export async function GET(req:Request){
         where c.certification_kind='exchange_authoritative_timestamp'
           and lower(c.provider)=lower(split_part(so.source_id,':',1))
           and lower(c.feed)=lower(split_part(so.source_id,':',2))
+          and c.created_at<=${fill.transactionTime}::timestamptz
           and c.valid_from<=${fill.transactionTime}::timestamptz
           and (c.valid_to is null or c.valid_to>${fill.transactionTime}::timestamptz)) as independently_certified
     from source_observations so
