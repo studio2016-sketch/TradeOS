@@ -1,7 +1,7 @@
 import {historicalBars} from "../market/features";
 import {db} from "../db";
 import {active100} from "./acceleration-collector";
-const END="2026-10-19T00:00:00Z";
+const START="2025-07-01T00:00:00Z";
 const LOOKBACKS=[5,10,20,30,50];
 const COSTS=[5,10,20];
 export function historicalCandidate(closes:number[],lookback:number,contrarian:boolean,costBps:number){
@@ -19,22 +19,32 @@ export function historicalCandidate(closes:number[],lookback:number,contrarian:b
  return {samples:n,meanNet:total/n,benchmarkMean:benchmark/n,maxDrawdown};
 }
 export async function accelerationReplay(now=new Date()){
- if(now.toISOString()>="2026-10-25T00:00:00Z")return {status:"four_day_replay_window_ended",trials:0};
+ // Use only completed historical daily bars; never include today's incomplete session.
+ const end=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate())).toISOString();
  const universe=await active100();
  const batch=Math.floor(now.getTime()/3600000)%34;
  const symbols=universe.symbols.filter((_,i)=>i%34===batch);
- const sql=db();let trials=0,skipped=0;
+ const sql=db();let trialAttempts=0,insertedTrials=0,skipped=0;
+ const failures:{symbol:string;reason:string}[]=[];
  for(const symbol of symbols){
   try{
-   const bars=await historicalBars(symbol,"1Day","2025-07-01T00:00:00Z",500,undefined,END);
-   const closes=bars.filter(b=>b.t<END).map(b=>b.c);
+   const bars=await historicalBars(symbol,"1Day",START,500,undefined,end);
+   const closes=bars.filter(b=>b.t<end&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>a.t.localeCompare(b.t)).map(b=>b.c);
    if(closes.length<135){skipped++;continue;}
    for(const lookback of LOOKBACKS)for(const costs of COSTS)for(const contrarian of [false,true]){
     const test=historicalCandidate(closes,lookback,contrarian,costs);
-    await sql`insert into tradeos_acceleration_trials(symbol,dataset_end,strategy,lookback,costs_bps,sample_count,strategy_mean_net,benchmark_mean_net,strategy_max_drawdown,notes) values(${symbol},${END},${contrarian?"contrarian":"trend"},${lookback},${costs},${test.samples},${test.meanNet},${test.benchmarkMean},${test.maxDrawdown},'Exploratory daily close-to-close replay. Long/cash only; signal at close, next-close outcome; no exposure to forward data; no certification.') on conflict(symbol,dataset_end,strategy,lookback,costs_bps) do nothing`;
-    trials++;
+    trialAttempts++;
+    const rows=await sql`insert into tradeos_acceleration_trials(symbol,dataset_end,strategy,lookback,costs_bps,sample_count,strategy_mean_net,benchmark_mean_net,strategy_max_drawdown,notes) values(${symbol},${end},${contrarian?"contrarian":"trend"},${lookback},${costs},${test.samples},${test.meanNet},${test.benchmarkMean},${test.maxDrawdown},'Exploratory daily close-to-close replay; not causal or independently validated; no orders allowed.') on conflict(symbol,dataset_end,strategy,lookback,costs_bps) do nothing returning id`;
+    insertedTrials+=rows.length;
    }
-  }catch{skipped++;}
+  }catch(e){
+   skipped++;
+   failures.push({symbol,reason:e instanceof Error?e.message:"unknown_error"});
+  }
  }
- return {status:"exploratory_only",batch,universeCount:universe.symbols.length,symbols:symbols.length,trialAttempts:trials,skipped,usesHistoricalPointInTimeFundamentals:false,independentValidation:false,ordersAllowed:false};
+ return {status:failures.length?"exploratory_partial_failure":"exploratory_only",
+  datasetEnd:end,batch,universeCount:universe.symbols.length,
+  symbolsAttempted:symbols.length,trialAttempts,insertedTrials,
+  existingTrials:trialAttempts-insertedTrials,skipped,failures,
+  usesHistoricalPointInTimeFundamentals:false,independentValidation:false,ordersAllowed:false};
 }
