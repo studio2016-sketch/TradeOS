@@ -4,6 +4,15 @@ import {active100} from "./acceleration-collector";
 const START="2025-07-01T00:00:00Z";
 const LOOKBACKS=[5,10,20,30,50];
 const COSTS=[5,10,20];
+export function validateHistoricalBars(bars:{t:string;c:number}[],end:string){
+ const valid=bars.filter(b=>b.t<end&&Number.isFinite(Date.parse(b.t))&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>a.t.localeCompare(b.t));
+ if(new Set(valid.map(b=>b.t)).size!==valid.length)throw Error("Duplicate historical bar timestamps");
+ if(valid.length<135) return null;
+ const latestBar=valid[valid.length-1].t;
+ const ageDays=(Date.parse(end)-Date.parse(latestBar))/86400000;
+ if(!Number.isFinite(ageDays)||ageDays>7)throw Error("Historical bars stale by "+ageDays.toFixed(1)+" days");
+ return {datasetEnd:new Date(latestBar).toISOString(),closes:valid.map(b=>b.c)};
+}
 export function historicalCandidate(closes:number[],lookback:number,contrarian:boolean,costBps:number){
  if(closes.length<lookback+80)throw Error("Insufficient time-ordered history");
  let equity=1,peak=1,maxDrawdown=0,total=0,benchmark=0,previousPosition=0,n=0;
@@ -29,12 +38,9 @@ export async function accelerationReplay(now=new Date()){
  for(const symbol of symbols){
   try{
    const bars=await historicalBars(symbol,"1Day",START,500,undefined,end);
-   const validBars=bars.filter(b=>b.t<end&&Number.isFinite(Date.parse(b.t))&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>a.t.localeCompare(b.t));
-   if(validBars.length<135){skipped++;continue;}
-   if(new Set(validBars.map(b=>b.t)).size!==validBars.length)throw Error("Duplicate historical bar timestamps");
-   const latestBar=validBars[validBars.length-1].t;
-   const datasetEnd=new Date(latestBar).toISOString();
-   const closes=validBars.map(b=>b.c);
+   const validated=validateHistoricalBars(bars,end);
+   if(!validated){skipped++;continue;}
+   const {datasetEnd,closes}=validated;
    for(const lookback of LOOKBACKS)for(const costs of COSTS)for(const contrarian of [false,true]){
     const test=historicalCandidate(closes,lookback,contrarian,costs);
     trialAttempts++;
