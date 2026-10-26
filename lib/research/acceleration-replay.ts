@@ -29,12 +29,16 @@ export async function accelerationReplay(now=new Date()){
  for(const symbol of symbols){
   try{
    const bars=await historicalBars(symbol,"1Day",START,500,undefined,end);
-   const closes=bars.filter(b=>b.t<end&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>a.t.localeCompare(b.t)).map(b=>b.c);
-   if(closes.length<135){skipped++;continue;}
+   const validBars=bars.filter(b=>b.t<end&&Number.isFinite(Date.parse(b.t))&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>a.t.localeCompare(b.t));
+   if(validBars.length<135){skipped++;continue;}
+   if(new Set(validBars.map(b=>b.t)).size!==validBars.length)throw Error("Duplicate historical bar timestamps");
+   const latestBar=validBars[validBars.length-1].t;
+   const datasetEnd=new Date(latestBar).toISOString();
+   const closes=validBars.map(b=>b.c);
    for(const lookback of LOOKBACKS)for(const costs of COSTS)for(const contrarian of [false,true]){
     const test=historicalCandidate(closes,lookback,contrarian,costs);
     trialAttempts++;
-    const rows=await sql`insert into tradeos_acceleration_trials(symbol,dataset_end,strategy,lookback,costs_bps,sample_count,strategy_mean_net,benchmark_mean_net,strategy_max_drawdown,notes) values(${symbol},${end},${contrarian?"contrarian":"trend"},${lookback},${costs},${test.samples},${test.meanNet},${test.benchmarkMean},${test.maxDrawdown},'Exploratory daily close-to-close replay; not causal or independently validated; no orders allowed.') on conflict(symbol,dataset_end,strategy,lookback,costs_bps) do nothing returning id`;
+    const rows=await sql`insert into tradeos_acceleration_trials(symbol,dataset_end,strategy,lookback,costs_bps,sample_count,strategy_mean_net,benchmark_mean_net,strategy_max_drawdown,notes) values(${symbol},${datasetEnd},${contrarian?"contrarian":"trend"},${lookback},${costs},${test.samples},${test.meanNet},${test.benchmarkMean},${test.maxDrawdown},'Exploratory daily close-to-close replay; not causal or independently validated; no orders allowed.') on conflict(symbol,dataset_end,strategy,lookback,costs_bps) do nothing returning id`;
     insertedTrials+=rows.length;
    }
   }catch(e){
@@ -43,7 +47,7 @@ export async function accelerationReplay(now=new Date()){
   }
  }
  return {status:failures.length?"exploratory_partial_failure":"exploratory_only",
-  datasetEnd:end,batch,universeCount:universe.symbols.length,
+  requestedEnd:end,batch,universeCount:universe.symbols.length,
   symbolsAttempted:symbols.length,trialAttempts,insertedTrials,
   existingTrials:trialAttempts-insertedTrials,skipped,failures,
   usesHistoricalPointInTimeFundamentals:false,independentValidation:false,ordersAllowed:false};
