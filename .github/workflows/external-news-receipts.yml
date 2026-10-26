@@ -1,0 +1,39 @@
+name: Independent news receipts
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: Stock ticker
+        required: true
+        default: NVDA
+      from:
+        description: Beginning date (YYYY-MM-DD)
+        required: true
+      to:
+        description: Ending date (YYYY-MM-DD)
+        required: true
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch external provider receipts
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          TICKER: ${{ inputs.ticker }}
+          FROM_DATE: ${{ inputs.from }}
+          TO_DATE: ${{ inputs.to }}
+        run: |
+          test -n "$MASSIVE_API_KEY" || { echo "MASSIVE_API_KEY secret not configured"; exit 1; }
+          node scripts/research/fetch-massive-news.mjs "$TICKER" "$FROM_DATE" "$TO_DATE" > external-news-receipts.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-news-receipts
+          path: external-news-receipts.json
+          retention-days: 14
