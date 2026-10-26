@@ -32,6 +32,14 @@ jobs:
         run: |
           test -n "$MASSIVE_API_KEY" || { echo "MASSIVE_API_KEY secret not configured"; exit 1; }
           node scripts/research/fetch-massive-news.mjs "$TICKER" "$FROM_DATE" "$TO_DATE" > external-news-receipts.json
+      - name: Validate receipt output
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const data=JSON.parse(fs.readFileSync("external-news-receipts.json","utf8"));
+            if(!Array.isArray(data.external))throw Error("Missing external receipts");
+            console.log("External receipt count:",data.external.length);
+          '
       - uses: actions/upload-artifact@v4
         with:
           name: independent-news-receipts
