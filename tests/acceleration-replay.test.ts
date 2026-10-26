@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {historicalCandidate} from '../lib/research/acceleration-replay';
+import {historicalCandidate,validateHistoricalBars} from '../lib/research/acceleration-replay';
 
 test('historical replay requires adequate ordered price history',()=>{
  assert.throws(()=>historicalCandidate(Array(60).fill(100),20,false,5),/Insufficient/);
@@ -22,4 +22,20 @@ test('candidate replay returns finite metrics',()=>{
  assert.ok(result.samples>0);
  assert.ok(Number.isFinite(result.meanNet));
  assert.ok(Number.isFinite(result.maxDrawdown));
+});
+
+test('stale historical bars cannot create new trial datasets',()=>{
+ const bars=Array.from({length:140},(_,i)=>({t:new Date(Date.UTC(2025,0,1+i)).toISOString(),c:100+i}));
+ assert.throws(()=>validateHistoricalBars(bars,'2026-10-26T00:00:00Z'),/stale/);
+});
+test('duplicate timestamps fail closed',()=>{
+ const bars=Array.from({length:140},(_,i)=>({t:new Date(Date.UTC(2026,3,1+i)).toISOString(),c:100+i}));
+ bars[139].t=bars[138].t;
+ assert.throws(()=>validateHistoricalBars(bars,'2026-10-26T00:00:00Z'),/Duplicate/);
+});
+test('fresh ordered bars use actual last timestamp',()=>{
+ const bars=Array.from({length:140},(_,i)=>({t:new Date(Date.UTC(2026,5,8+i)).toISOString(),c:100+i}));
+ const result=validateHistoricalBars(bars,'2026-10-26T00:00:00Z');
+ assert.ok(result);
+ assert.equal(result?.datasetEnd,bars[139].t);
 });
