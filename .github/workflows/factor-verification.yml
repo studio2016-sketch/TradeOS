@@ -1,0 +1,23 @@
+name: Factor verification gates
+on:
+  pull_request:
+    paths:
+      - 'tests/factor-verification.test.mjs'
+      - 'tests/external-news-receipts.test.mjs'
+      - 'scripts/research/factor-evidence-verification.sql'
+      - 'scripts/research/news-receipt-check.mjs'
+      - 'scripts/research/external-news-verification.sql'
+      - '.github/workflows/factor-verification.yml'
+  workflow_dispatch:
+jobs:
+  verification-unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute deterministic factor verification tests
+        run: node --test tests/factor-verification.test.mjs tests/external-news-receipts.test.mjs

@@ -18,6 +18,10 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx --yes tsx --test tests/*.test.ts
       - run: npx tsc --noEmit
-      - run: npm run build
+      - name: Build with isolated test auth
+        run: |
+          export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
+          export NEON_AUTH_BASE_URL="https://auth-ci.invalid"
+          npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
