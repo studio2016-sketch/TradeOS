@@ -17,12 +17,21 @@ export async function GET(){
    sql`select factor_key,count(*)::int observations,count(distinct subject)::int subjects,
       array_agg(distinct source_name order by source_name) sources,max(available_at) latest_available_at,
       bool_and(observed_at<=available_at) chronology_ok,
-      bool_and(value=value and value not in ('Infinity'::float8,'-Infinity'::float8)) finite_ok
+      bool_and(value=value and value not in ('Infinity'::float8,'-Infinity'::float8)) finite_ok,
+      count(*) filter(where source_name ~* '^Alpaca:iex(?::(?:1Day|1Min))?$' and exists (
+        select 1 from tradeos_source_time_certifications c
+        where lower(c.provider)='alpaca' and lower(c.feed)='iex'
+          and c.certification_kind='exchange_authoritative_timestamp'
+          and c.created_at<=tradeos_factor_evidence.available_at
+          and c.valid_from<=tradeos_factor_evidence.available_at
+          and (c.valid_to is null or tradeos_factor_evidence.available_at<c.valid_to)
+      ))::int source_time_eligible_observations
      from tradeos_factor_evidence group by factor_key`,
    sql`select provider,feed,certification_kind,valid_from,valid_to,created_at from tradeos_source_time_certifications order by created_at`
   ]);
   const evidence:FactorEvidenceAudit[]=(evidenceRows as any[]).map(row=>({
    factorKey:String(row.factor_key),observations:Number(row.observations),subjects:Number(row.subjects),
+   sourceTimeEligibleObservations:Number(row.source_time_eligible_observations),
    sources:Array.isArray(row.sources)?row.sources.map(String):[],latestAvailableAt:row.latest_available_at?new Date(row.latest_available_at).toISOString():null,
    chronologyOk:Boolean(row.chronology_ok),finiteOk:Boolean(row.finite_ok)
   }));

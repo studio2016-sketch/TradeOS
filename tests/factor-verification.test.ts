@@ -9,7 +9,7 @@ test("verified implementation manifest contains only canonical factors and excee
  for(const key of FACTOR_IMPLEMENTATION_VERIFICATION.keys())assert.ok(canonical.has(key),key);
 });
 test("engineering verification remains separate from source-time and predictive verification",()=>{
- const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:true}];
+ const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sourceTimeEligibleObservations:10,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:true}];
  const certificate={provider:"alpaca",feed:"iex",certification_kind:"exchange_authoritative_timestamp",valid_from:"2026-10-23T08:00:00Z",valid_to:null,created_at:"2026-10-23T08:00:00Z"};
  const audit=auditFactorVerification(evidence,[certificate],"2026-10-23T10:00:00Z");
  const factor=audit.factors.find(x=>x.key==="daily_volume")!;
@@ -20,9 +20,16 @@ test("engineering verification remains separate from source-time and predictive 
  assert.equal(audit.counts.fullyVerified,0);
 });
 test("a certificate created after the evidence cannot verify its timestamp",()=>{
- const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:true}];
+ const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sourceTimeEligibleObservations:0,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:true}];
  const certificate={provider:"alpaca",feed:"iex",certification_kind:"exchange_authoritative_timestamp",valid_from:"2026-10-23T09:01:00Z",valid_to:null,created_at:"2026-10-23T09:01:00Z"};
  const factor=auditFactorVerification(evidence,[certificate],"2026-10-23T10:00:00Z").factors.find(x=>x.key==="daily_volume")!;
  assert.equal(factor.status,"ENGINEERING_VERIFIED");
  assert.equal(factor.gates.sourceTimeCertified,false);
+});
+test("one post-certificate row cannot certify a factor containing older rows",()=>{
+ const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sourceTimeEligibleObservations:1,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:true}];
+ const certificate={provider:"alpaca",feed:"iex",certification_kind:"exchange_authoritative_timestamp",valid_from:"2026-10-23T08:00:00Z",valid_to:null,created_at:"2026-10-23T08:00:00Z"};
+ const factor=auditFactorVerification(evidence,[certificate],"2026-10-23T10:00:00Z").factors.find(x=>x.key==="daily_volume")!;
+ assert.equal(factor.gates.sourceTimeCertified,false);
+ assert.equal(factor.status,"ENGINEERING_VERIFIED");
 });

@@ -1,8 +1,8 @@
 import {FACTOR_CATALOG,FACTOR_KEYS} from "./acceleration-factors";
-import {sourceTimeCertificateCovers,type SourceTimeCertificate} from "./source-time-certification";
+import type {SourceTimeCertificate} from "./source-time-certification";
 
 export type FactorEvidenceAudit={
- factorKey:string;observations:number;subjects:number;sources:string[];
+ factorKey:string;observations:number;subjects:number;sources:string[];sourceTimeEligibleObservations:number;
  latestAvailableAt:string|null;chronologyOk:boolean;finiteOk:boolean;
 };
 
@@ -52,7 +52,7 @@ export function auditFactorVerification(evidence:FactorEvidenceAudit[],certifica
   const implementationVerified=Boolean(implementation);
   const sourceIdentityVerified=sources.length>0&&sources.every(sourceIdentityRecognized);
   const latest=row?.latestAvailableAt??null;
-  const sourceTimeCertified=Boolean(latest&&sources.length&&sources.every(source=>isPureIexSource(source)&&certificates.some(c=>sourceTimeCertificateCovers(source,latest,c))));
+  const sourceTimeCertified=observations>0&&row?.sourceTimeEligibleObservations===observations;
   const measurementDepth=observations>=5;
   const engineeringVerified=implementationVerified&&measured&&chronological&&finite&&measurementDepth;
   // Predictive validity is deliberately not inferred from implementation or measurement evidence.
@@ -64,7 +64,7 @@ export function auditFactorVerification(evidence:FactorEvidenceAudit[],certifica
   if(measured&&!chronological)blockers.push("EVIDENCE_CHRONOLOGY_FAILED");
   if(measured&&!finite)blockers.push("NONFINITE_EVIDENCE");
   if(!sourceIdentityVerified)blockers.push("SOURCE_IDENTITY_NOT_PRIMARY_OR_ENTITLED");
-  if(!sourceTimeCertified)blockers.push("INDEPENDENT_SOURCE_TIME_NOT_CERTIFIED_FOR_EVIDENCE");
+  if(!sourceTimeCertified)blockers.push("INDEPENDENT_SOURCE_TIME_NOT_CERTIFIED_FOR_EVERY_OBSERVATION");
   if(!measurementDepth)blockers.push("MEASUREMENT_DEPTH_BELOW_FIVE");
   if(!independentReplayVerified)blockers.push("INDEPENDENT_REPLAY_PENDING");
   if(!prospectiveValidationPassed)blockers.push("PROSPECTIVE_VALIDATION_PENDING");
