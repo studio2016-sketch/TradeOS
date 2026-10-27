@@ -10,7 +10,7 @@ export async function GET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Scientific ledger database unavailable"},{status:503});
  try{
   const sql=db();
-  const [rows,certificateRows]=await Promise.all([sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,
+  const [rows,certificateRows]=await Promise.all([sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,f.source_snapshot,
     o.resolved_at,o.realized_return,o.max_favorable_excursion,o.max_adverse_excursion,o.notes,
     q.source_id as reconstructed_source_id,q.event_time as reconstructed_quote_time,
     case when (q.metadata->>'ask')::float8>(q.metadata->>'bid')::float8 and (q.metadata->>'bid')::float8>0

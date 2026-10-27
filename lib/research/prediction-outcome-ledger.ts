@@ -9,6 +9,7 @@ import {sourceTimeCertificateCovers,type SourceTimeCertificate} from "./source-t
 
 export type PredictionOutcomeLedgerRow={
  id:unknown;created_at:unknown;symbol:unknown;horizon:unknown;model_version:unknown;direction:unknown;probability:unknown;
+ source_snapshot?:unknown;
  resolved_at:unknown;realized_return:unknown;max_favorable_excursion:unknown;max_adverse_excursion:unknown;notes:unknown;
  reconstructed_source_id?:unknown;reconstructed_cost?:unknown;
 };
@@ -22,9 +23,12 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
  const cost=p?.quotedRoundTripCost==null?(row.reconstructed_cost==null?null:Number(row.reconstructed_cost)):Number(p.quotedRoundTripCost);
  const forecastAt=new Date(row.created_at as string).toISOString(),sourceId=String(p?.sourceId??row.reconstructed_source_id??""),duration=horizonMs(String(row.horizon));
  const startTime=Date.parse(String(p?.startObservationTime??"")),evaluationTime=Date.parse(String(p?.evaluationObservationTime??"")),forecastTime=Date.parse(forecastAt);
+ const snapshot=typeof row.source_snapshot==="string"?(()=>{try{return JSON.parse(row.source_snapshot as string);}catch{return {};}})():row.source_snapshot as any;
+ const predictionBinding=snapshot?.outcomeProtocol;
  const fingerprintRecorded=p?.protocolFingerprint===PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT;
+ const fingerprintBoundAtPrediction=predictionBinding?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&predictionBinding?.protocolFingerprint===PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT&&predictionBinding?.activation===PREDICTION_OUTCOME_PROTOCOL_ACTIVATION;
  const completeProtocol=Boolean(
-  forecastTime>=Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION)&&p?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&fingerprintRecorded&&sourceId&&duration&&
+  forecastTime>=Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION)&&p?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&fingerprintRecorded&&fingerprintBoundAtPrediction&&sourceId&&duration&&
   Number.isFinite(startTime)&&Number.isFinite(evaluationTime)&&startTime>=forecastTime&&startTime<=forecastTime+5*60_000&&
   evaluationTime>=forecastTime+duration&&evaluationTime<=forecastTime+duration+15*60_000
  );
@@ -36,7 +40,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
   resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),
   maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),
   quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":"HISTORICAL_RECONSTRUCTION",
-  scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,fingerprintRecorded,sourceId:sourceId||null
+  scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
  };
 }
 
@@ -51,7 +55,7 @@ export function summarizePredictionOutcomeEntries(entries:PredictionOutcomeEntry
   resolved:resolved.length,passes:count("PASS"),failures:count("FAIL"),voids:count("VOID"),unresolved:count("UNRESOLVED"),
   passRate:resolved.length?count("PASS")/resolved.length:null,
   prospectiveScientificRecords:eligible.length,prospectiveScientificPasses:count("PASS",true),prospectiveScientificFailures:count("FAIL",true),
-  fingerprintedScientificRecords:eligible.filter(x=>x.fingerprintRecorded).length,
+  fingerprintedScientificRecords:eligible.filter(x=>x.fingerprintRecorded&&x.fingerprintBoundAtPrediction).length,
   sessions:new Set(eligible.map(x=>x.forecastAt.slice(0,10))).size
  };
 }

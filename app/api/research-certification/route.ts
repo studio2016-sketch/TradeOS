@@ -37,7 +37,7 @@ export async function GET(){
     from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
    sql`select * from tradeos_execution_validation_snapshots where details->>'trialActivation'=${CERTIFICATION_ACTIVATION} order by created_at desc limit 1`,
    sql`select * from tradeos_portfolio_reconciliation_validations order by created_at desc limit 1`,
-   sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,
+   sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,f.source_snapshot,
      o.resolved_at,o.realized_return,o.max_favorable_excursion,o.max_adverse_excursion,o.notes
     from forecast_ledger f left join forecast_outcomes o on o.forecast_id=f.id
     where f.created_at>=${PREDICTION_OUTCOME_PROTOCOL_ACTIVATION}::timestamptz order by f.created_at`,

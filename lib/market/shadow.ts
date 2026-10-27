@@ -1,4 +1,5 @@
 import {createHash} from "node:crypto";
+import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,PREDICTION_OUTCOME_RULE_VERSION} from "../research/prediction-outcome-verdict";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
 
@@ -68,6 +69,7 @@ export async function generateShadowForecasts(symbols:string[]){
     if(spread!=null&&spread>.002)probability-=.025;
     probability=clamp(probability,.51,.66);
 
+    const outcomeProtocol={ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,protocolFingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION};
     const evidence=[
       {label:"75m price trend",value:+(ret*100).toFixed(3),direction,source:"stored_market_observations"},
       {label:"VWAP alignment",value:alignedVwap,direction:alignedVwap===true?direction:"mixed",source:"latest_snapshot"},
@@ -84,7 +86,7 @@ export async function generateShadowForecasts(symbols:string[]){
          ${avgQuality*avgFreshness*100},
          ${JSON.stringify(evidence)}::jsonb,
          ${JSON.stringify(["Shadow research only","Not eligible for execution"])}::jsonb,
-         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString()})}::jsonb)
+         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString(),outcomeProtocol})}::jsonb)
       returning id,created_at
     `;
 
@@ -154,7 +156,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${JSON.stringify(["Frozen prospective challenger","Paper research only","Never eligible for automatic trade authorization"])}::jsonb,
                ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,
                 observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),
-                trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified"})}::jsonb)
+                trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified",outcomeProtocol})}::jsonb)
              returning id
           `;
           const challengerFingerprint=createHash("sha256").update("shadow-trend-v2|2.5 return cap .075|VWAP +.025 -.035|spread -.035|quality -.025|20261018").digest("hex");
