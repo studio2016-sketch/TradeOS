@@ -5,6 +5,7 @@ import {evaluateFactorAssociation} from "../../../lib/research/factorIntelligenc
 import {factorRedundancyStudy} from "../../../lib/research/factorRedundancy";
 import {buildFinancialKnowledgeGraph} from "../../../lib/research/knowledgeGraph";
 import {graphHypotheses} from "../../../lib/research/factorDiscovery";
+import {discoverHistoricalFactorAssociations} from "../../../lib/research/historical-factor-discovery";
 export const dynamic="force-dynamic";
 
 export async function GET(req:Request){
@@ -16,14 +17,17 @@ export async function GET(req:Request){
   const symbols=(params.get("symbols")||"NVDA,AMD,AAPL,MSFT,SPY,QQQ,IWM").split(",").map(x=>x.trim().toUpperCase()).filter(x=>/^[A-Z][A-Z0-9.-]{0,9}$/.test(x)).slice(0,12);
   const [pitRows,independentGraph]=await Promise.all([
    sql`with resolved as (
-      select f.id as forecast_id,f.created_at as forecast_time,f.symbol,
-             case when o.was_correct then 1 else 0 end::int as outcome
+      select distinct on (f.symbol,f.horizon,date_trunc('minute',f.created_at))
+             f.id as forecast_id,f.created_at as forecast_time,f.symbol,f.horizon,f.direction,
+             case when o.was_correct then 1 else 0 end::int as outcome,
+             o.realized_return::float8 as realized_return,
+             o.max_favorable_excursion::float8 as max_favorable_excursion,
+             o.max_adverse_excursion::float8 as max_adverse_excursion
       from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
-      where o.was_correct is not null and o.resolved_at>f.created_at
-      order by f.created_at desc
-      limit 1000
+      where o.was_correct is not null and o.realized_return is not null and o.resolved_at>f.created_at
+      order by f.symbol,f.horizon,date_trunc('minute',f.created_at),f.created_at asc,f.id asc
     )
-    select r.forecast_id,r.forecast_time,r.symbol,r.outcome,
+    select r.forecast_id,r.forecast_time,r.symbol,r.horizon,r.direction,r.outcome,r.realized_return,r.max_favorable_excursion,r.max_adverse_excursion,
            e.factor_key,e.value,e.domain,e.subject,e.source_name,e.observed_at,e.available_at
     from resolved r
     join lateral (
@@ -39,6 +43,7 @@ export async function GET(req:Request){
    buildFinancialKnowledgeGraph(symbols).catch(()=>null)
   ]);
   const records:{time:string;outcome:0|1;label:string;value:number}[]=[];
+  const historicalRecords:{time:string;symbol:string;horizon:string;label:string;value:number;signedReturn:number}[]=[];
   const pairValues:{forecastId:string;label:string;value:number}[]=[];
   const sourceFamilies=new Set<string>(),factors=new Set<string>(),forecasts=new Set<string>();
   for(const row of pitRows as any[]){
@@ -47,6 +52,8 @@ export async function GET(req:Request){
    if(!Number.isFinite(value)||Date.parse(row.observed_at)>Date.parse(time)||Date.parse(row.available_at)>Date.parse(time))continue;
    const label=String(row.factor_key);
    records.push({time,outcome:Number(row.outcome) as 0|1,label,value});
+   const realizedReturn=Number(row.realized_return),direction=String(row.direction).toLowerCase();
+   if(Number.isFinite(realizedReturn))historicalRecords.push({time,symbol:String(row.symbol),horizon:String(row.horizon),label,value,signedReturn:direction==="bearish"?-realizedReturn:realizedReturn});
    pairValues.push({forecastId:String(row.forecast_id),label,value});
    forecasts.add(String(row.forecast_id));factors.add(label);sourceFamilies.add(String(row.source_name));
   }
@@ -55,6 +62,7 @@ export async function GET(req:Request){
    status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),registryCount:registry.length,recordedFactors:registry,
    pointInTimeEvidence:{rows:records.length,forecasts:forecasts.size,factors:factors.size,sourceFamilies:sourceFamilies.size,rule:"observed_at <= forecast_time AND available_at <= forecast_time; symbol-specific evidence plus macro-domain evidence"},
    associations:evaluateFactorAssociation(records).map(x=>({...x,pointInTimeEvidence:true,warning:"Descriptive chronological association from evidence that was available by the original forecast time. Still not independently certified: instrument clustering, multiple-testing correction, prospective protocol freeze, source-time certification and cost realism remain required."})),
+   historicalDiscovery:discoverHistoricalFactorAssociations(historicalRecords),
    factorDependence:factorRedundancyStudy(pairValues),
    graphSourceHealth:independentGraph?.sourceHealth??[],
    graphDerivedHypotheses:hypotheses?.hypotheses??[],graphPolicy:hypotheses?.policy??null,
