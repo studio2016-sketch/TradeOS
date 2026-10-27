@@ -1,6 +1,6 @@
 import {db} from "../db";
 import {horizonMs} from "./horizon";
-import {PREDICTION_OUTCOME_RULE_VERSION,predictionOutcomeVerdict} from "../research/prediction-outcome-verdict";
+import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_RULE_VERSION,predictionOutcomeVerdict} from "../research/prediction-outcome-verdict";
 
 export async function resolveEligibleForecasts(limit=100){
   const sql=db();
@@ -48,7 +48,8 @@ export async function resolveEligibleForecasts(limit=100){
     const verdict=predictionOutcomeVerdict({direction:String(f.direction),forecastAt:start.toISOString(),resolvedAt:last.t.toISOString(),realizedReturn:raw,quotedRoundTripCost});
     if(verdict.verdict==="VOID"||verdict.verdict==="UNRESOLVED"){skipped++;details.push({id:f.id,reason:verdict.reason});continue;}
     const correct=verdict.verdict==="PASS",label=correct?"pass":"fail";
-    const notes=JSON.stringify({ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,sourceId:first.sourceId,startObservationTime:first.t.toISOString(),evaluationObservationTime:last.t.toISOString(),quotedRoundTripCost,minimumNetEdge:verdict.minimumNetEdge,reason:verdict.reason});
+    const prospective=start.getTime()>=Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION);
+    const notes=JSON.stringify({...(prospective?{ruleVersion:PREDICTION_OUTCOME_RULE_VERSION}:{evidenceClass:"HISTORICAL_RECONSTRUCTION"}),sourceId:first.sourceId,startObservationTime:first.t.toISOString(),evaluationObservationTime:last.t.toISOString(),quotedRoundTripCost,minimumNetEdge:verdict.minimumNetEdge,reason:verdict.reason,protocolActivation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION});
 
     await sql`
       insert into forecast_outcomes

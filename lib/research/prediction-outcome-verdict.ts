@@ -1,4 +1,5 @@
 export const PREDICTION_OUTCOME_RULE_VERSION="tradeos.prediction-outcome.v1";
+export const PREDICTION_OUTCOME_PROTOCOL_ACTIVATION="2026-10-27T07:16:00.000Z";
 export type ScientificVerdict="PASS"|"FAIL"|"VOID"|"UNRESOLVED";
 export type PredictionOutcomeInput={
  direction:string;forecastAt:string;resolvedAt:string|null;realizedReturn:number|null;
