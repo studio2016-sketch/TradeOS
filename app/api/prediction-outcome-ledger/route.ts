@@ -1,11 +1,11 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
-import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_RULE_VERSION,predictionOutcomeVerdict} from "../../../lib/research/prediction-outcome-verdict";
-import {horizonMs} from "../../../lib/market/horizon";
-import {sourceTimeCertificateCovers,type SourceTimeCertificate} from "../../../lib/research/source-time-certification";
+import {PREDICTION_OUTCOME_PROTOCOL,PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,PREDICTION_OUTCOME_RULE_VERSION} from "../../../lib/research/prediction-outcome-verdict";
+import {evaluatePredictionOutcomeRow,summarizePredictionOutcomeEntries} from "../../../lib/research/prediction-outcome-ledger";
+import {discoverHistoricalFactorAssociations} from "../../../lib/research/historical-factor-discovery";
+import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 export const dynamic="force-dynamic";
 
-function protocol(notes:unknown){try{const parsed=JSON.parse(String(notes??""));return parsed?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION?parsed:null;}catch{return null;}}
 export async function GET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Scientific ledger database unavailable"},{status:503});
  try{
@@ -21,19 +21,23 @@ export async function GET(){
      order by event_time desc limit 1) q on true
    order by f.created_at desc limit 5000`,sql`select provider,feed,certification_kind,valid_from,valid_to,created_at from tradeos_source_time_certifications order by created_at`]);
   const certificates:SourceTimeCertificate[]=(certificateRows as any[]).map(row=>({provider:String(row.provider),feed:String(row.feed),certification_kind:String(row.certification_kind),valid_from:new Date(row.valid_from).toISOString(),valid_to:row.valid_to?new Date(row.valid_to).toISOString():null,created_at:new Date(row.created_at).toISOString()}));
-  const entries=(rows as any[]).map(row=>{
-   const p=protocol(row.notes),cost=p?.quotedRoundTripCost==null?(row.reconstructed_cost==null?null:Number(row.reconstructed_cost)):Number(p.quotedRoundTripCost);
-   const forecastAt=new Date(row.created_at).toISOString(),sourceId=String(p?.sourceId??row.reconstructed_source_id??""),duration=horizonMs(String(row.horizon));
-   const startTime=Date.parse(String(p?.startObservationTime??"")),evaluationTime=Date.parse(String(p?.evaluationObservationTime??"")),forecastTime=Date.parse(forecastAt);
-   const completeProtocol=Boolean(forecastTime>=Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION)&&p?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&sourceId&&duration&&Number.isFinite(startTime)&&Number.isFinite(evaluationTime)&&startTime>=forecastTime&&startTime<=forecastTime+5*60_000&&evaluationTime>=forecastTime+duration&&evaluationTime<=forecastTime+duration+15*60_000);
-   const sourceTimeCertified=completeProtocol&&certificates.some(c=>sourceTimeCertificateCovers(sourceId,forecastAt,c));
-   const outcomeTime=completeProtocol?new Date(evaluationTime).toISOString():row.resolved_at?new Date(row.resolved_at).toISOString():null;
-   const verdict=predictionOutcomeVerdict({direction:String(row.direction),forecastAt,resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),quotedRoundTripCost:cost});
-   return{id:String(row.id),forecastAt,symbol:String(row.symbol),horizon:String(row.horizon),modelVersion:String(row.model_version),direction:String(row.direction),probability:Number(row.probability),resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":"HISTORICAL_RECONSTRUCTION",scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,sourceId:sourceId||null};
-  });
-  const count=(verdict:string,eligible?:boolean)=>entries.filter(x=>x.verdict===verdict&&(eligible===undefined||x.scientificallyEligible===eligible)).length;
-  const resolved=entries.filter(x=>x.verdict==="PASS"||x.verdict==="FAIL"),eligible=entries.filter(x=>x.scientificallyEligible),uniqueTests=new Set(entries.map(x=>`${x.symbol}|${x.horizon}|${x.forecastAt.slice(0,16)}`)).size;
+  const entries=(rows as any[]).map(row=>evaluatePredictionOutcomeRow(row,certificates));
+  const summary=summarizePredictionOutcomeEntries(entries),eligible=entries.filter(x=>x.scientificallyEligible);
   const byModel=[...new Set(entries.map(x=>x.modelVersion))].map(modelVersion=>{const xs=entries.filter(x=>x.modelVersion===modelVersion&&(x.verdict==="PASS"||x.verdict==="FAIL"));return{modelVersion,resolved:xs.length,passes:xs.filter(x=>x.verdict==="PASS").length,passRate:xs.length?xs.filter(x=>x.verdict==="PASS").length/xs.length:null};});
-  return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),rule:{version:PREDICTION_OUTCOME_RULE_VERSION,activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,pass:"direction-adjusted realized return minus recorded quoted round-trip cost >= 0.001",fail:"a mature valid outcome that misses the pass threshold",void:"invalid chronology, unsupported direction, non-finite return, or unavailable quoted cost",unresolved:"evaluation horizon has not produced an outcome"},summary:{predictions:entries.length,uniqueMarketTests:uniqueTests,resolved:resolved.length,passes:count("PASS"),failures:count("FAIL"),voids:count("VOID"),unresolved:count("UNRESOLVED"),passRate:resolved.length?count("PASS")/resolved.length:null,prospectiveScientificRecords:eligible.length,prospectiveScientificPasses:count("PASS",true),sessions:new Set(eligible.map(x=>x.forecastAt.slice(0,10))).size},byModel,recent:entries.slice(0,250),scientificPolicy:"Objective market outcomes are the factual source. Scientific eligibility additionally requires a prediction frozen after protocol activation and before the outcome, a versioned rule, complete start/end observation provenance, certified source-time semantics, and recorded cost. Historical reconstructions remain evidence but cannot be relabeled as prospective."},{headers:{"Cache-Control":"no-store"}});
+  let prospectiveFactorAssociations={testedFamilySize:0,multiplicityMethod:"Holm-Bonferroni",findings:[] as any[],policy:"No scientifically eligible prospective outcomes are available yet."};
+  if(eligible.length){
+   const factorRows=await sql`select f.id as forecast_id,f.created_at,e.factor_key,e.value
+    from forecast_ledger f join lateral(
+     select distinct on(factor_key) factor_key,value from tradeos_factor_evidence
+     where observed_at<=f.created_at and available_at<=f.created_at and (subject=f.symbol or domain='macro')
+     order by factor_key,available_at desc,id desc
+    ) e on true where f.created_at>=${PREDICTION_OUTCOME_PROTOCOL_ACTIVATION}::timestamptz limit 250000`;
+   const eligibleById=new Map(eligible.map(x=>[x.id,x]));
+   const seen=new Set<string>();
+   const records=(factorRows as any[]).flatMap(row=>{const entry=eligibleById.get(String(row.forecast_id));if(!entry)return[];const key=`${entry.symbol}|${entry.horizon}|${entry.forecastAt.slice(0,16)}|${String(row.factor_key)}`;if(seen.has(key))return[];seen.add(key);return[{time:entry.forecastAt,symbol:entry.symbol,horizon:entry.horizon,label:String(row.factor_key),value:Number(row.value),signedReturn:entry.verdict==="PASS"?1:0}];});
+   const discovered=discoverHistoricalFactorAssociations(records);
+   prospectiveFactorAssociations={...discovered,policy:"Prospective point-in-time association between factor values and fingerprint-bound PASS/FAIL outcomes. Results remain hypotheses; no factor is promoted from association alone."};
+  }
+  return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),rule:{version:PREDICTION_OUTCOME_RULE_VERSION,activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,fingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,protocol:PREDICTION_OUTCOME_PROTOCOL,pass:"direction-adjusted realized return minus recorded quoted round-trip cost >= 0.001",fail:"a mature valid outcome that misses the pass threshold",void:"invalid chronology, unsupported direction, non-finite return, or unavailable quoted cost",unresolved:"evaluation horizon has not produced an outcome"},summary,byModel,prospectiveFactorAssociations,recent:entries.slice(0,250),scientificPolicy:"Objective market outcomes are the factual source. Scientific eligibility additionally requires a prediction frozen after protocol activation and before the outcome, the exact protocol fingerprint, complete same-feed start/end provenance, certified source-time semantics, and recorded cost. Factor associations remain hypotheses until prospective depth, chronological stability, family-wide multiplicity control, skill, and execution gates all pass."},{headers:{"Cache-Control":"no-store"}});
  }catch(error){return NextResponse.json({status:"UNAVAILABLE",reason:error instanceof Error?error.message:"Scientific ledger unavailable"},{status:503});}
 }

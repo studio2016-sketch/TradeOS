@@ -4,23 +4,26 @@ export default function ResearchLab() {
   const [models, setModels] = useState<any>(null),
     [factors, setFactors] = useState<any>(null),
     [ledger, setLedger] = useState<any>(null),
+    [certification, setCertification] = useState<any>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const refresh = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
-      const [a, b, c] = await Promise.all([
+      const [a, b, c, d] = await Promise.all([
         fetch("/api/model-validation", { cache: "no-store" }),
         fetch("/api/factor-lab", { cache: "no-store" }),
         fetch("/api/prediction-outcome-ledger", { cache: "no-store" }),
+        fetch("/api/research-certification", { cache: "no-store" }),
       ]);
-      if (!a.ok || !b.ok || !c.ok)
+      if (!a.ok || !b.ok || !c.ok || !d.ok)
         throw Error("One or more research datasets are unavailable.");
-      const [m, f, l] = await Promise.all([a.json(), b.json(), c.json()]);
+      const [m, f, l, r] = await Promise.all([a.json(), b.json(), c.json(), d.json()]);
       setModels(m);
       setFactors(f);
       setLedger(l);
+      setCertification(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Research unavailable");
     } finally {
@@ -95,9 +98,31 @@ export default function ResearchLab() {
           <div><small>PROSPECTIVE SCIENTIFIC</small><h3>{ledger?.summary?.prospectiveScientificRecords ?? "—"}</h3></div>
         </div>
         <p>
-          Historical reconstructed pass rate: <strong>{pct(ledger?.summary?.passRate)}</strong> · Prospective scientific sessions: <strong>{ledger?.summary?.sessions ?? 0}</strong>
+          Historical reconstructed pass rate: <strong>{pct(ledger?.summary?.passRate)}</strong> · Prospective PASS/FAIL: <strong>{ledger?.summary?.prospectiveScientificPasses ?? 0}/{ledger?.summary?.prospectiveScientificFailures ?? 0}</strong> · Prospective sessions: <strong>{ledger?.summary?.sessions ?? 0}</strong>
         </p>
+        <p>
+          Protocol fingerprint: <code>{ledger?.rule?.fingerprint ? `${ledger.rule.fingerprint.slice(0, 16)}…` : "checking"}</code> · Fingerprint-bound records: <strong>{ledger?.summary?.fingerprintedScientificRecords ?? 0}</strong>
+        </p>
+        <p>
+          Certification authority: <strong>{certification?.status ?? "CHECKING"}</strong> · Model promotion: <strong>{certification?.modelPromotionAllowed ? "ALLOWED" : "BLOCKED"}</strong> · Live execution: <strong>{certification?.liveExecutionAllowed ? "ALLOWED" : "BLOCKED"}</strong>
+        </p>
+        {(certification?.checks ?? []).filter((x: any) => !x.pass).map((x: any) => (
+          <p key={x.id} style={{color:"#ffc9a0",margin:"6px 0"}}>Blocked — {x.id.replaceAll("_", " ")}: {x.detail}</p>
+        ))}
         <small>{ledger?.scientificPolicy}</small>
+        <h3>Latest frozen outcomes</h3>
+        {(ledger?.recent ?? []).slice(0, 12).map((x: any) => (
+          <p key={x.id} style={{borderTop:"1px solid #4e6877",paddingTop:8}}>
+            <strong>{x.verdict}</strong> · {x.symbol} · {x.horizon} · {new Date(x.forecastAt).toLocaleString()} · net {pct(x.netReturn)} · {x.scientificallyEligible ? "SCIENTIFIC COHORT" : x.evidenceClass.replaceAll("_", " ")}
+          </p>
+        ))}
+        <h3>Prospective factor-to-PASS hypotheses</h3>
+        {(ledger?.prospectiveFactorAssociations?.findings ?? []).slice(0, 10).map((x: any) => (
+          <p key={x.label} style={{borderTop:"1px solid #4e6877",paddingTop:8}}>
+            <strong>{x.label.replaceAll("_", " ")}</strong> · {x.observations} outcomes / {x.sessions} sessions · high-minus-low PASS rate {pct(x.medianSplitReturnSpread)} · {x.status.replaceAll("_", " ")}
+          </p>
+        ))}
+        {!ledger?.prospectiveFactorAssociations?.findings?.length ? <p>No factor hypothesis can be formed until fingerprint-bound prospective outcomes mature.</p> : null}
       </section>
       <section
         style={{

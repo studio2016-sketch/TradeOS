@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,predictionOutcomeVerdict} from "../lib/research/prediction-outcome-verdict.ts";
+import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,predictionOutcomeVerdict} from "../lib/research/prediction-outcome-verdict.ts";
+import {evaluatePredictionOutcomeRow,summarizePredictionOutcomeEntries} from "../lib/research/prediction-outcome-ledger.ts";
 const base={direction:"bullish",forecastAt:"2026-10-27T14:00:00Z",resolvedAt:"2026-10-27T14:30:00Z",realizedReturn:.003,quotedRoundTripCost:.0005};
 test("PASS requires the locked net edge after quoted cost",()=>{const r=predictionOutcomeVerdict(base);assert.equal(r.verdict,"PASS");assert.ok(Math.abs((r.netReturn??0)-.0025)<1e-12);});
 test("bearish outcomes reverse raw market return before grading",()=>assert.equal(predictionOutcomeVerdict({...base,direction:"bearish",realizedReturn:-.003}).verdict,"PASS"));
@@ -9,3 +10,9 @@ test("missing cost is void rather than a convenient zero",()=>assert.equal(predi
 test("missing outcome stays unresolved",()=>assert.equal(predictionOutcomeVerdict({...base,resolvedAt:null,realizedReturn:null}).verdict,"UNRESOLVED"));
 test("outcome before prediction is void",()=>assert.equal(predictionOutcomeVerdict({...base,resolvedAt:"2026-10-27T13:59:00Z"}).verdict,"VOID"));
 test("protocol activation is immutable and precedes submitted prospective fixture",()=>assert.ok(Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION)<Date.parse(base.forecastAt)));
+test("every verdict is bound to the frozen protocol fingerprint",()=>assert.match(predictionOutcomeVerdict(base).protocolFingerprint,/^[a-f0-9]{64}$/));
+test("protocol fingerprint is stable",()=>assert.equal(PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,"c0a8800fb9df0ec8f8e7ac822d8b3552e8751a1b9f4d6ba8d46e101c28823d20"));
+const ledgerRow={id:"1",created_at:base.forecastAt,symbol:"NVDA",horizon:"30m",model_version:"test-v1",direction:"bullish",probability:.6,resolved_at:base.resolvedAt,realized_return:base.realizedReturn,max_favorable_excursion:.004,max_adverse_excursion:-.001,notes:JSON.stringify({ruleVersion:"tradeos.prediction-outcome.v1",protocolFingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,sourceId:"Alpaca:iex",startObservationTime:"2026-10-27T14:01:00Z",evaluationObservationTime:base.resolvedAt,quotedRoundTripCost:base.quotedRoundTripCost})};
+const certificate={provider:"alpaca",feed:"iex",certification_kind:"exchange_authoritative_timestamp",valid_from:"2026-10-27T13:00:00Z",valid_to:null,created_at:"2026-10-27T13:00:00Z"};
+test("a fingerprinted point-in-time outcome enters the scientific cohort",()=>{const entry=evaluatePredictionOutcomeRow(ledgerRow,[certificate]);assert.equal(entry.scientificallyEligible,true);assert.equal(summarizePredictionOutcomeEntries([entry]).prospectiveScientificRecords,1);});
+test("an otherwise identical outcome without its frozen fingerprint is reconstruction only",()=>{const entry=evaluatePredictionOutcomeRow({...ledgerRow,notes:JSON.stringify({...JSON.parse(ledgerRow.notes),protocolFingerprint:undefined})},[certificate]);assert.equal(entry.scientificallyEligible,false);assert.equal(entry.evidenceClass,"HISTORICAL_RECONSTRUCTION");});

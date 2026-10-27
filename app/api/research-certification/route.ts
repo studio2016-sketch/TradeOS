@@ -4,13 +4,16 @@ import {certifyResearch} from "../../../lib/research/certificationAuthority";
 import {BASELINE_VERSION,CHALLENGER_VERSION,TRIAL_ACTIVATION,CERTIFICATION_ACTIVATION} from "../../../lib/research/frozenChallenger";
 import {pairedProspectiveValidation} from "../../../lib/research/phase4-validation";
 import {phase5ScientificStatus} from "../../../lib/research/phase5-validation";
+import {evaluatePredictionOutcomeRow,summarizePredictionOutcomeEntries} from "../../../lib/research/prediction-outcome-ledger";
+import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT} from "../../../lib/research/prediction-outcome-verdict";
+import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 export const dynamic="force-dynamic";
 
 export async function GET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Research database disconnected"},{status:503});
  try{
   const sql=db();
-  const [counts,pairs,executionRows,portfolioRows]=await Promise.all([
+  const [counts,pairs,executionRows,portfolioRows,outcomeRows,certificateRows]=await Promise.all([
    sql`select
      (select count(*)::int from forecast_ledger where created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as total,
      (select count(*)::int from immutable_decision_records where recorded_at>=${CERTIFICATION_ACTIVATION}::timestamptz and model_version in (${BASELINE_VERSION},${CHALLENGER_VERSION})) as immutable_records,
@@ -33,7 +36,12 @@ export async function GET(){
     select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
     from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
    sql`select * from tradeos_execution_validation_snapshots where details->>'trialActivation'=${CERTIFICATION_ACTIVATION} order by created_at desc limit 1`,
-   sql`select * from tradeos_portfolio_reconciliation_validations order by created_at desc limit 1`
+   sql`select * from tradeos_portfolio_reconciliation_validations order by created_at desc limit 1`,
+   sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,
+     o.resolved_at,o.realized_return,o.max_favorable_excursion,o.max_adverse_excursion,o.notes
+    from forecast_ledger f left join forecast_outcomes o on o.forecast_id=f.id
+    where f.created_at>=${PREDICTION_OUTCOME_PROTOCOL_ACTIVATION}::timestamptz order by f.created_at`,
+   sql`select provider,feed,certification_kind,valid_from,valid_to,created_at from tradeos_source_time_certifications order by created_at`
   ]);
   const r=(counts as any[])[0];
   const paired=pairedProspectiveValidation((pairs as any[]).map(x=>({time:new Date(x.time).toISOString(),baselineLoss:Number(x.baseline_loss),challengerLoss:Number(x.challenger_loss)})));
@@ -41,6 +49,9 @@ export async function GET(){
   const portfolio=(portfolioRows as any[])[0]??null;
   const executionSlippageValidated=Boolean(execution?.execution_slippage_validated);
   const costAdjustedReturnLowerBound=executionSlippageValidated&&Boolean(execution?.modeled_cost_mature)&&execution?.lower_bound!=null?Number(execution.lower_bound):null;
+  const certificates:SourceTimeCertificate[]=(certificateRows as any[]).map(row=>({provider:String(row.provider),feed:String(row.feed),certification_kind:String(row.certification_kind),valid_from:new Date(row.valid_from).toISOString(),valid_to:row.valid_to?new Date(row.valid_to).toISOString():null,created_at:new Date(row.created_at).toISOString()}));
+  const outcomeEntries=(outcomeRows as any[]).map(row=>evaluatePredictionOutcomeRow(row,certificates));
+  const outcomeSummary=summarizePredictionOutcomeEntries(outcomeEntries);
   const scientificStatus=phase5ScientificStatus({immutableRecords:Number(r.immutable_records),independentlyCertifiedSourceTimes:Number(r.source_time_verified),pairedSamples:paired.pairs,independentSessions:paired.sessions,pairedSkillLowerBound:paired.lowerBound,modeledCostLowerBound:execution?.lower_bound==null?null:Number(execution.lower_bound),modeledCostMature:Boolean(execution?.modeled_cost_mature),empiricalSlippageValidated:executionSlippageValidated,portfolioReconciled:Boolean(portfolio?.portfolio_reconciled)});
   const evidence={
    total:Number(r.total),immutableRecords:Number(r.immutable_records),
@@ -48,13 +59,17 @@ export async function GET(){
    outOfSamplePaired:paired.pairs,independentSessionDates:paired.sessions,
    predictiveSkillLowerBound:paired.lowerBound,
    costAdjustedReturnLowerBound,
-   portfolioReconciled:Boolean(portfolio?.portfolio_reconciled),executionSlippageValidated
+   portfolioReconciled:Boolean(portfolio?.portfolio_reconciled),executionSlippageValidated,
+   prospectiveOutcomeRecords:outcomeSummary.prospectiveScientificRecords,prospectiveOutcomeSessions:outcomeSummary.sessions,
+   fingerprintedOutcomeRecords:outcomeSummary.fingerprintedScientificRecords,
+   prospectiveOutcomePasses:outcomeSummary.prospectiveScientificPasses,prospectiveOutcomeFailures:outcomeSummary.prospectiveScientificFailures
   };
   return NextResponse.json({
    generatedAt:new Date().toISOString(),trial:{researchActivation:TRIAL_ACTIVATION,certificationActivation:CERTIFICATION_ACTIVATION,baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION},
    structuralIntegrity:{immutableRecords:Number(r.immutable_records),structuralPointInTime:Number(r.structural_point_in_time),strictSourceVerified:Number(r.strict_source_verified),invalidOutcomeChronology:Number(r.invalid_outcome_chronology)},
+   objectiveOutcomeProtocol:{activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,fingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,...outcomeSummary},
    pairedValidation:paired,portfolioReconciliation:portfolio?{createdAt:portfolio.created_at,environment:portfolio.environment,historyComplete:Boolean(portfolio.history_complete),transactionLineageComplete:Boolean(portfolio.transaction_lineage_complete),portfolioReconciled:Boolean(portfolio.portfolio_reconciled)}:null,executionValidation:execution?{createdAt:execution.created_at,samples:Number(execution.sample_count),sessions:Number(execution.session_count),meanGross:execution.mean_gross,meanQuotedSpreadCost:execution.mean_quoted_roundtrip_spread_cost,meanNetAfterQuotedSpread:execution.mean_net_after_quoted_spread,empiricalRoundTripSlippageFraction:execution.empirical_roundtrip_slippage_fraction,meanNetAfterAllModeledCosts:execution.mean_net_after_all_modeled_costs,lowerBound:execution.lower_bound,upperBound:execution.upper_bound,modeledCostMature:Boolean(execution.modeled_cost_mature),executionSlippageValidated}:null,scientificStatus,evidence,...certifyResearch(evidence),
-   method:"Prospective matched baseline/challenger Brier-loss comparison from immutable forecast records plus Phase 5 execution-realism snapshots. Source-time credit is granted only by append-only independent source-time certification records. Quoted-spread modeling alone never qualifies as empirical slippage. Portfolio reconciliation remains fail-closed."
+   method:"Prospective matched baseline/challenger Brier-loss comparison from immutable forecast records plus a fingerprint-bound PASS/FAIL outcome cohort and Phase 5 execution-realism snapshots. Objective market outcomes are the factual scientific source; a PASS count does not substitute for paired predictive skill, verified costs, or brokerage reconciliation. Source-time credit is granted only by append-only source-time certification records."
   },{headers:{"Cache-Control":"no-store"}});
  }catch(e){
   return NextResponse.json({status:"UNAVAILABLE",reason:"Certification evidence could not be independently read",error:e instanceof Error?e.message:"unknown"},{status:503});

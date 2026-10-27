@@ -34,7 +34,7 @@ export async function GET(req:Request){
   const paired=pairedProspectiveValidation((pairRows as any[]).map(x=>({time:new Date(x.time).toISOString(),baselineLoss:Number(x.baseline_loss),challengerLoss:Number(x.challenger_loss)})));
   const execution=(executionRows as any[])[0]??null;
   const tables=(tableRows as any[])[0]??{};const protections=(protectionRows as any[])[0]??{};const source=(sourceRows as any[])[0]??{};const fill=(fillRows as any[])[0]??null;const portfolio=(portfolioRows as any[])[0]??null;
-  const failClosed=certifyResearch({total:1,immutableRecords:0,sourceTimeVerified:0,publicationTimeApplicable:false,publicationTimeVerified:0,outOfSamplePaired:0,independentSessionDates:0,predictiveSkillLowerBound:null,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false});
+  const failClosed=certifyResearch({total:1,immutableRecords:0,sourceTimeVerified:0,publicationTimeApplicable:false,publicationTimeVerified:0,outOfSamplePaired:0,independentSessionDates:0,predictiveSkillLowerBound:null,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false,prospectiveOutcomeRecords:0,prospectiveOutcomeSessions:0,fingerprintedOutcomeRecords:0,prospectiveOutcomePasses:0,prospectiveOutcomeFailures:0});
   const gate=phase5InfrastructureGate({
    phase4Passed:Boolean(phase4?.gate?.passed),certificationForecasts:Number(source.certification_forecasts??0),immutableCleanRecords:Number(source.immutable_records??0),strictCleanVerified:Number(source.strict_verified??0),executionSnapshots:Number(tables.execution_snapshots??0),
    executionImplementation:EXECUTION_REALISM_IMPLEMENTATION,brokerImplementation:BROKER_RECONCILIATION_IMPLEMENTATION,
