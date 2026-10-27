@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {predictionOutcomeVerdict} from "../lib/research/prediction-outcome-verdict.ts";
+const base={direction:"bullish",forecastAt:"2026-10-27T14:00:00Z",resolvedAt:"2026-10-27T14:30:00Z",realizedReturn:.003,quotedRoundTripCost:.0005};
+test("PASS requires the locked net edge after quoted cost",()=>{const r=predictionOutcomeVerdict(base);assert.equal(r.verdict,"PASS");assert.ok(Math.abs((r.netReturn??0)-.0025)<1e-12);});
+test("bearish outcomes reverse raw market return before grading",()=>assert.equal(predictionOutcomeVerdict({...base,direction:"bearish",realizedReturn:-.003}).verdict,"PASS"));
+test("a valid mature prediction below the net threshold fails",()=>assert.equal(predictionOutcomeVerdict({...base,realizedReturn:.0014}).verdict,"FAIL"));
+test("missing cost is void rather than a convenient zero",()=>assert.equal(predictionOutcomeVerdict({...base,quotedRoundTripCost:null}).verdict,"VOID"));
+test("missing outcome stays unresolved",()=>assert.equal(predictionOutcomeVerdict({...base,resolvedAt:null,realizedReturn:null}).verdict,"UNRESOLVED"));
+test("outcome before prediction is void",()=>assert.equal(predictionOutcomeVerdict({...base,resolvedAt:"2026-10-27T13:59:00Z"}).verdict,"VOID"));

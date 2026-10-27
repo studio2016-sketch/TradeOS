@@ -1,5 +1,6 @@
 import {db} from "../db";
 import {horizonMs} from "./horizon";
+import {PREDICTION_OUTCOME_RULE_VERSION,predictionOutcomeVerdict} from "../research/prediction-outcome-verdict";
 
 export async function resolveEligibleForecasts(limit=100){
   const sql=db();
@@ -22,7 +23,7 @@ export async function resolveEligibleForecasts(limit=100){
     if(Date.now()<end.getTime()){skipped++;continue;}
 
     const obs=await sql`
-      select event_time,metadata
+      select source_id,event_time,received_at,metadata
       from source_observations
       where data_class='market_snapshot'
         and symbol=${String(f.symbol)}
@@ -33,24 +34,27 @@ export async function resolveEligibleForecasts(limit=100){
     `;
     if((obs as any[]).length<2){skipped++;details.push({id:f.id,reason:"insufficient_market_observations"});continue;}
 
-    const rows=(obs as any[]).map((r:any)=>({t:new Date(r.event_time),p:Number(r.metadata?.price??0)})).filter(x=>x.p>0);
+    const rows=(obs as any[]).map((r:any)=>({sourceId:String(r.source_id),t:new Date(r.event_time),receivedAt:new Date(r.received_at),p:Number(r.metadata?.price??0),bid:Number(r.metadata?.bid??0),ask:Number(r.metadata?.ask??0)})).filter(x=>x.p>0&&x.t<=x.receivedAt);
     if(rows.length<2){skipped++;continue;}
-    const first=rows[0];
-    const eligible=rows.filter(x=>x.t.getTime()>=end.getTime());
-    const last=eligible[0]??rows[rows.length-1];
+    const sources=[...new Set(rows.map(x=>x.sourceId))];
+    const candidates=sources.flatMap(sourceId=>{const same=rows.filter(x=>x.sourceId===sourceId),first=same.find(x=>x.ask>x.bid&&x.bid>0),last=same.find(x=>x.t.getTime()>=end.getTime());return first&&last&&first.t.getTime()<=start.getTime()+5*60_000?[{first,last}]:[];}).sort((a,b)=>a.first.t.getTime()-b.first.t.getTime());
+    if(!candidates.length){skipped++;details.push({id:f.id,reason:"complete_same_feed_horizon_unavailable"});continue;}
+    const {first,last}=candidates[0];
+    const sameFeedRows=rows.filter(x=>x.sourceId===first.sourceId&&x.t<=last.t);
     const raw=(last.p-first.p)/first.p;
-    const signed=String(f.direction)==="bearish"?-raw:raw;
-    const favorable=Math.max(...rows.map(x=>String(f.direction)==="bearish"?(first.p-x.p)/first.p:(x.p-first.p)/first.p));
-    const adverse=Math.min(...rows.map(x=>String(f.direction)==="bearish"?(first.p-x.p)/first.p:(x.p-first.p)/first.p));
-    const threshold=.001;
-    const correct=String(f.direction)==="neutral"?Math.abs(raw)<threshold:signed>threshold;
-    const label=Math.abs(raw)<threshold?"flat":correct?"direction_correct":"direction_wrong";
+    const favorable=Math.max(...sameFeedRows.map(x=>String(f.direction)==="bearish"?(first.p-x.p)/first.p:(x.p-first.p)/first.p));
+    const adverse=Math.min(...sameFeedRows.map(x=>String(f.direction)==="bearish"?(first.p-x.p)/first.p:(x.p-first.p)/first.p));
+    const midpoint=(first.ask+first.bid)/2,quotedRoundTripCost=first.ask>first.bid&&first.bid>0&&midpoint>0?(first.ask-first.bid)/midpoint:null;
+    const verdict=predictionOutcomeVerdict({direction:String(f.direction),forecastAt:start.toISOString(),resolvedAt:last.t.toISOString(),realizedReturn:raw,quotedRoundTripCost});
+    if(verdict.verdict==="VOID"||verdict.verdict==="UNRESOLVED"){skipped++;details.push({id:f.id,reason:verdict.reason});continue;}
+    const correct=verdict.verdict==="PASS",label=correct?"pass":"fail";
+    const notes=JSON.stringify({ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,sourceId:first.sourceId,startObservationTime:first.t.toISOString(),evaluationObservationTime:last.t.toISOString(),quotedRoundTripCost,minimumNetEdge:verdict.minimumNetEdge,reason:verdict.reason});
 
     await sql`
       insert into forecast_outcomes
         (forecast_id,realized_return,max_favorable_excursion,max_adverse_excursion,outcome_label,was_correct,notes)
       values
-        (${f.id},${raw},${favorable},${adverse},${label},${correct},'Automatically resolved from stored market observations')
+        (${f.id},${raw},${favorable},${adverse},${label},${correct},${notes})
       on conflict(forecast_id) do nothing
     `;
     resolved++;
