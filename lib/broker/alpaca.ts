@@ -56,6 +56,9 @@ export async function alpacaBrokerState():Promise<BrokerAccountState|null>{
   const a=await accountRes.json() as any;
   const positions=await positionsRes.json() as any[];
   const orders=await ordersRes.json() as any[];
+  // Only an explicit empty array establishes that the account holds no positions.
+  // A missing or malformed response must never become measured zero exposure.
+  if(!Array.isArray(positions))throw new Error("Alpaca positions response must be an array");
   return{
     environment:env,
     accountStatus:String(a.status??"unknown"),
@@ -183,4 +186,5 @@ export async function alpacaBrokerReconciliation():Promise<BrokerReconciliation|
     note:"Read-only activity-history collection is complete only when every pagination stream terminates naturally. Full certification still requires independent cash/position/order/fill identity checks and does not follow from pagination alone."
   };
 }
+
 

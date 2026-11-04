@@ -14,7 +14,6 @@ export async function observedPortfolioFactorEvidence(now=new Date()){
  const account=await alpacaBrokerState();
  if(!account||account.equity===null||account.equity<=0)return {candidates:[] as PersistableEvidence[],status:"account_unavailable",diagnostics:[]};
  const equity=account.equity;
- if(!account.positions.length)return {candidates:[] as PersistableEvidence[],status:"empty_portfolio",diagnostics:[]};
  if(account.positions.length>30)return {candidates:[] as PersistableEvidence[],status:"position_limit_exceeded",diagnostics:[{positions:account.positions.length,limit:30}]};
  const feed=process.env.ALPACA_FEED||"iex",end=now.toISOString(),start=new Date(now.getTime()-420*86400000).toISOString();
  const results=await Promise.all(account.positions.map(async position=>{
@@ -27,11 +26,12 @@ export async function observedPortfolioFactorEvidence(now=new Date()){
  const inputs=results.flatMap(result=>result.input?[result.input]:[]),diagnostics=results.map(result=>result.diagnostic);
  if(inputs.length!==account.positions.length)return {candidates:[] as PersistableEvidence[],status:"incomplete_position_history",diagnostics};
  const factors=calculatePortfolioRiskFactors(equity,inputs),availableAt=new Date().toISOString(),observedAt=account.generatedAt;
- const source=`Alpaca ${account.environment} account + Alpaca:${feed}:1Day`;
+ const source=inputs.length?`Alpaca ${account.environment} account + Alpaca:${feed}:1Day`:`Alpaca ${account.environment} account`;
  const composition=inputs.map(p=>({symbol:p.symbol,weight:p.marketValue/equity,returnDates:Object.keys(p.returns).length}));
  const candidates:PersistableEvidence[]=Object.entries(factors).flatMap(([factor,result])=>result.value===null?[]:[{
   factor,value:result.value,source,subject:`${account.environment.toUpperCase()}_PORTFOLIO`,observedAt,availableAt,domain:"portfolio" as const,
-  metadata:{method:factor==="portfolio_exposure"?"sum_absolute_market_value_over_equity":factor==="single_name_weight"?"maximum_absolute_position_market_value_over_equity":factor==="position_volatility"?"annualized_sample_volatility_of_constant_current_weight_synchronized_daily_returns":factor==="var_95"?"empirical_5th_percentile_loss_of_constant_current_weight_returns":factor==="expected_shortfall"?"mean_loss_at_or_below_empirical_5th_percentile":"maximum_drawdown_of_constant_current_weight_return_path",inputCount:result.inputCount,positionCount:inputs.length,composition,environment:account.environment,feed,note:"Current-position constant-weight research diagnostic; not a historical holdings backtest or predictive certificate."}
+  metadata:{method:factor==="portfolio_exposure"?"sum_absolute_market_value_over_equity":factor==="single_name_weight"?"maximum_absolute_position_market_value_over_equity":factor==="position_volatility"?"annualized_sample_volatility_of_constant_current_weight_synchronized_daily_returns":factor==="var_95"?"empirical_5th_percentile_loss_of_constant_current_weight_returns":factor==="expected_shortfall"?"mean_loss_at_or_below_empirical_5th_percentile":"maximum_drawdown_of_constant_current_weight_return_path",inputCount:result.inputCount,positionCount:inputs.length,composition,environment:account.environment,feed:inputs.length?feed:null,note:"Current-position constant-weight research diagnostic; not a historical holdings backtest or predictive certificate."}
  }]);
- return {candidates,status:"measured_uncertified",diagnostics};
+ return {candidates,status:inputs.length?"measured_uncertified":"empty_portfolio_exposure_measured_uncertified",diagnostics};
 }
+
