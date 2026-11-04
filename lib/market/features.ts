@@ -1,3 +1,4 @@
+import {alpacaDataFetch} from "./alpaca-data-fetch";
 export interface Bar{t:string;o:number;h:number;l:number;c:number;v:number;vw?:number;n?:number}
 export interface FeatureSet{
   symbol:string;feed:string;generatedAt:string;
@@ -24,7 +25,7 @@ export async function historicalBars(symbol:string,timeframe:string,start:string
   const feed=feedOverride||(process.env.ALPACA_FEED||"iex");
   const url=new URL(`https://data.alpaca.markets/v2/stocks/${encodeURIComponent(symbol)}/bars`);
   url.searchParams.set("timeframe",timeframe);url.searchParams.set("start",start);url.searchParams.set("limit",String(limit));url.searchParams.set("feed",feed);url.searchParams.set("adjustment","all");url.searchParams.set("sort","desc");if(endOverride)url.searchParams.set("end",endOverride);
-  const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(15000)});
+  const res=await alpacaDataFetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(15000)});
   if(!res.ok)throw new Error(`Alpaca ${timeframe} bars HTTP ${res.status}`);
   const j=await res.json() as any;const bars=Array.isArray(j.bars)?j.bars as Bar[]:[];
   // Alpaca sorts newest-first, ensuring limit=1000 returns the latest bars. 
@@ -177,3 +178,4 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
     quality:{barCount:total,coverageScore:clamp(total/12),latestDailyBar:daily.at(-1)?.t??null,latestHourlyBar:hourly.at(-1)?.t??null,latestIntradayBar:intra.at(-1)?.t??null,intradayAgeMs:intra.length?Math.max(0,Date.now()-Date.parse(intra[intra.length-1].t)):null,underlyingDataCurrent:Boolean(intra.length&&Date.now()-Date.parse(intra[intra.length-1].t)<20*60_000),note:"Daily/hourly structure uses consolidated SIP history ending at least 16 minutes ago; immediate intraday timing uses the configured real-time feed. Current flag measures observation age and does not certify exchange entitlement."}
   };
 }
+
