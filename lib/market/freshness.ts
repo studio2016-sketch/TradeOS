@@ -24,5 +24,6 @@ export function validHistoricalPoint(value:{t?:unknown;c?:unknown}|null):boolean
 export function snapshotObservationState(snapshot:{price?:unknown;timestamp?:unknown}|null|undefined,now=Date.now()):"recent_observation"|"delayed_observation"|"stale"|"unverified"{
  if(!snapshot||typeof snapshot.price!=="number"||!Number.isFinite(snapshot.price)||snapshot.price<=0)return "unverified";
  const state=observationState(snapshot.timestamp,now);
- return state==="unknown"?"unverified":state;
+ // Clock-skew tolerance does not make a future observation recent.
+ return state==="unknown"?"unverified":Date.parse(String(snapshot.timestamp))>now?"delayed_observation":state;
 }

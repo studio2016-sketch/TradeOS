@@ -21,6 +21,11 @@ test("classifications track the displayed price observation and age",()=>{
  assert.equal(snapshotObservationState({price:100,timestamp:"2026-11-04T19:10:00Z"},now),"stale");
  assert.equal(snapshotObservationState({price:100,timestamp:recent},now+60_000),"delayed_observation");
 });
+test("future timestamps within clock-skew tolerance remain unconfirmed",()=>{
+ assert.equal(snapshotObservationState({price:100,timestamp:"2026-11-04T19:30:01Z"},now),"delayed_observation");
+ assert.equal(snapshotObservationState({price:100,timestamp:"2026-11-04T19:31:00Z"},now),"delayed_observation");
+ assert.equal(snapshotObservationState({price:100,timestamp:"2026-11-04T19:31:01Z"},now),"unverified");
+});
 test("partial market response counts only displayed valid observations",()=>{
  const symbols=["SPY","QQQ","IWM","NVDA","AMD","PLTR","AAPL"];
  const snapshots=[{symbol:"SPY",price:100,timestamp:recent}];
