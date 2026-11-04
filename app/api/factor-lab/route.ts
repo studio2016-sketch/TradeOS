@@ -7,6 +7,7 @@ import {buildFinancialKnowledgeGraph} from "../../../lib/research/knowledgeGraph
 import {graphHypotheses} from "../../../lib/research/factorDiscovery";
 import {discoverHistoricalFactorAssociations} from "../../../lib/research/historical-factor-discovery";
 export const dynamic="force-dynamic";
+const MAX_MARKET_TESTS=600;
 
 export async function GET(req:Request){
  const registry=alignmentVariables.map(x=>({id:x.id,label:x.label,group:x.group,weight:x.weight,criticalBuy:Boolean(x.criticalBuy),hardSell:Boolean(x.hardSell),independentlyValidated:false}));
@@ -16,7 +17,7 @@ export async function GET(req:Request){
   const params=new URL(req.url).searchParams;
   const symbols=(params.get("symbols")||"NVDA,AMD,AAPL,MSFT,SPY,QQQ,IWM").split(",").map(x=>x.trim().toUpperCase()).filter(x=>/^[A-Z][A-Z0-9.-]{0,9}$/.test(x)).slice(0,12);
   const [pitRows,independentGraph]=await Promise.all([
-   sql`with resolved as (
+   sql`with eligible as (
       select distinct on (f.symbol,f.horizon,date_trunc('minute',f.created_at))
              f.id as forecast_id,f.created_at as forecast_time,f.symbol,f.horizon,f.direction,
              case when o.was_correct then 1 else 0 end::int as outcome,
@@ -26,6 +27,8 @@ export async function GET(req:Request){
       from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
       where o.was_correct is not null and o.realized_return is not null and o.resolved_at>f.created_at
       order by f.symbol,f.horizon,date_trunc('minute',f.created_at),f.created_at asc,f.id asc
+    ), resolved as (
+      select * from eligible order by forecast_time desc,forecast_id desc limit ${MAX_MARKET_TESTS}
     )
     select r.forecast_id,r.forecast_time,r.symbol,r.horizon,r.direction,r.outcome,r.realized_return,r.max_favorable_excursion,r.max_adverse_excursion,
            e.factor_key,e.value,e.domain,e.subject,e.source_name,e.observed_at,e.available_at
@@ -60,6 +63,7 @@ export async function GET(req:Request){
   const hypotheses=independentGraph?graphHypotheses(independentGraph):null;
   return NextResponse.json({
    status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),registryCount:registry.length,recordedFactors:registry,
+   samplePolicy:{selection:"most recent distinct symbol/horizon/minute market tests with valid mature outcomes",maximumMarketTests:MAX_MARKET_TESTS,reason:"Bounded deterministic research window prevents request-time exhaustion as the append-only evidence ledger grows. It does not alter certification gates or convert associations into predictions."},
    pointInTimeEvidence:{rows:records.length,forecasts:forecasts.size,factors:factors.size,sourceFamilies:sourceFamilies.size,rule:"observed_at <= forecast_time AND available_at <= forecast_time; symbol-specific evidence plus macro-domain evidence"},
    associations:evaluateFactorAssociation(records).map(x=>({...x,pointInTimeEvidence:true,warning:"Descriptive chronological association from evidence that was available by the original forecast time. Still not independently certified: instrument clustering, multiple-testing correction, prospective protocol freeze, source-time certification and cost realism remain required."})),
    historicalDiscovery:discoverHistoricalFactorAssociations(historicalRecords),
