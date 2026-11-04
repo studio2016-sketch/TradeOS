@@ -10,7 +10,7 @@ import {evaluateSupervisors} from "../../../lib/alignment/supervisors";
 import {evaluateAdaptiveIntelligence} from "../../../lib/alignment/adaptive";
 import {alpacaOptionSurface} from "../../../lib/market/options";
 import {macroRiskContext} from "../../../lib/market/bls";
-import {featureSet} from "../../../lib/market/features";
+import {createRequestFeatureLoader} from "../../../lib/market/request-features";
 import {buildMarketContext} from "../../../lib/market/context";
 import {buildNewsContext} from "../../../lib/market/newsContext";
 import {catalystReactions} from "../../../lib/market/reactions";
@@ -30,6 +30,7 @@ export async function GET(req:Request){
   const symbol=(searchParams.get("symbol")||"NVDA").toUpperCase();
   const tradeCountOk=searchParams.get("tradeCountOk")==="1"?true:searchParams.get("tradeCountOk")==="0"?false:undefined;
   const tiltOk=searchParams.get("tiltOk")==="1"?true:searchParams.get("tiltOk")==="0"?false:undefined;
+  const loadFeatures=createRequestFeatureLoader();
   const base=new URL(req.url);
   const origin=base.origin;
 
@@ -45,7 +46,7 @@ export async function GET(req:Request){
     alpacaMarketClock().catch(()=>null)
   ]);
 
-  const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
+  const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,market?.snapshots?.[0]?.price).catch(()=>null),loadFeatures(symbol).catch(()=>null),buildMarketContext(symbol,loadFeatures).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
   const result=buildAlignment(symbol,{assessment:assessmentRes,regime,catalysts,market,calibration:calibrationRes,options:optionSurface,macro,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState,processState:{tradeCountOk,tiltOk}});
   const governor=await globalEventRisk(market?.snapshots??[],[symbol,"SPY","QQQ","IWM"]).catch(()=>null);
   const supervisors=evaluateSupervisors(result,{calibration:calibrationRes,options:optionSurface,regime});
@@ -101,3 +102,4 @@ export async function GET(req:Request){
     disclaimer:"Alignment is not a probability of profit. MUST BUY / MUST SELL are internal legacy state labels only; live trading is disabled."
   });
 }
+

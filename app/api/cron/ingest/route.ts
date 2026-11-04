@@ -17,7 +17,7 @@ import {evaluateSupervisors} from "../../../../lib/alignment/supervisors";
 import {evaluateAdaptiveIntelligence} from "../../../../lib/alignment/adaptive";
 import {alpacaOptionSurface} from "../../../../lib/market/options";
 import {macroRiskContext} from "../../../../lib/market/bls";
-import {featureSet} from "../../../../lib/market/features";
+import {createRequestFeatureLoader} from "../../../../lib/market/request-features";
 import {buildMarketContext} from "../../../../lib/market/context";
 import {buildNewsContext} from "../../../../lib/market/newsContext";
 import {catalystReactions} from "../../../../lib/market/reactions";
@@ -42,6 +42,7 @@ export async function GET(req:Request){
   const watchlist=(process.env.TRADEOS_WATCHLIST||"NVDA,AMD,PLTR,SPY,QQQ,IWM")
     .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
 
+  const loadFeatures=createRequestFeatureLoader();
   const started=new Date();
   const results:any={startedAt:started.toISOString(),watchlist,sec:0,market:0,news:0,alignments:0,errors:[]};
 
@@ -150,7 +151,7 @@ export async function GET(req:Request){
     }
     for(const symbol of watchlist){
       const spot=market.snapshots.find((x:any)=>x.symbol===symbol)?.price;
-      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),featureSet(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
+      const [optionSurface,features,marketContext,newsContext,reactions,microstructure,newsReaction,issuer,brokerState]=await Promise.all([alpacaOptionSurface(symbol,spot).catch(()=>null),loadFeatures(symbol).catch(()=>null),buildMarketContext(symbol,loadFeatures).catch(()=>null),buildNewsContext(symbol).catch(()=>null),catalystReactions(symbol).catch(()=>[]),microstructureContext(symbol).catch(()=>null),latestNewsReaction(symbol).catch(()=>null),secIssuerContext(symbol).catch(()=>null),brokerReadStatus().enabled?alpacaBrokerState().catch(()=>null):Promise.resolve(null)]);
       const baseAlignment=buildAlignment(symbol,{
         assessment:assessmentData,
         regime,
@@ -234,3 +235,4 @@ export async function GET(req:Request){
   });
   return NextResponse.json({...results,finishedAt});
 }
+
