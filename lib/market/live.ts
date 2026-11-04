@@ -1,3 +1,4 @@
+import {alpacaDataFetch} from "./alpaca-data-fetch";
 import type {MarketSnapshot} from "./types";
 
 function cleanSymbols(symbols:string[]){
@@ -58,7 +59,7 @@ async function alpacaSnapshotsForFeed(symbols:string[],feed:string):Promise<Mark
   const url=new URL("https://data.alpaca.markets/v2/stocks/snapshots");
   url.searchParams.set("symbols",clean.join(","));
   url.searchParams.set("feed",feed);
-  const res=await fetch(url,{headers,cache:"no-store"});
+  const res=await alpacaDataFetch(url,{headers,cache:"no-store",signal:AbortSignal.timeout(15000)});
   if(!res.ok){
     const reset=res.headers.get("x-ratelimit-reset");
     const remaining=res.headers.get("x-ratelimit-remaining");
@@ -163,3 +164,4 @@ export async function alpacaMarketClock(){
     nextClose:String(j.next_close??"")
   };
 }
+
