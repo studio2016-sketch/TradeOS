@@ -45,8 +45,9 @@ jobs:
           assert cert.get("modelPromotionAllowed") is False and cert.get("liveExecutionAllowed") is False
           lab=get("/api/factor-lab")
           assert lab.get("promotionAllowed") is False
-          assert lab.get("researchCertification",{}).get("modelPromotionAllowed") is False
-          print("FACTORS",lab.get("registryCount"),lab.get("forecastsWithEvidence"),"promotable",lab.get("promotionAllowed"))
+          assert lab.get("status")=="RESEARCH_ONLY"
+          assert lab.get("certified") is False
+          print("FACTORS",lab.get("registryCount"),lab.get("pointInTimeEvidence",{}).get("forecasts"),"promotable",lab.get("promotionAllowed"))
           request=urllib.request.Request(BASE+"/api/private-graph-evidence",method="POST",data=b'{}',headers={"Content-Type":"application/json"})
           try:
             urllib.request.urlopen(request,timeout=15)

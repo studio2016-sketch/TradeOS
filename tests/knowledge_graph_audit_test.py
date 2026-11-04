@@ -8,6 +8,11 @@ WORKFLOW = pathlib.Path(__file__).resolve().parents[1] / ".github/workflows/know
 script = WORKFLOW.read_text().split('          graph=get("/api/knowledge-graph?symbol=NVDA")\n', 1)[1]
 GRAPH_ASSERTIONS = textwrap.dedent(script.split('          cert=get("/api/research-certification")', 1)[0])
 
+LAB_ASSERTIONS = textwrap.dedent(script.split('          lab=get("/api/factor-lab")\n', 1)[1].split('          print("FACTORS"', 1)[0])
+
+def validate_lab(lab):
+    exec(compile(LAB_ASSERTIONS, str(WORKFLOW), "exec"), {"lab": lab})
+
 def validate(graph):
     exec(compile(GRAPH_ASSERTIONS, str(WORKFLOW), "exec"), {"graph": graph, "json": json, "print": lambda *args: None})
 
@@ -22,6 +27,17 @@ def fixture(mode="INDEPENDENT_SOURCE_GRAPH_ACTIVE"):
     }
 
 class GraphAuditContract(unittest.TestCase):
+    def test_factor_lab_current_contract_passes(self):
+        validate_lab({"status": "RESEARCH_ONLY", "certified": False, "promotionAllowed": False})
+
+    def test_factor_lab_missing_or_unsafe_fields_fail(self):
+        base = {"status": "RESEARCH_ONLY", "certified": False, "promotionAllowed": False}
+        for key in base:
+            for value in [None, True, "false"]:
+                lab = dict(base, **{key: value})
+                with self.subTest(key=key, value=value), self.assertRaises(AssertionError):
+                    validate_lab(lab)
+
     def test_supported_modes_pass(self):
         for mode in ["RESEARCH_LINEAGE_ONLY", "INDEPENDENT_SOURCE_GRAPH_ACTIVE"]:
             with self.subTest(mode=mode):
