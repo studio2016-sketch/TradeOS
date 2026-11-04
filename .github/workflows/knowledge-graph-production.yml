@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/knowledge-graph-production.yml
+      - tests/knowledge_graph_audit_test.py
   workflow_dispatch:
   schedule:
     - cron: "25 16 * * 1-5"
@@ -11,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
+      - name: Test graph audit contract with deterministic fixtures
+        run: python3 -m unittest discover -s tests -p 'knowledge_graph_audit_test.py' -v
       - name: Independently inspect live research evidence graph and fail-closed certificate
         run: |
           python3 - <<'PY'
@@ -21,7 +25,18 @@ jobs:
           graph=get("/api/knowledge-graph?symbol=NVDA")
           print("GRAPH",json.dumps({k:graph.get(k) for k in ["status","symbolFilter","corporateStatus","certifiedCorporateRelationships","certifiedPredictiveRelationships"]}))
           print("GRAPH_SIZE",len(graph.get("nodes",[])),len(graph.get("edges",[])),len(graph.get("corporateRelationships",[])))
-          assert graph.get("status")=="RESEARCH_LINEAGE_ONLY"
+          # Both API modes describe research evidence, never predictive certification.
+          assert graph.get("status") in {"RESEARCH_LINEAGE_ONLY","INDEPENDENT_SOURCE_GRAPH_ACTIVE"}, "Unknown or unavailable graph mode"
+          if graph.get("status")=="INDEPENDENT_SOURCE_GRAPH_ACTIVE":
+            independent=graph.get("independentGraph")
+            assert isinstance(independent,dict), "Active mode requires an independent graph"
+            policy=independent.get("policy",{})
+            assert policy.get("graphImpliesPrediction") is False
+            assert policy.get("sourceCountMeansIndependentOriginFamilies") is True
+            assert policy.get("minimumIndependentSourcesForCertification")==2
+            assert isinstance(independent.get("edges"),list), "Independent graph edges missing"
+            for edge in independent["edges"]:
+              assert edge.get("predictiveAuthority") is False, "Graph edge claims predictive authority"
           assert graph.get("certifiedPredictiveRelationships") is False
           for e in graph.get("corporateRelationships",[]):
             assert e.get("publishedAt") and e.get("sourceUrl") and e.get("verificationStatus"),"Unsourced corporate link"
