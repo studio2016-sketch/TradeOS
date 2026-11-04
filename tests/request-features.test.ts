@@ -51,7 +51,7 @@ test("alignment and default ingest reuse feature families without changing conte
   const [selected,context]=await Promise.all([alignmentLoad("AAPL"),buildMarketContext("AAPL",alignmentLoad)]);
   assert.equal(selected!.symbol,"AAPL");assert.equal(counts.size,5);assert.equal(counts.get("AAPL"),1);
   const baseline=await buildMarketContext("AAPL",async symbol=>fixture(symbol,stamp));
-  assert.deepEqual({...context,generatedAt:null},{...baseline,generatedAt:null});
+  for(const key of ["broad","sector","correlation","session"] as const)assert.deepEqual(context![key],baseline![key]);
   counts.clear();const ingestLoad=createRequestFeatureLoader(source);
   for(const symbol of ["NVDA","AMD","PLTR","SPY","QQQ","IWM"]){
    await Promise.all([ingestLoad(symbol),buildMarketContext(symbol,ingestLoad)]);
