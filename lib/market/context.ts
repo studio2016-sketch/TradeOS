@@ -1,8 +1,10 @@
 import {featureSet,historicalBars,type Bar} from "./features";
 import type {FeatureSetLoader} from "./request-features";
+import {broadIntradayContext} from "./context-freshness";
 
 export interface MarketContext{
   generatedAt:string;
+  intradaySourceQuality:ReturnType<typeof broadIntradayContext>["quality"];
   broad:{SPY:number|null;QQQ:number|null;IWM:number|null;breadthScore:number|null;internalsScore:number|null};
   sector:{symbol:string;proxy:string|null;relativeStrengthScore:number|null;symbolRoc20:number|null;sectorRoc20:number|null};
   correlation:{symbol:string;spy20:number|null;score:number|null};
@@ -53,8 +55,7 @@ export async function buildMarketContext(symbol:string,loadFeatures:FeatureSetLo
   const spy=by.get("SPY"),qqq=by.get("QQQ"),iwm=by.get("IWM"),sym=by.get(symbol),sector=proxy?by.get(proxy):null;
   const broadVals=[spy?.daily?.trendScore,qqq?.daily?.trendScore,iwm?.daily?.trendScore].filter((x):x is number=>x!=null);
   const breadthScore=broadVals.length?broadVals.reduce((a,b)=>a+b,0)/broadVals.length:null;
-  const intradayVals=[spy?.intraday?.trendScore,qqq?.intraday?.trendScore,iwm?.intraday?.trendScore].filter((x):x is number=>x!=null);
-  const internalsScore=intradayVals.length?intradayVals.reduce((a,b)=>a+b,0)/intradayVals.length:null;
+
   const symbolRoc20=sym?.daily?.roc20Pct??null,sectorRoc20=sector?.daily?.roc20Pct??null;
   const relativeStrengthScore=symbolRoc20==null||sectorRoc20==null?null:clamp(50+(symbolRoc20-sectorRoc20)*5);
 
@@ -67,9 +68,13 @@ export async function buildMarketContext(symbol:string,loadFeatures:FeatureSetLo
   const c=corr(returns(symBars),returns(spyBars));
   const corrScore=c==null?null:clamp(75-Math.abs(c)*25);
 
+  // Evaluate age after correlation I/O too; a slow provider cannot refresh old inputs.
+  const calculatedAt=Date.now();
+  const intraday=broadIntradayContext(by,calculatedAt);
   return{
-    generatedAt:new Date().toISOString(),
-    broad:{SPY:spy?.daily?.trendScore??null,QQQ:qqq?.daily?.trendScore??null,IWM:iwm?.daily?.trendScore??null,breadthScore,internalsScore},
+    generatedAt:new Date(calculatedAt).toISOString(),
+    intradaySourceQuality:intraday.quality,
+    broad:{SPY:spy?.daily?.trendScore??null,QQQ:qqq?.daily?.trendScore??null,IWM:iwm?.daily?.trendScore??null,breadthScore,internalsScore:intraday.score},
     sector:{symbol,proxy,relativeStrengthScore,symbolRoc20,sectorRoc20},
     correlation:{symbol,spy20:c,score:corrScore},
     session:sessionState()
