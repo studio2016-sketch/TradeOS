@@ -29,7 +29,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
  const fingerprintBoundAtPrediction=predictionBinding?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&predictionBinding?.protocolFingerprint===PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT&&predictionBinding?.activation===PREDICTION_OUTCOME_PROTOCOL_ACTIVATION;
  const completeProtocol=Boolean(
   forecastTime>=Date.parse(PREDICTION_OUTCOME_PROTOCOL_ACTIVATION)&&p?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION&&fingerprintRecorded&&fingerprintBoundAtPrediction&&sourceId&&duration&&
-  Number.isFinite(startTime)&&Number.isFinite(evaluationTime)&&startTime>=forecastTime&&startTime<=forecastTime+5*60_000&&
+  Number.isFinite(startTime)&&Number.isFinite(evaluationTime)&&startTime<=forecastTime&&startTime>=forecastTime-5*60_000&&
   evaluationTime>=forecastTime+duration&&evaluationTime<=forecastTime+duration+15*60_000
  );
  const sourceTimeCertified=completeProtocol&&certificates.some(c=>sourceTimeCertificateCovers(sourceId,forecastAt,c));

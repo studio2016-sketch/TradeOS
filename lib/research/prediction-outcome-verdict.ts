@@ -1,16 +1,16 @@
 import {createHash} from "node:crypto";
 
-export const PREDICTION_OUTCOME_RULE_VERSION="tradeos.prediction-outcome.v2";
-export const PREDICTION_OUTCOME_PROTOCOL_ACTIVATION="2026-11-04T16:55:47.000Z";
+export const PREDICTION_OUTCOME_RULE_VERSION="tradeos.prediction-outcome.v3";
+export const PREDICTION_OUTCOME_PROTOCOL_ACTIVATION="2026-11-04T17:14:24.000Z";
 export const PREDICTION_OUTCOME_PROTOCOL={
- schema:"tradeos.prediction-outcome.protocol.v1",
+ schema:"tradeos.prediction-outcome.protocol.v2",
  ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,
  activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,
  supportedDirections:["bullish","bearish"],
  minimumNetEdge:.001,
- startObservationToleranceMs:5*60_000,
+ predictionQuoteMaxAgeMs:5*60_000,
  evaluationGraceMs:15*60_000,
- returnMethod:"same-feed midpoint return from the first valid post-forecast quote to the first quote at or after the exact horizon",
+ returnMethod:"same-feed midpoint return from the latest valid quote frozen at or before prediction time to the first observation at or after the exact horizon",
  costMethod:"full quoted spread at the recorded start observation",
  passRule:"direction-adjusted realized return minus recorded quoted round-trip cost is at least minimumNetEdge",
  sourceTimeRule:"the source-time certificate must exist at prediction time and cover the recorded provider feed",

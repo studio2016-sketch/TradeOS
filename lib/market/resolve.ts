@@ -42,7 +42,7 @@ export async function resolveEligibleForecasts(limit=100){
       from source_observations
       where data_class='market_snapshot'
         and symbol=${String(f.symbol)}
-        and event_time >= ${start.toISOString()}
+        and event_time >= ${new Date(start.getTime()-5*60_000).toISOString()}
         and event_time <= ${new Date(end.getTime()+OUTCOME_EVALUATION_GRACE_MS).toISOString()}
       order by event_time asc
       limit 5000
@@ -60,7 +60,7 @@ export async function resolveEligibleForecasts(limit=100){
       continue;
     }
     const sources=[...new Set(rows.map(x=>x.sourceId))];
-    const candidates=sources.flatMap(sourceId=>{const same=rows.filter(x=>x.sourceId===sourceId),first=same.find(x=>x.ask>x.bid&&x.bid>0),last=same.find(x=>x.t.getTime()>=end.getTime());return first&&last&&first.t.getTime()<=start.getTime()+5*60_000?[{first,last}]:[];}).sort((a,b)=>a.first.t.getTime()-b.first.t.getTime());
+    const candidates=sources.flatMap(sourceId=>{const same=rows.filter(x=>x.sourceId===sourceId),first=[...same].reverse().find(x=>x.t.getTime()<=start.getTime()&&x.t.getTime()>=start.getTime()-5*60_000&&x.ask>x.bid&&x.bid>0),last=same.find(x=>x.t.getTime()>=end.getTime());return first&&last?[{first,last}]:[];}).sort((a,b)=>b.first.t.getTime()-a.first.t.getTime());
     if(!candidates.length){
       const state=outcomeResolutionState({forecastAt:start.toISOString(),horizon:String(f.horizon),now:new Date().toISOString(),completeSameFeedHorizon:false});
       if(state==="TERMINAL_VOID")await persistVoid(f,"complete_same_feed_horizon_unavailable_after_grace");else pending++;
