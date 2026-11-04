@@ -17,7 +17,7 @@ export async function GET(){
    sql`select factor_key,count(*)::int observations,count(distinct subject)::int subjects,
       array_agg(distinct source_name order by source_name) sources,max(available_at) latest_available_at,
       bool_and(observed_at<=available_at) chronology_ok,
-      bool_and(value=value and value not in ('Infinity'::float8,'-Infinity'::float8)) finite_ok,
+      bool_and(value is not null and value not in ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8)) finite_ok,
       count(*) filter(where source_name ~* '^Alpaca:iex(?::(?:1Day|1Min))?$' and exists (
         select 1 from tradeos_source_time_certifications c
         where lower(c.provider)='alpaca' and lower(c.feed)='iex'
@@ -39,3 +39,4 @@ export async function GET(){
   return NextResponse.json(auditFactorVerification(evidence,certificates,new Date().toISOString()),{headers});
  }catch(error){return NextResponse.json({error:"Factor verification audit unavailable",reason:error instanceof Error?error.message:"unknown"},{status:503,headers});}
 }
+
