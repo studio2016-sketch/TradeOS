@@ -21,3 +21,6 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+          # Build-time placeholders only; no production credentials or auth bypass.
+          NEON_AUTH_BASE_URL: https://ci.invalid
+          NEON_AUTH_COOKIE_SECRET: ci-build-only-cookie-secret-0123456789abcdef
