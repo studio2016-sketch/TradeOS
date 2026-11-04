@@ -44,11 +44,21 @@ export async function buildFinancialKnowledgeGraph(symbols:string[]):Promise<Fin
   const clean=[...new Set(symbols.map(s=>s.trim().toUpperCase()).filter(Boolean))].slice(0,30);
   const nodes=new Map<string,GraphNode>(); const edges:GraphEdge[]=[]; const issuerBy=new Map<string,any>(); const ctxBy=new Map<string,any>();
   ["SPY","QQQ","IWM"].forEach(s=>pushNode(nodes,{id:"market:"+s,type:"market",label:s}));
-  const official=await freeOfficialSnapshot(clean).catch(()=>null);
+  const officialPromise=freeOfficialSnapshot(clean).catch(()=>null);
+  const issuerContexts:{symbol:string;issuer:any;ctx:any}[]=[];
+  // Bound provider concurrency while avoiding one full network round trip per
+  // symbol. Results are processed in input order below for deterministic graphs.
+  for(let start=0;start<clean.length;start+=6){
+    issuerContexts.push(...await Promise.all(clean.slice(start,start+6).map(async symbol=>{
+      const [issuer,ctx]=await Promise.all([secIssuerContext(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null)]);
+      return{symbol,issuer,ctx};
+    })));
+  }
+  const official=await officialPromise;
   const officialBy=new Map((official?.sources??[]).map((s:any)=>[s.id,s]));
 
-  for(const symbol of clean){
-    const [issuer,ctx]=await Promise.all([secIssuerContext(symbol).catch(()=>null),buildMarketContext(symbol).catch(()=>null)]); issuerBy.set(symbol,issuer); ctxBy.set(symbol,ctx);
+  for(const {symbol,issuer,ctx} of issuerContexts){
+    issuerBy.set(symbol,issuer); ctxBy.set(symbol,ctx);
     const companyId="company:"+symbol;
     pushNode(nodes,{id:companyId,type:"company",label:issuer?.company||symbol,metadata:{symbol,cik:issuer?.cik??null}});
     if(issuer){
