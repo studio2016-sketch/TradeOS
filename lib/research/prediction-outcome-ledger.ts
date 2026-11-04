@@ -32,7 +32,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
   Number.isFinite(startTime)&&Number.isFinite(evaluationTime)&&startTime<=forecastTime&&startTime>=forecastTime-5*60_000&&
   evaluationTime>=forecastTime+duration&&evaluationTime<=forecastTime+duration+15*60_000
  );
- const sourceTimeCertified=completeProtocol&&certificates.some(c=>sourceTimeCertificateCovers(sourceId,forecastAt,c));
+ const sourceTimeCertified=Boolean(fingerprintBoundAtPrediction&&sourceId&&certificates.some(c=>sourceTimeCertificateCovers(sourceId,forecastAt,c)));
  const outcomeTime=completeProtocol?new Date(evaluationTime).toISOString():row.resolved_at?new Date(row.resolved_at as string).toISOString():null;
  const verdict=rawNotes?.outcomeDisposition==="VOID"
   ?{verdict:"VOID" as const,reason:String(rawNotes.reason??"terminally_void"),grossDirectionalReturn:null,netReturn:null,minimumNetEdge:Number(rawNotes.minimumNetEdge??.001),ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,protocolFingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT}
@@ -41,7 +41,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
   id:String(row.id),forecastAt,symbol:String(row.symbol),horizon:String(row.horizon),modelVersion:String(row.model_version),direction:String(row.direction),probability:Number(row.probability),
   resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),
   maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),
-  quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":fingerprintBoundAtPrediction&&rawNotes?.outcomeDisposition==="VOID"?"PROSPECTIVE_PROTOCOL_VOID":"HISTORICAL_RECONSTRUCTION",
+  quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":fingerprintBoundAtPrediction&&rawNotes?.outcomeDisposition==="VOID"?"PROSPECTIVE_PROTOCOL_VOID":fingerprintBoundAtPrediction&&verdict.verdict==="UNRESOLVED"?"PROSPECTIVE_PROTOCOL_PENDING":"HISTORICAL_RECONSTRUCTION",
   scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
  };
 }

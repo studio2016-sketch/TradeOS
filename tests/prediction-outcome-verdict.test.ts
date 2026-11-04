@@ -22,6 +22,10 @@ test("the frozen baseline must be a recent prediction-time quote, never a future
  assert.equal(evaluatePredictionOutcomeRow({...ledgerRow,notes:JSON.stringify(postForecast)},[certificate]).scientificallyEligible,false);
  assert.equal(evaluatePredictionOutcomeRow({...ledgerRow,notes:JSON.stringify(stale)},[certificate]).scientificallyEligible,false);
 });
+test("a fingerprint-bound pending prediction reports prospective source-time status without becoming scientific evidence",()=>{
+ const pending=evaluatePredictionOutcomeRow({...ledgerRow,resolved_at:null,realized_return:null,notes:null,reconstructed_source_id:"Alpaca:iex",reconstructed_cost:.0005},[certificate]);
+ assert.equal(pending.evidenceClass,"PROSPECTIVE_PROTOCOL_PENDING");assert.equal(pending.sourceTimeCertified,true);assert.equal(pending.scientificallyEligible,false);
+});
 test("an otherwise identical outcome without its frozen fingerprint is reconstruction only",()=>{const entry=evaluatePredictionOutcomeRow({...ledgerRow,notes:JSON.stringify({...JSON.parse(ledgerRow.notes),protocolFingerprint:undefined})},[certificate]);assert.equal(entry.scientificallyEligible,false);assert.equal(entry.evidenceClass,"HISTORICAL_RECONSTRUCTION");});
 test("an outcome stamped only after prediction is never prospective evidence",()=>{const entry=evaluatePredictionOutcomeRow({...ledgerRow,source_snapshot:{}},[certificate]);assert.equal(entry.scientificallyEligible,false);assert.equal(entry.fingerprintBoundAtPrediction,false);});
 test("a missing horizon observation becomes terminally void only after grace",()=>{
