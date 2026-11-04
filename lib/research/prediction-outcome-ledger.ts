@@ -14,12 +14,12 @@ export type PredictionOutcomeLedgerRow={
  reconstructed_source_id?:unknown;reconstructed_cost?:unknown;
 };
 
-function protocol(notes:unknown){
- try{const parsed=JSON.parse(String(notes??""));return parsed?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION?parsed:null;}catch{return null;}
+function parsedNotes(notes:unknown){
+ try{return JSON.parse(String(notes??""));}catch{return null;}
 }
 
 export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,certificates:SourceTimeCertificate[]){
- const p=protocol(row.notes);
+ const rawNotes=parsedNotes(row.notes),p=rawNotes?.ruleVersion===PREDICTION_OUTCOME_RULE_VERSION?rawNotes:null;
  const cost=p?.quotedRoundTripCost==null?(row.reconstructed_cost==null?null:Number(row.reconstructed_cost)):Number(p.quotedRoundTripCost);
  const forecastAt=new Date(row.created_at as string).toISOString(),sourceId=String(p?.sourceId??row.reconstructed_source_id??""),duration=horizonMs(String(row.horizon));
  const startTime=Date.parse(String(p?.startObservationTime??"")),evaluationTime=Date.parse(String(p?.evaluationObservationTime??"")),forecastTime=Date.parse(forecastAt);
@@ -34,12 +34,14 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
  );
  const sourceTimeCertified=completeProtocol&&certificates.some(c=>sourceTimeCertificateCovers(sourceId,forecastAt,c));
  const outcomeTime=completeProtocol?new Date(evaluationTime).toISOString():row.resolved_at?new Date(row.resolved_at as string).toISOString():null;
- const verdict=predictionOutcomeVerdict({direction:String(row.direction),forecastAt,resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),quotedRoundTripCost:cost});
+ const verdict=rawNotes?.outcomeDisposition==="VOID"
+  ?{verdict:"VOID" as const,reason:String(rawNotes.reason??"terminally_void"),grossDirectionalReturn:null,netReturn:null,minimumNetEdge:Number(rawNotes.minimumNetEdge??.001),ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,protocolFingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT}
+  :predictionOutcomeVerdict({direction:String(row.direction),forecastAt,resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),quotedRoundTripCost:cost});
  return{
   id:String(row.id),forecastAt,symbol:String(row.symbol),horizon:String(row.horizon),modelVersion:String(row.model_version),direction:String(row.direction),probability:Number(row.probability),
   resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),
   maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),
-  quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":"HISTORICAL_RECONSTRUCTION",
+  quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":fingerprintBoundAtPrediction&&rawNotes?.outcomeDisposition==="VOID"?"PROSPECTIVE_PROTOCOL_VOID":"HISTORICAL_RECONSTRUCTION",
   scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
  };
 }

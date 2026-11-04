@@ -104,7 +104,7 @@ export async function GET(req:Request){
   }catch(e){results.errors.push({source:"shadow",error:e instanceof Error?e.message:String(e)});}
 
   try{
-    results.forecastResolution=await resolveEligibleForecasts(100);
+    results.forecastResolution=await resolveEligibleForecasts(150);
   }catch(e){results.errors.push({source:"resolver",error:e instanceof Error?e.message:String(e)});}
 
   try{

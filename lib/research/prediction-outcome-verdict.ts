@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 
-export const PREDICTION_OUTCOME_RULE_VERSION="tradeos.prediction-outcome.v1";
-export const PREDICTION_OUTCOME_PROTOCOL_ACTIVATION="2026-10-27T07:16:00.000Z";
+export const PREDICTION_OUTCOME_RULE_VERSION="tradeos.prediction-outcome.v2";
+export const PREDICTION_OUTCOME_PROTOCOL_ACTIVATION="2026-11-04T16:55:47.000Z";
 export const PREDICTION_OUTCOME_PROTOCOL={
  schema:"tradeos.prediction-outcome.protocol.v1",
  ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,
@@ -14,7 +14,7 @@ export const PREDICTION_OUTCOME_PROTOCOL={
  costMethod:"full quoted spread at the recorded start observation",
  passRule:"direction-adjusted realized return minus recorded quoted round-trip cost is at least minimumNetEdge",
  sourceTimeRule:"the source-time certificate must exist at prediction time and cover the recorded provider feed",
- invalidDataRule:"fail closed to VOID; missing outcomes remain UNRESOLVED"
+ invalidDataRule:"fail closed to VOID; missing same-feed horizon observations remain UNRESOLVED through the fixed evaluation grace, then become terminally VOID"
 } as const;
 export const PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT=createHash("sha256").update(JSON.stringify(PREDICTION_OUTCOME_PROTOCOL)).digest("hex");
 export type ScientificVerdict="PASS"|"FAIL"|"VOID"|"UNRESOLVED";
