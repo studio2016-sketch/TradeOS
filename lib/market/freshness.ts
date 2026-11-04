@@ -15,3 +15,14 @@ export function observationState(timestamp:unknown,now=Date.now()):"recent_obser
 export function validHistoricalPoint(value:{t?:unknown;c?:unknown}|null):boolean{
  return Boolean(value&&typeof value.t==="string"&&Number.isFinite(Date.parse(value.t))&&typeof value.c==="number"&&Number.isFinite(value.c)&&value.c>0);
 }
+
+
+/**
+ * A board status must describe the snapshot actually shown, not a second fetch.
+ * Missing/invalid prices cannot become recent from a timestamp alone.
+ */
+export function snapshotObservationState(snapshot:{price?:unknown;timestamp?:unknown}|null|undefined,now=Date.now()):"recent_observation"|"delayed_observation"|"stale"|"unverified"{
+ if(!snapshot||typeof snapshot.price!=="number"||!Number.isFinite(snapshot.price)||snapshot.price<=0)return "unverified";
+ const state=observationState(snapshot.timestamp,now);
+ return state==="unknown"?"unverified":state;
+}
