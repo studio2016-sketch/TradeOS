@@ -25,7 +25,8 @@ test("HTTP-date Retry-After and epoch reset use the later future deadline",async
  await client(url(),options());time+=30_000;const r=await client(url(),options());assert.equal(r.headers.get("Retry-After"),"30");assert.equal(calls,1);
 });
 test("missing, invalid, and expired reset headers use a bounded 30-second fallback",async()=>{
- for(const headers of [{},{"Retry-After":"broken","X-RateLimit-Reset":"NaN"},{"Retry-After":"0","X-RateLimit-Reset":"1"}]){
+ const cases:Record<string,string>[]=[{},{"Retry-After":"broken","X-RateLimit-Reset":"NaN"},{"Retry-After":"0","X-RateLimit-Reset":"1"}];
+ for(const headers of cases){
   let time=1_800_000_000_000,calls=0;
   const client=createAlpacaDataFetch(async()=>{calls++;return new Response(null,{status:429,headers})},()=>time);
   await client(url(),options());assert.equal((await client(url(),options())).headers.get("Retry-After"),"30");assert.equal(calls,1);time+=30_000;await client(url(),options());assert.equal(calls,2);
