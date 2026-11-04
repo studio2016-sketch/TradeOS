@@ -8,9 +8,9 @@ import {readFileSync} from "node:fs";
 const fixture=(symbol:string,stamp:string,current=true)=>({symbol,feed:"iex",generatedAt:stamp,daily:{trendScore:70,roc20Pct:5},intraday:{trendScore:60},quality:{latestIntradayBar:stamp,intradayAgeMs:0,underlyingDataCurrent:current}} as FeatureSet);
 
 test("request feature loader shares concurrent and sequential work, without leaking into a later request",async()=>{
- let calls=0;const stamp=new Date().toISOString();
+ let calls=0;const time=Date.now(),stamp=new Date(time).toISOString();
  const source=async(symbol:string)=>{calls++;return fixture(symbol,stamp)};
- const load=createRequestFeatureLoader(source);
+ const load=createRequestFeatureLoader(source,()=>time);
  const [a,b]=await Promise.all([load("AAPL"),load("AAPL")]);assert.equal(calls,1);assert.deepEqual(a,b);assert.notEqual(a,b);
  a!.daily.trendScore=0;assert.equal((await load("AAPL"))!.daily.trendScore,70);assert.equal(calls,1);
  await load("SPY");assert.equal(calls,2);
