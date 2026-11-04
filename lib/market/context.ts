@@ -1,4 +1,5 @@
 import {featureSet,historicalBars,type Bar} from "./features";
+import type {FeatureSetLoader} from "./request-features";
 
 export interface MarketContext{
   generatedAt:string;
@@ -43,11 +44,11 @@ function sessionState(){
   return{state:"closed" as const,score:35,note:"Outside configured extended-hours window"};
 }
 
-export async function buildMarketContext(symbol:string):Promise<MarketContext|null>{
+export async function buildMarketContext(symbol:string,loadFeatures:FeatureSetLoader=featureSet):Promise<MarketContext|null>{
   if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return null;
   const proxy=sectorMap[symbol]??(symbol.startsWith("X")?symbol:null);
   const names=[...new Set(["SPY","QQQ","IWM",symbol,...(proxy?[proxy]:[])])];
-  const fs=await Promise.all(names.map(s=>featureSet(s).catch(()=>null)));
+  const fs=await Promise.all(names.map(s=>loadFeatures(s).catch(()=>null)));
   const by=new Map(names.map((s,i)=>[s,fs[i]]));
   const spy=by.get("SPY"),qqq=by.get("QQQ"),iwm=by.get("IWM"),sym=by.get(symbol),sector=proxy?by.get(proxy):null;
   const broadVals=[spy?.daily?.trendScore,qqq?.daily?.trendScore,iwm?.daily?.trendScore].filter((x):x is number=>x!=null);
@@ -74,3 +75,4 @@ export async function buildMarketContext(symbol:string):Promise<MarketContext|nu
     session:sessionState()
   };
 }
+
