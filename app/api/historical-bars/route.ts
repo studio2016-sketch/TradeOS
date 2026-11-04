@@ -8,6 +8,8 @@ export async function GET(req:Request){
  try{
   const feed=process.env.ALPACA_FEED||"iex";const endpoint=new URL("https://data.alpaca.markets/v2/stocks/"+encodeURIComponent(symbol)+"/bars");
   endpoint.searchParams.set("timeframe","1Day");endpoint.searchParams.set("limit","80");endpoint.searchParams.set("adjustment","all");endpoint.searchParams.set("feed",feed);
+  // Alpaca defaults to oldest-first. Select the latest window before sorting for display.
+  endpoint.searchParams.set("sort","desc");
   endpoint.searchParams.set("end",new Date().toISOString());
   endpoint.searchParams.set("start",new Date(Date.now()-180*86400000).toISOString());
   const res=await fetch(endpoint,{headers:{"APCA-API-KEY-ID":process.env.ALPACA_API_KEY,"APCA-API-SECRET-KEY":process.env.ALPACA_API_SECRET},cache:"no-store",signal:AbortSignal.timeout(14000)});
