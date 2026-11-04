@@ -12,6 +12,9 @@ const measured=(value:number,inputCount:number):PortfolioFactorResult=>Number.is
 export function calculatePortfolioRiskFactors(equity:number,raw:PortfolioPositionInput[]):PortfolioFactorOutput{
  const empty={portfolio_exposure:unavailable("portfolio_unavailable"),single_name_weight:unavailable("portfolio_unavailable"),position_volatility:unavailable("portfolio_unavailable"),var_95:unavailable("portfolio_unavailable"),expected_shortfall:unavailable("portfolio_unavailable"),max_drawdown:unavailable("portfolio_unavailable")};
  if(!Number.isFinite(equity)||equity<=0)return empty;
+ // A validated empty holdings snapshot establishes current exposure only.
+ // It does not establish a historical zero-return path or historical risk.
+ if(raw.length===0)return {...empty,portfolio_exposure:measured(0,0),single_name_weight:measured(0,0)};
  const positions=raw.filter(p=>/^[A-Z0-9.-]{1,10}$/.test(p.symbol)&&Number.isFinite(p.marketValue)&&p.marketValue!==0);
  if(!positions.length)return empty;
  const weights=positions.map(p=>p.marketValue/equity),gross=weights.reduce((sum,w)=>sum+Math.abs(w),0),largest=Math.max(...weights.map(Math.abs));
@@ -28,3 +31,4 @@ export function calculatePortfolioRiskFactors(equity:number,raw:PortfolioPositio
  for(const value of portfolioReturns){wealth*=1+value;peak=Math.max(peak,wealth);if(peak>0)maxDrawdown=Math.max(maxDrawdown,(peak-wealth)/peak);}
  return{...base,position_volatility:measured(Math.sqrt(variance)*Math.sqrt(252),portfolioReturns.length),var_95:measured(var95,portfolioReturns.length),expected_shortfall:measured(expectedShortfall,portfolioReturns.length),max_drawdown:measured(maxDrawdown,portfolioReturns.length)};
 }
+

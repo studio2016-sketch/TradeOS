@@ -28,6 +28,10 @@ function envName(): "live"|"paper"|null{
 }
 function base(env:"live"|"paper"){return env==="paper"?"https://paper-api.alpaca.markets":"https://api.alpaca.markets"}
 function n(v:any){const x=Number(v);return Number.isFinite(x)?x:null}
+function equityValue(v:unknown){
+ if(typeof v!=="number"&&(typeof v!=="string"||v.trim()===""))return null;
+ return n(v);
+}
 
 export function brokerReadStatus(){
   return {
@@ -56,13 +60,16 @@ export async function alpacaBrokerState():Promise<BrokerAccountState|null>{
   const a=await accountRes.json() as any;
   const positions=await positionsRes.json() as any[];
   const orders=await ordersRes.json() as any[];
+  // Only an explicit empty array establishes that the account holds no positions.
+  // A missing or malformed response must never become measured zero exposure.
+  if(!Array.isArray(positions))throw new Error("Alpaca positions response must be an array");
   return{
     environment:env,
     accountStatus:String(a.status??"unknown"),
     tradingBlocked:Boolean(a.trading_blocked),
     accountBlocked:Boolean(a.account_blocked),
     tradeSuspendedByUser:Boolean(a.trade_suspended_by_user),
-    equity:n(a.equity),lastEquity:n(a.last_equity),cash:n(a.cash),buyingPower:n(a.buying_power),
+    equity:equityValue(a.equity),lastEquity:n(a.last_equity),cash:n(a.cash),buyingPower:n(a.buying_power),
     daytradeCount:n(a.daytrade_count),portfolioValue:n(a.portfolio_value),
     positions:(positions??[]).map((p:any)=>({
       symbol:String(p.symbol),qty:Number(p.qty??0),side:String(p.side??""),marketValue:Number(p.market_value??0),
@@ -183,4 +190,5 @@ export async function alpacaBrokerReconciliation():Promise<BrokerReconciliation|
     note:"Read-only activity-history collection is complete only when every pagination stream terminates naturally. Full certification still requires independent cash/position/order/fill identity checks and does not follow from pagination alone."
   };
 }
+
 

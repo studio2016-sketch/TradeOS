@@ -2,6 +2,21 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {calculatePortfolioRiskFactors} from "../lib/research/portfolio-factor-engine.ts";
 
+test("validated empty holdings measure zero current exposure, not historical risk",()=>{
+ const result=calculatePortfolioRiskFactors(10_000,[]);
+ assert.deepEqual(result.portfolio_exposure,{value:0,inputCount:0});
+ assert.deepEqual(result.single_name_weight,{value:0,inputCount:0});
+ for(const key of ["position_volatility","var_95","expected_shortfall","max_drawdown"] as const){
+  assert.equal(result[key].value,null);
+ }
+});
+test("invalid equity or rejected positions cannot manufacture empty-account exposure",()=>{
+ for(const equity of [0,-1,NaN,Infinity])assert.equal(calculatePortfolioRiskFactors(equity,[]).portfolio_exposure.value,null);
+ for(const position of [{symbol:"AAA",marketValue:NaN,returns:{}},{symbol:"",marketValue:100,returns:{}}]){
+  assert.equal(calculatePortfolioRiskFactors(10_000,[position]).portfolio_exposure.value,null);
+ }
+});
+
 const returns=(scale:number)=>Object.fromEntries(Array.from({length:40},(_,i)=>[`2026-08-${String(i%28+1).padStart(2,"0")}`,scale*((i%7)-3)/100]));
 test("portfolio risk factors use synchronized current-weight returns",()=>{
  const result=calculatePortfolioRiskFactors(10_000,[{symbol:"AAA",marketValue:4_000,returns:returns(1)},{symbol:"BBB",marketValue:2_000,returns:returns(.5)}]);
@@ -16,3 +31,4 @@ test("portfolio history factors fail closed without synchronized depth",()=>{
  assert.equal(result.var_95.reason,"insufficient_synchronized_returns");
  assert.equal(calculatePortfolioRiskFactors(0,[]).portfolio_exposure.value,null);
 });
+
