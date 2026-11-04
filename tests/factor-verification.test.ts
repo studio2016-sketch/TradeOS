@@ -1,7 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {FACTOR_IMPLEMENTATION_VERIFICATION,auditFactorVerification} from "../lib/research/factor-verification.ts";
 import {FACTOR_KEYS} from "../lib/research/acceleration-factors.ts";
+
+test("PostgreSQL finite evidence predicate rejects NaN, infinity and null explicitly",()=>{
+ // PostgreSQL considers NaN = NaN true; a JavaScript-style self-equality
+ // check does not reject it. bool_and also ignores null inputs.
+ const route=readFileSync(new URL("../app/api/factor-verification/route.ts",import.meta.url),"utf8");
+ assert.match(route,/bool_and\(value is not null and value not in \('NaN'::float8,'Infinity'::float8,'-Infinity'::float8\)\) finite_ok/);
+ assert.doesNotMatch(route,/value\s*=\s*value/);
+});
+
+test("nonfinite evidence cannot pass engineering or source-time verification",()=>{
+ const evidence=[{factorKey:"daily_volume",observations:10,subjects:3,sourceTimeEligibleObservations:10,sources:["Alpaca:iex"],latestAvailableAt:"2026-10-23T09:00:00Z",chronologyOk:true,finiteOk:false}];
+ const audit=auditFactorVerification(evidence,[],"2026-10-23T10:00:00Z");
+ const factor=audit.factors.find(x=>x.key==="daily_volume")!;
+ assert.equal(factor.status,"MEASURED_UNVERIFIED");
+ assert.ok(factor.blockers.includes("NONFINITE_EVIDENCE"));
+ assert.equal(factor.modelInfluenceAllowed,false);
+ assert.equal(audit.counts.fullyVerified,0);
+});
 
 test("verified implementation manifest contains only canonical factors and exceeds the 60-factor engineering target",()=>{
  assert.ok(FACTOR_IMPLEMENTATION_VERIFICATION.size>=60);
@@ -33,3 +52,4 @@ test("one post-certificate row cannot certify a factor containing older rows",()
  assert.equal(factor.gates.sourceTimeCertified,false);
  assert.equal(factor.status,"ENGINEERING_VERIFIED");
 });
+
