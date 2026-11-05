@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {hasDatabase} from "../../../../lib/db";
-import {secRatioEvidence} from "../../../../lib/research/sec-ratio-evidence";
+import {secRatioEvidenceWithDiagnostics,type SecRatioDiagnostic} from "../../../../lib/research/sec-ratio-evidence";
 import {persistEvidence} from "../../../../lib/research/persist-evidence";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
@@ -12,13 +12,13 @@ export async function GET(req:Request){
  if(!hasDatabase())return NextResponse.json({error:"database_unavailable"},{status:503});
  const day=Math.floor(Date.now()/86400000)%5;
  const selected=symbols.slice(day*2,day*2+2);
- const results:{symbol:string;status:string;saved?:number;accepted?:number;received?:number;reason?:string}[]=[];
+ const results:{symbol:string;status:string;saved?:number;accepted?:number;received?:number;reason?:string;diagnostics?:SecRatioDiagnostic[]}[]=[];
  try{
   for(const symbol of selected){
    try{
-    const evidence=await secRatioEvidence(symbol);
+    const {evidence,diagnostics}=await secRatioEvidenceWithDiagnostics(symbol);
     const persisted=await persistEvidence(evidence.map(item=>({...item,domain:"stock" as const,metadata:item.metadata})));
-    results.push({symbol,status:evidence.length?"measured":"no_matching_filing",received:evidence.length,accepted:persisted.accepted,saved:persisted.saved});
+    results.push({symbol,status:evidence.length?"measured":"no_matching_filing",received:evidence.length,accepted:persisted.accepted,saved:persisted.saved,diagnostics});
    }catch(e){results.push({symbol,status:"provider_error",reason:failureDetail(e)});}
   }
   const received=results.reduce((n,r)=>n+Number(r.received??0),0);
