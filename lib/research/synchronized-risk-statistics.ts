@@ -27,5 +27,6 @@ export function synchronizedRiskStatistics(own:CloseBar[],benchmark:CloseBar[],s
  return {beta:beta!==null&&Number.isFinite(beta)?beta:null,
   correlation:correlation!==null&&Number.isFinite(correlation)?Math.max(-1,Math.min(1,correlation)):null,
   sampleCount:sessions,sessionDates:a.dates,
+  inputWindow:{own:a.ordered.map(({t,c})=>({t,c})),benchmark:b.ordered.map(({t,c})=>({t,c}))},
   observedAt:new Date(Math.max(Date.parse(a.ordered.at(-1)!.t),Date.parse(b.ordered.at(-1)!.t))).toISOString()};
 }
