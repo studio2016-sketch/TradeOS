@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {TRIAL_ACTIVATION,BASELINE_VERSION,CHALLENGER_VERSION} from "../../../lib/research/frozenChallenger";
+import {selectComparableProspectivePairs} from "../../../lib/research/comparable-prospective-pairs";
 import {evaluateProspectivePairs} from "../../../lib/research/prospectiveTrial";
 import {evaluatePredictionOutcomeRow,summarizePredictionOutcomeEntries} from "../../../lib/research/prediction-outcome-ledger";
 import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT} from "../../../lib/research/prediction-outcome-verdict";
@@ -12,6 +13,13 @@ export async function GET(){
   const sql=db();
   const [rows,outcomeRows,certificateRows]=await Promise.all([sql`
     select b.observed_at as observed_at,b.symbol as symbol,
+      f1.id::text baseline_id,f2.id::text challenger_id,
+      f1.horizon baseline_horizon,f2.horizon challenger_horizon,
+      f1.direction baseline_direction,f2.direction challenger_direction,
+      f1.created_at baseline_created_at,f2.created_at challenger_created_at,
+      f1.source_snapshot baseline_snapshot,f2.source_snapshot challenger_snapshot,
+      o1.realized_return baseline_return,o2.realized_return challenger_return,
+      o1.notes baseline_notes,o2.notes challenger_notes,
       f1.probability::float as baseline_probability,
       f2.probability::float as challenger_probability,
       o1.was_correct as baseline_outcome,o2.was_correct as challenger_outcome
@@ -27,7 +35,7 @@ export async function GET(){
       and b.recorded_at>=${TRIAL_ACTIVATION}::timestamptz
       and c.recorded_at>=${TRIAL_ACTIVATION}::timestamptz
       and o1.was_correct is not null and o2.was_correct is not null
-    order by b.recorded_at asc limit 10000
+    order by b.recorded_at asc limit 10001
   `,sql`select f.id,f.created_at,f.symbol,f.horizon,f.model_version,f.direction,f.probability,f.source_snapshot,
       o.resolved_at,o.realized_return,o.max_favorable_excursion,o.max_adverse_excursion,o.notes,
       vs.source_id as reconstructed_source_id
@@ -38,20 +46,16 @@ export async function GET(){
     where f.created_at>=${PREDICTION_OUTCOME_PROTOCOL_ACTIVATION}::timestamptz
     order by f.created_at`,sql`select provider,feed,certification_kind,valid_from,valid_to,created_at
     from tradeos_source_time_certifications order by created_at`]);
-  let disagreeing=0;const paired=[];
-  for(const row of rows as any[]){
-    if(Boolean(row.baseline_outcome)!==Boolean(row.challenger_outcome)){disagreeing++;continue}
-    paired.push({timestamp:new Date(row.observed_at).toISOString(),symbol:String(row.symbol),
-      baselineP:Number(row.baseline_probability),challengerP:Number(row.challenger_probability),
-      outcome:(row.baseline_outcome?1:0) as 0|1});
-  }
+  const pairing=selectComparableProspectivePairs(rows as any[]);
   const certificates:SourceTimeCertificate[]=(certificateRows as any[]).map(row=>({provider:String(row.provider),feed:String(row.feed),certification_kind:String(row.certification_kind),valid_from:new Date(row.valid_from).toISOString(),valid_to:row.valid_to?new Date(row.valid_to).toISOString():null,created_at:new Date(row.created_at).toISOString()}));
   const scientificEntries=(outcomeRows as any[]).map(row=>evaluatePredictionOutcomeRow(row,certificates));
   const scientificCohort=summarizePredictionOutcomeEntries(scientificEntries);
   return NextResponse.json({trial:{baseline:BASELINE_VERSION,challenger:CHALLENGER_VERSION,
-    frozenAt:"2026-10-18",activatedAt:TRIAL_ACTIVATION,outcomeDisagreements:disagreeing,
-    evidenceClass:"FROZEN_COMPARATIVE_RESEARCH",scope:"Includes the full frozen trial era; it is not the independently source-time-certified v3 cohort.",
-    ...evaluateProspectivePairs(paired)},certifiedOutcomeCohort:{activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,
+    frozenAt:"2026-10-18",activatedAt:TRIAL_ACTIVATION,outcomeProtocolActivatedAt:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,outcomeDisagreements:pairing.outcomeDisagreements,
+    evidenceClass:"PROTOCOL_BOUND_COMPARATIVE_RESEARCH",scope:"Only one-to-one outcomes bound to the current frozen protocol and matching actual outcome observations/values. Source timing remains uncertified.",
+    ...evaluateProspectivePairs(pairing.prospectivePairs)},
+    pairing:pairing.diagnostics,
+    historicalReconstruction:{evidenceClass:"HISTORICAL_RECONSTRUCTION",scope:"Separate retrospective research; excluded from prospective counts and scientific gates.",...evaluateProspectivePairs(pairing.reconstructedPairs),status:"HISTORICAL_RECONSTRUCTION",eligibleForProspectiveDepth:false,warnings:["Retrospective outcomes compatible with current endpoint/cost checks; not proof of a prospectively frozen outcome policy or certified source timing."]},certifiedOutcomeCohort:{activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,
     fingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,evidenceClass:"SOURCE_TIME_CERTIFIED_PROSPECTIVE_OUTCOMES",
     ...scientificCohort},interpretation:{relativeComparison:"A challenger improvement, if observed, is relative to the frozen baseline only.",
     absolutePredictiveClaim:false,profitabilityClaim:false,independentCertification:false,

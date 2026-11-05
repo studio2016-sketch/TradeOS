@@ -1,0 +1,6 @@
+import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION as activation,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT as fingerprint,PREDICTION_OUTCOME_RULE_VERSION as version} from '../../lib/research/prediction-outcome-verdict.ts';
+export function fixture(historical=false){
+ const notes={...(historical?{evidenceClass:'HISTORICAL_RECONSTRUCTION'}:{ruleVersion:version,protocolFingerprint:fingerprint,protocolActivation:activation}),sourceId:'Alpaca:iex',startObservationTime:'2026-11-05T13:59:59.800Z',evaluationObservationTime:'2026-11-05T14:30:01.000Z',quotedRoundTripCost:.0002,minimumNetEdge:.001,outcomeDisposition:'PASS'};
+ const snapshot={outcomeProtocol:{ruleVersion:version,protocolFingerprint:fingerprint,activation}};
+ return {baseline_id:'1',challenger_id:'2',symbol:'NVDA',baseline_horizon:'30m',challenger_horizon:'30m',baseline_direction:'bullish',challenger_direction:'bullish',baseline_created_at:'2026-11-05T14:00:00.000Z',challenger_created_at:'2026-11-05T14:00:00.100Z',baseline_snapshot:snapshot,challenger_snapshot:snapshot,baseline_notes:JSON.stringify(notes),challenger_notes:JSON.stringify(notes),baseline_return:'0.00200000',challenger_return:'0.002',baseline_probability:.55,challenger_probability:.58,baseline_outcome:true,challenger_outcome:true,observed_at:'2026-11-05T13:59:59.800Z'};
+}
