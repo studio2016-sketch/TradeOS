@@ -1,5 +1,6 @@
 import {historicalBars,type Bar} from "../market/features";
 import type {PersistableEvidence} from "./persist-evidence";
+import {synchronizedRiskStatistics} from "./synchronized-risk-statistics";
 import {synchronizedRelativeReturn} from "./synchronized-relative-return";
 
 async function massiveGoldPreviousClose(){
@@ -22,31 +23,6 @@ function ret(bars:Bar[],sessions:number){
  if(bars.length<sessions+1)return null;
  const a=bars[bars.length-sessions-1].c,z=bars[bars.length-1].c;
  return a>0?z/a-1:null;
-}
-function dailyReturns(bars:Bar[],count=20){
- const slice=bars.slice(-(count+1)),out=new Map<string,number>();
- for(let i=1;i<slice.length;i++){
-  const a=slice[i-1].c,z=slice[i].c;
-  if(a>0)out.set(slice[i].t.slice(0,10),z/a-1);
- }
- return out;
-}
-function beta(a:Map<string,number>,b:Map<string,number>){
- const dates=[...a.keys()].filter(d=>b.has(d)).sort().slice(-60);
- if(dates.length<20)return null;
- const x=dates.map(d=>a.get(d)!),m=dates.map(d=>b.get(d)!);
- const mx=x.reduce((s,v)=>s+v,0)/x.length,mm=m.reduce((s,v)=>s+v,0)/m.length;
- let cov=0,v=0;for(let i=0;i<x.length;i++){cov+=(x[i]-mx)*(m[i]-mm);v+=(m[i]-mm)*(m[i]-mm);}
- return v>0?cov/v:null;
-}
-function correlation(a:Map<string,number>,b:Map<string,number>){
- const dates=[...a.keys()].filter(d=>b.has(d)).sort().slice(-20);
- if(dates.length<12)return null;
- const x=dates.map(d=>a.get(d)!),y=dates.map(d=>b.get(d)!);
- const mx=x.reduce((s,v)=>s+v,0)/x.length,my=y.reduce((s,v)=>s+v,0)/y.length;
- let num=0,dx=0,dy=0;
- for(let i=0;i<x.length;i++){const xa=x[i]-mx,ya=y[i]-my;num+=xa*ya;dx+=xa*xa;dy+=ya*ya;}
- return dx>0&&dy>0?num/Math.sqrt(dx*dy):null;
 }
 const sectorMap:Record<string,string>={NVDA:"XLK",AMD:"XLK",PLTR:"XLK",AAPL:"XLK",MSFT:"XLK",META:"XLC",GOOGL:"XLC",AMZN:"XLY",TSLA:"XLY",JPM:"XLF",XOM:"XLE"};
 const industryMap:Record<string,string>={NVDA:"SMH",AMD:"SMH",PLTR:"IGV",AAPL:"VGT",MSFT:"IGV",META:"XLC",GOOGL:"XLC",AMZN:"XLY",TSLA:"CARZ",JPM:"KBE",XOM:"XOP"};
@@ -75,11 +51,10 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
   if(tlt1!=null&&Number.isFinite(tlt1)&&tlt.length){
    candidates.push({factor:"treasury_etf_return",value:tlt1,source:`Alpaca:${feed}:1Day`,subject:"TLT",observedAt:tlt.at(-1)!.t,availableAt,domain:"stock",metadata:{sessions:1,proxy:"TLT",feed}});
   }
-  const corr=correlation(dailyReturns(spy),dailyReturns(tlt));
-  if(corr!=null&&Number.isFinite(corr)&&spy.length&&tlt.length){
-   const observedAt=new Date(Math.min(Date.parse(spy.at(-1)!.t),Date.parse(tlt.at(-1)!.t))).toISOString();
-   candidates.push({factor:"equity_bond_correlation",value:corr,source:`Alpaca:${feed}:1Day`,subject:"SPY_TLT",observedAt,availableAt,domain:"stock",metadata:{equity:"SPY",bond:"TLT",windowSessions:20,feed}});
-  }
+  const risk=synchronizedRiskStatistics(spy,tlt,20);
+  if(risk?.correlation!=null){
+   candidates.push({factor:"equity_bond_correlation",value:risk.correlation,source:`Alpaca:${feed}:1Day`,subject:"SPY_TLT",observedAt:risk.observedAt,availableAt,domain:"stock",metadata:{equity:"SPY",bond:"TLT",windowSessions:20,sampleCount:risk.sampleCount,sessionDates:risk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
+  }else diagnostics.push({factor:"equity_bond_correlation",error:"unaligned_invalid_or_degenerate_session_window"});
   diagnostics.push({pair:"SPY/TLT",spyBars:spy.length,tltBars:tlt.length});
  }catch(e){diagnostics.push({pair:"SPY/TLT",error:e instanceof Error?e.message:"unknown"});}
 
@@ -104,11 +79,11 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  for(const symbol of ["NVDA","AMD","PLTR"]){
   try{
    const [own,spy]=await Promise.all([get(symbol),get("SPY")]);
-   const ownR=dailyReturns(own,60),spyR=dailyReturns(spy,60);
-   const b=beta(ownR,spyR),rho=correlation(ownR,spyR);
-   const observedAt=own.length&&spy.length?new Date(Math.min(Date.parse(own.at(-1)!.t),Date.parse(spy.at(-1)!.t))).toISOString():null;
-   if(observedAt&&b!=null&&Number.isFinite(b))candidates.push({factor:"beta",value:b,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:60,method:"covariance(symbol,SPY)/variance(SPY)",feed}});
-   if(observedAt&&rho!=null&&Number.isFinite(rho))candidates.push({factor:"rolling_correlation",value:rho,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:20,method:"pearson_correlation",feed}});
+   const betaRisk=synchronizedRiskStatistics(own,spy,60),correlationRisk=synchronizedRiskStatistics(own,spy,20);
+   if(betaRisk?.beta!=null)candidates.push({factor:"beta",value:betaRisk.beta,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:betaRisk.observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:60,sampleCount:betaRisk.sampleCount,sessionDates:betaRisk.sessionDates,method:"synchronized_return_covariance_over_variance_v2",feed}});
+   else diagnostics.push({symbol,factor:"beta",error:"unaligned_invalid_or_degenerate_session_window"});
+   if(correlationRisk?.correlation!=null)candidates.push({factor:"rolling_correlation",value:correlationRisk.correlation,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:correlationRisk.observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:20,sampleCount:correlationRisk.sampleCount,sessionDates:correlationRisk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
+   else diagnostics.push({symbol,factor:"rolling_correlation",error:"unaligned_invalid_or_degenerate_session_window"});
   }catch(e){diagnostics.push({symbol,riskContextError:e instanceof Error?e.message:"unknown"});}
  }
 
@@ -135,4 +110,3 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  const retrievedAt=new Date().toISOString();
  return {requestedAt:availableAt,retrievedAt,candidates:candidates.map(candidate=>({...candidate,availableAt:retrievedAt})),diagnostics};
 }
-
