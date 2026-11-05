@@ -53,3 +53,37 @@ test("one post-certificate row cannot certify a factor containing older rows",()
  assert.equal(factor.status,"ENGINEERING_VERIFIED");
 });
 
+test('risk implementation tests do not retroactively verify legacy, mixed, or version-labeled rows',()=>{
+ for(const factorKey of ['beta','rolling_correlation']){
+  for(const implementationMethods of [undefined,[],[''],['legacy'],['pearson_correlation'],['synchronized_return_covariance_over_variance_v2'],['synchronized_return_pearson_v2'],['legacy','synchronized_return_pearson_v2']]){
+   const row={factorKey,observations:36,subjects:3,sourceTimeEligibleObservations:36,sources:['Alpaca:iex:1Day'],latestAvailableAt:'2026-11-05T00:00:00Z',chronologyOk:true,finiteOk:true,implementationMethods};
+   const result=auditFactorVerification([row],[],'2026-11-05T01:00:00Z').factors.find(x=>x.key===factorKey)!;
+   assert.equal(result.status,'MEASURED_UNVERIFIED');
+   assert.equal(result.gates.implementationVerified,true);
+   assert.equal(result.gates.implementationEvidenceLinkageRequired,true);
+   assert.equal(result.gates.implementationEvidenceLinked,false);
+   assert.equal(result.gates.sourceTimeCertified,true); // Separate timing evidence never bypasses linkage.
+   assert.equal(result.gates.sourceIdentityVerified,true);
+   assert.equal(result.modelInfluenceAllowed,false);
+   assert.ok(result.blockers.includes('ROW_IMPLEMENTATION_EVIDENCE_LINKAGE_UNPROVEN'));
+   assert.deepEqual(result.observedImplementationMethods,implementationMethods??[]);
+  }
+ }
+});
+test('missing risk observations remain unmeasured and other factors do not claim row-level linkage',()=>{
+ const audit=auditFactorVerification([],[],'2026-11-05T01:00:00Z');
+ assert.equal(audit.factors.find(x=>x.key==='beta')!.status,'UNMEASURED');
+ const other=audit.factors.find(x=>x.key==='daily_volume')!;
+ assert.equal(other.gates.implementationEvidenceLinkageRequired,false);
+ assert.equal(other.gates.implementationEvidenceLinked,null);
+});
+test('risk manifest names the actual tested collector helper, not the unrelated market implementation',()=>{
+ for(const key of ['beta','rolling_correlation']){
+  const entry=FACTOR_IMPLEMENTATION_VERIFICATION.get(key)!;
+  assert.equal(entry.implementationPath,'lib/research/synchronized-risk-statistics.ts');
+  assert.match(entry.verificationSuite,/network-risk-integration/);
+ }
+ const route=readFileSync(new URL('../app/api/factor-verification/route.ts',import.meta.url),'utf8');
+ assert.match(route,/array_agg\(distinct coalesce\(source_metadata->>'method',''\)/);
+ assert.match(route,/from tradeos_factor_evidence group by factor_key/);
+});
