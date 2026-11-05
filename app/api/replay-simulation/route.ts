@@ -11,7 +11,7 @@ export async function GET(req:Request){
  const read=(k:string,d:number)=>q.has(k)?Number(q.get(k)):d;
  const horizon=read("bars",20);
  const params={decisionAt:new Date(ms).toISOString(),symbol,startingEquity:read("equity",10000),riskBudget:read("risk",50),stopPct:read("stopPct",1),targetPct:read("targetPct",2),slippageBps:read("slippageBps",10),commissionPerShare:read("commission",0),maxBars:horizon};
- if(horizon<1||horizon>500||params.slippageBps<0||params.slippageBps>1000||params.startingEquity<=0||params.riskBudget<=0)return NextResponse.json({error:"Invalid simulation risk, equity, slippage or horizon inputs."},{status:400});
+ if(!Number.isInteger(horizon)||horizon<1||horizon>500||params.slippageBps<0||params.slippageBps>1000||params.startingEquity<=0||params.riskBudget<=0)return NextResponse.json({error:"Invalid simulation risk, equity, slippage or horizon inputs."},{status:400});
  try{
   const feed=process.env.ALPACA_FEED||"iex";
   const end=new Date(Math.min(Date.now()-16*60000,ms+Math.max(1,horizon)*5*60000+48*3600000)).toISOString();
