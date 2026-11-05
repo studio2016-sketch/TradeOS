@@ -1,5 +1,6 @@
 import {historicalBars,type Bar} from "../market/features";
 import type {PersistableEvidence} from "./persist-evidence";
+import {synchronizedRelativeReturn} from "./synchronized-relative-return";
 
 async function massiveGoldPreviousClose(){
  const key=process.env.MASSIVE_API_KEY;
@@ -116,17 +117,22 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
    const sector=sectorMap[symbol],industry=industryMap[symbol];
    const names=[symbol,sector,industry].filter(Boolean);
    const rows=await Promise.all(names.map(get));
-   const own=rows[0],ownRet=ret(own,20);
-   if(ownRet==null||!Number.isFinite(ownRet)||!own.length)continue;
+   const own=rows[0];
    if(sector){
-    const sRet=ret(rows[1],20);
-    if(sRet!=null&&Number.isFinite(sRet))candidates.push({factor:"sector_relative_return",value:ownRet-sRet,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:own.at(-1)!.t,availableAt,domain:"stock",metadata:{symbolReturn20:ownRet,sectorProxy:sector,sectorReturn20:sRet,windowSessions:20,feed}});
+    const relative=synchronizedRelativeReturn(own,rows[1]);
+    if(relative)candidates.push({factor:"sector_relative_return",value:relative.value,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:relative.observedAt,availableAt,domain:"stock",metadata:{symbolReturn20:relative.ownReturn,sectorProxy:sector,sectorReturn20:relative.proxyReturn,windowSessions:20,sessionDates:relative.sessionDates,method:"same_session_endpoint_relative_return_v2",feed}});
+    else diagnostics.push({symbol,factor:"sector_relative_return",error:"unaligned_or_invalid_session_window"});
    }
    if(industry){
-    const idx=sector===industry?1:2,sBars=rows[idx],iRet=ret(sBars,20);
-    if(iRet!=null&&Number.isFinite(iRet))candidates.push({factor:"industry_relative_return",value:ownRet-iRet,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:own.at(-1)!.t,availableAt,domain:"stock",metadata:{symbolReturn20:ownRet,industryProxy:industry,industryReturn20:iRet,windowSessions:20,feed}});
+    const idx=sector===industry?1:2,relative=synchronizedRelativeReturn(own,rows[idx]);
+    if(relative)candidates.push({factor:"industry_relative_return",value:relative.value,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:relative.observedAt,availableAt,domain:"stock",metadata:{symbolReturn20:relative.ownReturn,industryProxy:industry,industryReturn20:relative.proxyReturn,windowSessions:20,sessionDates:relative.sessionDates,method:"same_session_endpoint_relative_return_v2",feed}});
+    else diagnostics.push({symbol,factor:"industry_relative_return",error:"unaligned_or_invalid_session_window"});
    }
   }catch(e){diagnostics.push({symbol,error:e instanceof Error?e.message:"unknown"});}
  }
- return {retrievedAt:availableAt,candidates,diagnostics};
+ // Availability starts after every input has actually been retrieved, never
+ // at request start. This is receipt evidence, not publication-time certification.
+ const retrievedAt=new Date().toISOString();
+ return {requestedAt:availableAt,retrievedAt,candidates:candidates.map(candidate=>({...candidate,availableAt:retrievedAt})),diagnostics};
 }
+
