@@ -43,7 +43,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
   resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),
   maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),
   quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":fingerprintBoundAtPrediction&&rawNotes?.outcomeDisposition==="VOID"?"PROSPECTIVE_PROTOCOL_VOID":fingerprintBoundAtPrediction&&verdict.verdict==="UNRESOLVED"?"PROSPECTIVE_PROTOCOL_PENDING":"HISTORICAL_RECONSTRUCTION",
-  scientificallyEligible:OUTCOME_PROTOCOL_CONFORMANCE.scientificallyEligible,protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
+  scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL")&&OUTCOME_PROTOCOL_CONFORMANCE.scientificallyEligible,protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
  };
 }
 
