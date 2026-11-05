@@ -15,7 +15,7 @@ export async function GET(req:Request){
  try{
   const feed=process.env.ALPACA_FEED||"iex";
   const end=new Date(Math.min(Date.now()-16*60000,ms+Math.max(1,horizon)*5*60000+48*3600000)).toISOString();
-  const history=await historicalBars(symbol,"5Min",new Date(ms-60*60000).toISOString(),1000,feed,end);
+  const history=await historicalBars(symbol,"5Min",new Date(ms-60*60000).toISOString(),1000,feed,end,true);
   const output=simulateLongAfterDecision(history,params);
   return NextResponse.json({simulation:output,source:"Alpaca:"+feed,marketHistoryLatestAt:history.at(-1)?.t??null,certification:"RESEARCH_ONLY",limitations:["Uses historical prices only; signal integrity must be separately established as-of decision time.","The simulation assumes a long market order at next available bar open with synthetic slippage and commission assumptions.","Cannot be used to claim cost-adjusted profitability or a production strategy win rate."]},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({mode:"UNAVAILABLE",reason:"Recorded prices unavailable"},{status:503})}

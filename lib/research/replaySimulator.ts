@@ -16,8 +16,18 @@ export function simulateLongAfterDecision(bars:Bar[],p:PaperReplayParams):PaperR
  const decision=Date.parse(p.decisionAt);
  if(!Number.isFinite(decision)||!Number.isFinite(p.startingEquity)||p.startingEquity<=0||!Number.isFinite(p.riskBudget)||p.riskBudget<=0||p.riskBudget>p.startingEquity||!Number.isFinite(p.stopPct)||p.stopPct<=0||p.stopPct>=50||!Number.isFinite(p.targetPct)||p.targetPct<=0||p.targetPct>100||!Number.isFinite(p.slippageBps)||p.slippageBps<0||p.slippageBps>1000||!Number.isFinite(p.commissionPerShare)||p.commissionPerShare<0||p.commissionPerShare>100||!Number.isInteger(p.maxBars)||p.maxBars<1||p.maxBars>500)return blank("INVALID_INPUT");
  // Signals must have been frozen at decisionAt. Data after it is used ONLY for evaluation.
- const future=bars.filter(validBar).filter(x=>Date.parse(x.t)>=decision).sort((a,b)=>Date.parse(a.t)-Date.parse(b.t)).slice(0,p.maxBars);
+ // A malformed timestamp cannot be safely classified as before/after the
+ // decision. Never silently remove an unknown part of the evaluation path.
+ if(bars.some(bar=>!Number.isFinite(Date.parse(bar.t)))){
+  warning.push("Invalid bar timestamp prevents establishing the evaluation path.");
+  return blank("INVALID_INPUT");
+ }
+ const future=bars.filter(x=>Date.parse(x.t)>=decision).sort((a,b)=>Date.parse(a.t)-Date.parse(b.t)).slice(0,p.maxBars);
  if(!future.length)return blank("NO_ENTRY_BAR");
+ if(future.some(bar=>!validBar(bar))){
+  warning.push("Malformed OHLC evaluation bar; no result reported rather than skipping unknown price movement.");
+  return blank("INVALID_INPUT");
+ }
  if(new Set(future.map(bar=>Date.parse(bar.t))).size!==future.length){
   warning.push("Duplicate evaluation bar timestamps cannot establish a valid horizon.");
   return blank("INVALID_INPUT");

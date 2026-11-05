@@ -19,7 +19,7 @@ function rsi(xs:number[],p=14){if(xs.length<=p)return null;let g=0,l=0;for(let i
 function atr(b:Bar[],p=14){if(b.length<=p)return null;const tr=b.slice(1).map((x,i)=>Math.max(x.h-x.l,Math.abs(x.h-b[i].c),Math.abs(x.l-b[i].c)));return sma(tr,p)}
 function stdev(xs:number[]){if(xs.length<2)return null;const m=xs.reduce((a,b)=>a+b,0)/xs.length;return Math.sqrt(xs.reduce((s,x)=>s+(x-m)**2,0)/(xs.length-1))}
 function clamp(n:number,min=0,max=100){return Math.max(min,Math.min(max,n))}
-export async function historicalBars(symbol:string,timeframe:string,start:string,limit=1000,feedOverride?:string,endOverride?:string):Promise<Bar[]>{
+export async function historicalBars(symbol:string,timeframe:string,start:string,limit=1000,feedOverride?:string,endOverride?:string,rejectInvalidRows=false):Promise<Bar[]>{
   const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return[];
   const feed=feedOverride||(process.env.ALPACA_FEED||"iex");
@@ -28,6 +28,9 @@ export async function historicalBars(symbol:string,timeframe:string,start:string
   const res=await alpacaDataFetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(15000)});
   if(!res.ok)throw new Error(`Alpaca ${timeframe} bars HTTP ${res.status}`);
   const j=await res.json() as any;const bars=Array.isArray(j.bars)?j.bars as Bar[]:[];
+  // Replay evaluation cannot silently skip an unknown part of its price path.
+  // Other consumers retain their existing sanitized chart/indicator behavior.
+  if(rejectInvalidRows&&bars.some(b=>!Number.isFinite(Date.parse(b.t))||!Number.isFinite(b.c)||b.c<=0))throw new Error("Historical evaluation contains invalid timestamp or close");
   // Alpaca sorts newest-first, ensuring limit=1000 returns the latest bars. 
   // Restore oldest-first for all indicator calculations and chart consumers.
   return bars.filter(b=>Number.isFinite(Date.parse(b.t))&&Number.isFinite(b.c)&&b.c>0).sort((a,b)=>Date.parse(a.t)-Date.parse(b.t));
@@ -178,4 +181,3 @@ export async function featureSet(symbol:string):Promise<FeatureSet|null>{
     quality:{barCount:total,coverageScore:clamp(total/12),latestDailyBar:daily.at(-1)?.t??null,latestHourlyBar:hourly.at(-1)?.t??null,latestIntradayBar:intra.at(-1)?.t??null,intradayAgeMs:intra.length?Math.max(0,Date.now()-Date.parse(intra[intra.length-1].t)):null,underlyingDataCurrent:Boolean(intra.length&&Date.now()-Date.parse(intra[intra.length-1].t)<20*60_000),note:"Daily/hourly structure uses consolidated SIP history ending at least 16 minutes ago; immediate intraday timing uses the configured real-time feed. Current flag measures observation age and does not certify exchange entitlement."}
   };
 }
-

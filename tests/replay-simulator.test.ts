@@ -36,3 +36,22 @@ test('horizon is a positive finite integer and duplicate bars cannot pad it',()=
  const r=simulateLongAfterDecision([b(start,100,101,99,100),b(start,100,101,99,100)],{...p,maxBars:2});
  assert.equal(r.status,'INVALID_INPUT');assert.equal(r.netPnl,null);
 });
+test('malformed evaluation bar cannot disappear and manufacture a later target win',()=>{
+ const rows=[b(start,100,101,99,100),b('2026-10-16T15:05:00Z',100,99,90,100),b('2026-10-16T15:10:00Z',100,105,99,104)];
+ const result=simulateLongAfterDecision(rows,p);
+ assert.equal(result.status,'INVALID_INPUT');assert.equal(result.netPnl,null);assert.equal(result.exitReason,null);
+ assert.match(result.warnings.at(-1)!,/Malformed OHLC/);
+});
+test('all invalid evaluation OHLC forms fail closed without zero filling or filtering',()=>{
+ for(const override of [{o:NaN},{h:Infinity},{l:0},{c:-1},{h:98},{l:102}]){
+  const result=simulateLongAfterDecision([{...b(start,100,101,99,100),...override}],{...p,maxBars:1});
+  assert.equal(result.status,'INVALID_INPUT');assert.equal(result.netPnl,null);
+ }
+ const unknown=simulateLongAfterDecision([b('invalid',100,101,99,100),b(start,100,105,99,104)],p);
+ assert.equal(unknown.status,'INVALID_INPUT');assert.match(unknown.warnings.at(-1)!,/timestamp/);
+});
+test('known pre-decision OHLC and bars beyond selected horizon do not affect evaluation',()=>{
+ const rows=[b('2026-10-16T14:55:00Z',NaN,NaN,NaN,NaN),b(start,100,101,99,100.5),b('2026-10-16T15:05:00Z',100,99,90,100)];
+ const result=simulateLongAfterDecision(rows,{...p,maxBars:1,slippageBps:0,commissionPerShare:0});
+ assert.equal(result.status,'EXECUTED');assert.equal(result.exitReason,'HORIZON');assert.equal(result.netPnl,25);
+});
