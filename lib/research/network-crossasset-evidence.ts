@@ -31,12 +31,16 @@ const industryMap:Record<string,string>={NVDA:"SMH",AMD:"SMH",PLTR:"IGV",AAPL:"V
 export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  const feed=process.env.ALPACA_FEED||"iex";
  const availableAt=now.toISOString(),end=availableAt,start=new Date(now.getTime()-180*86400000).toISOString();
- const cache=new Map<string,Bar[]>();
- const get=async(symbol:string)=>{
+ // Share in-flight work and failures too: corrupt history must not trigger
+ // repeated provider requests in other factor branches of the same collection.
+ const cache=new Map<string,Promise<Bar[]>>();
+ const get=(symbol:string)=>{
   if(cache.has(symbol))return cache.get(symbol)!;
-  const bars=await historicalBars(symbol,"1Day",start,260,feed,end);
-  const complete=bars.filter(b=>Date.parse(b.t)<now.getTime()&&b.t.slice(0,10)<now.toISOString().slice(0,10));
-  cache.set(symbol,complete);return complete;
+  const pending=(async()=>{
+   const bars=await historicalBars(symbol,"1Day",start,260,feed,end,true);
+   return bars.filter(b=>Date.parse(b.t)<now.getTime()&&b.t.slice(0,10)<now.toISOString().slice(0,10));
+  })();
+  cache.set(symbol,pending);return pending;
  };
  const candidates:PersistableEvidence[]=[];
  const diagnostics:any[]=[];
