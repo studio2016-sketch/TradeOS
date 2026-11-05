@@ -1,5 +1,6 @@
 import {historicalBars,type Bar} from "../market/features";
 import type {PersistableEvidence} from "./persist-evidence";
+import {createRiskReplayBundle} from "./risk-replay-bundle";
 import {synchronizedRiskStatistics} from "./synchronized-risk-statistics";
 import {synchronizedRelativeReturn} from "./synchronized-relative-return";
 
@@ -53,7 +54,7 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
   }
   const risk=synchronizedRiskStatistics(spy,tlt,20);
   if(risk?.correlation!=null){
-   candidates.push({factor:"equity_bond_correlation",value:risk.correlation,source:`Alpaca:${feed}:1Day`,subject:"SPY_TLT",observedAt:risk.observedAt,availableAt,domain:"stock",metadata:{equity:"SPY",bond:"TLT",windowSessions:20,sampleCount:risk.sampleCount,sessionDates:risk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
+   candidates.push({factor:"equity_bond_correlation",value:risk.correlation,source:`Alpaca:${feed}:1Day`,subject:"SPY_TLT",observedAt:risk.observedAt,availableAt,domain:"stock",metadata:{riskReplayInputs:risk.inputWindow,equity:"SPY",bond:"TLT",windowSessions:20,sampleCount:risk.sampleCount,sessionDates:risk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
   }else diagnostics.push({factor:"equity_bond_correlation",error:"unaligned_invalid_or_degenerate_session_window"});
   diagnostics.push({pair:"SPY/TLT",spyBars:spy.length,tltBars:tlt.length});
  }catch(e){diagnostics.push({pair:"SPY/TLT",error:e instanceof Error?e.message:"unknown"});}
@@ -80,9 +81,9 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
   try{
    const [own,spy]=await Promise.all([get(symbol),get("SPY")]);
    const betaRisk=synchronizedRiskStatistics(own,spy,60),correlationRisk=synchronizedRiskStatistics(own,spy,20);
-   if(betaRisk?.beta!=null)candidates.push({factor:"beta",value:betaRisk.beta,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:betaRisk.observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:60,sampleCount:betaRisk.sampleCount,sessionDates:betaRisk.sessionDates,method:"synchronized_return_covariance_over_variance_v2",feed}});
+   if(betaRisk?.beta!=null)candidates.push({factor:"beta",value:betaRisk.beta,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:betaRisk.observedAt,availableAt,domain:"stock",metadata:{riskReplayInputs:betaRisk.inputWindow,benchmark:"SPY",windowSessions:60,sampleCount:betaRisk.sampleCount,sessionDates:betaRisk.sessionDates,method:"synchronized_return_covariance_over_variance_v2",feed}});
    else diagnostics.push({symbol,factor:"beta",error:"unaligned_invalid_or_degenerate_session_window"});
-   if(correlationRisk?.correlation!=null)candidates.push({factor:"rolling_correlation",value:correlationRisk.correlation,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:correlationRisk.observedAt,availableAt,domain:"stock",metadata:{benchmark:"SPY",windowSessions:20,sampleCount:correlationRisk.sampleCount,sessionDates:correlationRisk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
+   if(correlationRisk?.correlation!=null)candidates.push({factor:"rolling_correlation",value:correlationRisk.correlation,source:`Alpaca:${feed}:1Day`,subject:symbol,observedAt:correlationRisk.observedAt,availableAt,domain:"stock",metadata:{riskReplayInputs:correlationRisk.inputWindow,benchmark:"SPY",windowSessions:20,sampleCount:correlationRisk.sampleCount,sessionDates:correlationRisk.sessionDates,method:"synchronized_return_pearson_v2",feed}});
    else diagnostics.push({symbol,factor:"rolling_correlation",error:"unaligned_invalid_or_degenerate_session_window"});
   }catch(e){diagnostics.push({symbol,riskContextError:e instanceof Error?e.message:"unknown"});}
  }
@@ -108,5 +109,15 @@ export async function observedNetworkAndCrossAssetEvidence(now=new Date()){
  // Availability starts after every input has actually been retrieved, never
  // at request start. This is receipt evidence, not publication-time certification.
  const retrievedAt=new Date().toISOString();
- return {requestedAt:availableAt,retrievedAt,candidates:candidates.map(candidate=>({...candidate,availableAt:retrievedAt})),diagnostics};
+ return {requestedAt:availableAt,retrievedAt,candidates:candidates.map(candidate=>{
+  const row={...candidate,availableAt:retrievedAt};
+  const {riskReplayInputs,...metadata}=row.metadata??{};
+  if(riskReplayInputs){
+   const {factor,subject,source,value,observedAt,availableAt}=row;
+   metadata.riskReplay=createRiskReplayBundle({factor,subject,source,value,observedAt,availableAt},riskReplayInputs as Parameters<typeof createRiskReplayBundle>[1],{
+    ownSymbol:factor==="equity_bond_correlation"?"SPY":subject,benchmarkSymbol:factor==="equity_bond_correlation"?"TLT":"SPY",feed
+   });
+  }
+  return {...row,metadata};
+ }),diagnostics};
 }
