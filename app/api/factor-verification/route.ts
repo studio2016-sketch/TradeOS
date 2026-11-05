@@ -16,6 +16,7 @@ export async function GET(){
   const [evidenceRows,certificateRows]=await Promise.all([
    sql`select factor_key,count(*)::int observations,count(distinct subject)::int subjects,
       array_agg(distinct source_name order by source_name) sources,max(available_at) latest_available_at,
+      array_agg(distinct coalesce(source_metadata->>'method','') order by coalesce(source_metadata->>'method','')) implementation_methods,
       bool_and(observed_at<=available_at) chronology_ok,
       bool_and(value is not null and value not in ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8)) finite_ok,
       count(*) filter(where source_name ~* '^Alpaca:iex(?::(?:1Day|1Min))?$' and exists (
@@ -33,10 +34,10 @@ export async function GET(){
    factorKey:String(row.factor_key),observations:Number(row.observations),subjects:Number(row.subjects),
    sourceTimeEligibleObservations:Number(row.source_time_eligible_observations),
    sources:Array.isArray(row.sources)?row.sources.map(String):[],latestAvailableAt:row.latest_available_at?new Date(row.latest_available_at).toISOString():null,
-   chronologyOk:Boolean(row.chronology_ok),finiteOk:Boolean(row.finite_ok)
+   chronologyOk:Boolean(row.chronology_ok),finiteOk:Boolean(row.finite_ok),
+   implementationMethods:Array.isArray(row.implementation_methods)?row.implementation_methods.map(String):[]
   }));
   const certificates:SourceTimeCertificate[]=(certificateRows as any[]).map(row=>({provider:String(row.provider),feed:String(row.feed),certification_kind:String(row.certification_kind),valid_from:new Date(row.valid_from).toISOString(),valid_to:row.valid_to?new Date(row.valid_to).toISOString():null,created_at:new Date(row.created_at).toISOString()}));
   return NextResponse.json(auditFactorVerification(evidence,certificates,new Date().toISOString()),{headers});
  }catch(error){return NextResponse.json({error:"Factor verification audit unavailable",reason:error instanceof Error?error.message:"unknown"},{status:503,headers});}
 }
-
