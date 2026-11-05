@@ -10,3 +10,14 @@ test("rejects inverted quotes",()=>assert.equal(simulatePaperBuy(order,{...quote
 test("rejects insufficient risk budget",()=>assert.equal(simulatePaperBuy({...order,maxRisk:1},quote,now).status,"rejected"));
 test("limit order does not fill above limit",()=>assert.equal(simulatePaperBuy({...order,limitPrice:99.99},quote,now).status,"unfilled"));
 test("requires quote",()=>assert.equal(simulatePaperBuy(order,null,now).status,"rejected"));
+test('ask at or below stop rejects the invalidated setup, never zero or negative fill risk',()=>{
+ for(const ask of [98,97]){
+  const result=simulatePaperBuy(order,{...quote,ask,bid:ask-.02},now);
+  assert.equal(result.status,'rejected');assert.equal(result.fillPrice,null);assert.equal(result.filledShares,0);
+  assert.equal(result.plannedRisk,0);assert.match(result.reason,/setup invalidated/);
+ }
+});
+test('valid price improvement above stop keeps positive independently calculated risk',()=>{
+ const result=simulatePaperBuy(order,{...quote,ask:99,bid:98.98},now);
+ assert.equal(result.status,'filled');assert.equal(result.fillPrice,99);assert.equal(result.plannedRisk,10);
+});

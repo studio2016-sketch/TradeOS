@@ -12,6 +12,9 @@ export function simulatePaperBuy(order:PaperOrder,quote:PaperQuote|null,nowMs:nu
  if(!Number.isFinite(ts)||ts>nowMs+60000||nowMs-ts>60000||nowMs<ts)return base("rejected","Market observation stale, invalid or from the future.");
  if(!quote.source||!Number.isFinite(quote.bid)||!Number.isFinite(quote.ask)||quote.bid<=0||quote.ask<=0||quote.bid>quote.ask)return base("rejected","Invalid market quote.");
  if(quote.ask>order.limitPrice)return base("unfilled","Ask exceeds the limit price; no hypothetical execution.");
+ // A lower ask is not a valid improvement when the protective stop is
+ // already at or above the hypothetical entry. Never report negative risk.
+ if(quote.ask<=order.stopPrice)return base("rejected","Displayed ask is at or below the planned stop; paper setup invalidated.");
  const mid=(quote.bid+quote.ask)/2;
  const cost=(quote.ask-mid)*order.quantity;
  return {status:"filled",reason:"Illustrative immediate full fill at the displayed ask, NOT an actual execution.",filledShares:order.quantity,fillPrice:quote.ask,fee:0,plannedRisk:(quote.ask-order.stopPrice)*order.quantity,estimatedSpreadCost:cost,sourceTime:quote.observedAt};

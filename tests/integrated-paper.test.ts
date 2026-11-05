@@ -9,3 +9,9 @@ test("integrated happy path returns simulation only",()=>assert.equal(evaluatePa
 test("blocks mismatched portfolio notional",()=>assert.equal(evaluatePaperCandidate(order,quote,{...portfolio,candidate:{...portfolio.candidate,notional:100}},now).status,"blocked"));
 test("risk failure short circuits execution",()=>assert.equal(evaluatePaperCandidate(order,quote,{...portfolio,cash:0},now).execution,null));
 test("stale quote never simulates fill",()=>assert.equal(evaluatePaperCandidate(order,{...quote,observedAt:"2026-10-11T15:50:00Z"},portfolio,now).status,"blocked"));
+test('valid portfolio limits cannot permit a fill after the setup stop is breached',()=>{
+ const result=evaluatePaperCandidate(order,{...quote,bid:96.98,ask:97},portfolio,now);
+ assert.equal(result.risk.allowed,true);assert.equal(result.status,'blocked');
+ assert.equal(result.execution?.status,'rejected');assert.equal(result.execution?.filledShares,0);
+ assert.match(result.execution?.reason??'',/setup invalidated/);
+});
