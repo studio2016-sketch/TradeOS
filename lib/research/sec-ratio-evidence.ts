@@ -1,6 +1,7 @@
 import {secFundamentalsAsOf,secCatalystsWithStatus} from "../market/sec";
 import {db} from "../db";
 import {bestSnapshots} from "../market/live";
+import {alignedCashflowYield} from "./aligned-cashflow-yield";
 export type FundamentalEvidence={factor:string;value:number;source:string;subject:string;observedAt:string;availableAt:string;metadata:Record<string,unknown>};
 
 export async function secRatioEvidence(symbol:string,now=new Date()):Promise<FundamentalEvidence[]>{
@@ -52,9 +53,9 @@ export async function secRatioEvidence(symbol:string,now=new Date()):Promise<Fun
     results.push({factor:"pe_trailing",value:marketCap/annualNet,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,annualNetIncome:annualNet,annualNetIncomeProvenance:p.annual_net_income,unit:"ratio"}});
    }
    const cfo=v.annual_operating_cash_flow,capex=v.annual_capex;
-   if(Number.isFinite(cfo)&&Number.isFinite(capex)&&marketCap>0&&p.annual_operating_cash_flow&&p.annual_capex){
-    const fcf=cfo-Math.abs(capex);
-    if(Number.isFinite(fcf))results.push({factor:"free_cash_flow_yield",value:fcf/marketCap,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,operatingCashFlow:cfo,capex,freeCashFlow:fcf,cfoProvenance:p.annual_operating_cash_flow,capexProvenance:p.annual_capex,unit:"fraction"}});
+   const cashflow=alignedCashflowYield({value:cfo,provenance:p.annual_operating_cash_flow},{value:capex,provenance:p.annual_capex},marketCap);
+   if(cashflow){
+    results.push({factor:"free_cash_flow_yield",value:cashflow.value,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,operatingCashFlow:cfo,capex,freeCashFlow:cashflow.freeCashFlow,cfoProvenance:p.annual_operating_cash_flow,capexProvenance:p.annual_capex,unit:"fraction",method:"same_annual_period_and_accession_cashflow_yield_v2"}});
    }
    const operatingIncome=v.annual_operating_income,da=v.annual_depreciation_amortization,cash=v.cash_and_equivalents;
    const debtParts=[v.debt_current,v.debt_noncurrent].filter(Number.isFinite) as number[];
@@ -80,5 +81,9 @@ export async function secRatioEvidence(symbol:string,now=new Date()):Promise<Fun
    results.push({factor:"insider_trading",value:forms.length,source:"SEC EDGAR submissions",subject:symbol,observedAt:latest,availableAt:current,metadata:{windowDays:30,method:"count_of_SEC_Form_4_filings",filingIds:forms.map(x=>x.id),sourceStatuses:statuses,note:"Measures disclosed Form 4 filing activity only; does not infer buy/sell direction or economic significance.",backtestEligible:false}});
   }
  }catch{}
- return results;
+ // Current retrieval cannot establish that newly fetched facts were available
+ // when the request began. Preserve request timing separately from receipt.
+ const receivedAt=new Date().toISOString();
+ return results.map(result=>({...result,availableAt:receivedAt,metadata:{...result.metadata,requestedAt:current,timestampKind:"retrieval_completion_not_original_publication"}}));
 }
+
