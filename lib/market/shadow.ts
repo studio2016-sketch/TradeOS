@@ -2,6 +2,7 @@ import {createHash} from "node:crypto";
 import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,PREDICTION_OUTCOME_RULE_VERSION} from "../research/prediction-outcome-verdict";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
 import {db} from "../db";
+import {loadProposedEntry} from "../research/proposed-entry-capture";
 
 type Obs={id:number;event_time:string;received_at:string;source_id:string;payload_hash:string|null;metadata:any;freshness_score:number|null;quality_score:number|null};
 
@@ -69,6 +70,8 @@ export async function generateShadowForecasts(symbols:string[]){
     if(spread!=null&&spread>.002)probability-=.025;
     probability=clamp(probability,.51,.66);
 
+    // Supplemental inactive evidence only; never used to grade or authorize a forecast.
+    const proposedQuoteEntry=await loadProposedEntry(sql,symbol,new Date().toISOString());
     const outcomeProtocol={ruleVersion:PREDICTION_OUTCOME_RULE_VERSION,protocolFingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION};
     const evidence=[
       {label:"75m price trend",value:+(ret*100).toFixed(3),direction,source:"stored_market_observations"},
@@ -86,14 +89,14 @@ export async function generateShadowForecasts(symbols:string[]){
          ${avgQuality*avgFreshness*100},
          ${JSON.stringify(evidence)}::jsonb,
          ${JSON.stringify(["Shadow research only","Not eligible for execution"])}::jsonb,
-         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString(),outcomeProtocol})}::jsonb)
+         ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString(),outcomeProtocol,proposedQuoteEntry})}::jsonb)
       returning id,created_at
     `;
 
     const forecast=(inserted as any[])[0];
     const sourceIdentity="source_observations:market_snapshot:"+symbol+":"+last.sourceId;
     const frozenFeatures={ret,alignedVwap,spread,avgFreshness,avgQuality,samples:rows.length,firstObservedAt:new Date(first.t).toISOString(),observedAt:new Date(last.t).toISOString(),
-      quoteObservedAt:last.quoteObservedAt,sourceId:last.sourceId};
+      quoteObservedAt:last.quoteObservedAt,sourceId:last.sourceId,proposedQuoteEntry};
     const inputFingerprint=createHash("sha256").update(JSON.stringify(frozenFeatures)).digest("hex");
     const modelFingerprint=createHash("sha256").update("shadow-trend-v1|75m trend|VWAP|spread|quality|probability-v1").digest("hex");
     const decisionChecksum=createHash("sha256").update(JSON.stringify({
@@ -156,7 +159,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${JSON.stringify(["Frozen prospective challenger","Paper research only","Never eligible for automatic trade authorization"])}::jsonb,
                ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,
                 observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),
-                trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified",outcomeProtocol})}::jsonb)
+                trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified",outcomeProtocol,proposedQuoteEntry})}::jsonb)
              returning id
           `;
           const challengerFingerprint=createHash("sha256").update("shadow-trend-v2|2.5 return cap .075|VWAP +.025 -.035|spread -.035|quality -.025|20261018").digest("hex");
@@ -202,3 +205,4 @@ export async function generateShadowForecasts(symbols:string[]){
 
   return results;
 }
+
