@@ -23,3 +23,11 @@ test("Phase 5 scientific status keeps time and account evidence fail-closed",()=
  assert.ok(status.blockers.some(x=>x.id==="independent_session_floor"));
  assert.ok(status.blockers.some(x=>x.id==="empirical_fill_slippage"&&x.requiresUserAction));
 });
+
+test("positive certified inputs cannot bypass resolver conformance",()=>{
+ const status=phase5ScientificStatus({immutableRecords:300,independentlyCertifiedSourceTimes:300,pairedSamples:250,independentSessions:25,pairedSkillLowerBound:.01,modeledCostLowerBound:.005,modeledCostMature:true,empiricalSlippageValidated:true,portfolioReconciled:true});
+ assert.equal(status.scientificallyMature,false);
+ assert.deepEqual(status.blockers.map(x=>x.id),["outcome_protocol_conformance"]);
+ assert.equal(status.protocolConformance.status,"BLOCKED");
+ assert.equal(status.modelPromotionAllowed,false);
+});

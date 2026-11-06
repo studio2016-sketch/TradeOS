@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 import {db} from "../db";
 import {TRIAL_ACTIVATION,BASELINE_VERSION,CHALLENGER_VERSION} from "./frozenChallenger";
 import {pairedProspectiveValidation} from "./phase4-validation";
@@ -60,6 +61,8 @@ export async function championChallengerEvaluation(){
     trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,
     baseline,challenger,matchedSamples:matched,minimumMatchedSamples:minimum,pairedValidation,result,
     promotionAllowed:false,
+    protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,
+    warnings:["Leader and paired metrics are descriptive research only. "+OUTCOME_PROTOCOL_CONFORMANCE.reason],
     immutableCoverage,
     policy:"Prospective paired comparison only. A leader requires at least 200 matched predictions across 20 independent sessions and a nonzero paired confidence result. This evaluator cannot promote a model; Research Certification Authority approval is separately required."
   };

@@ -33,7 +33,7 @@ test('actual public route separates historical outcomes and exposes exclusions',
 test('actual owner assessment uses only bound comparable outcomes for prospective gates',async()=>{
  const {body,queries}=await run(ownerRoute);
  assert.equal(body.evidence.prospectivePairs,1);assert.equal(body.historicalReconstruction.pairedCount,1);assert.equal(body.pairing.excludedRows,1);
- assert.equal(body.assessment.gates.find(x=>x.id==='prospective_depth').state,'PRELIMINARY');
+ assert.equal(body.assessment.gates.find(x=>x.id==='prospective_depth').state,'BLOCKED');
  assert.equal(body.assessment.liveExecutionAllowed,false);assert.equal(body.assessment.approvedModelInfluence,false);
  assert.ok(queries.some(x=>x.includes('b.notes baseline_notes')&&x.includes('b.source_snapshot baseline_snapshot')&&x.includes('limit 10001')));
 });

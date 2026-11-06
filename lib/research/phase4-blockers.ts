@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 export type Phase4ScientificStatusInput={
  pairedSamples:number;sessionDates:number;pairedLowerBound:number|null;
  independentlyVerifiedSourceTimes:number;immutableRecords:number;
@@ -6,7 +7,7 @@ export type Phase4ScientificStatusInput={
 };
 
 export function phase4ScientificBlockers(i:Phase4ScientificStatusInput){
- const blockers:{id:string;requiresUserAction:boolean;detail:string}[]=[];
+ const blockers:{id:string;requiresUserAction:boolean;detail:string}[]=[{id:"outcome_protocol_conformance",requiresUserAction:false,detail:OUTCOME_PROTOCOL_CONFORMANCE.reason}];
  if(i.immutableRecords===0||i.independentlyVerifiedSourceTimes!==i.immutableRecords)blockers.push({
   id:"independent_source_time_certification",requiresUserAction:false,
   detail:"Stored provider event/receipt chronology is verified structurally, but the source timestamps have not been independently certified as exchange-authoritative."
@@ -35,5 +36,5 @@ export function phase4ScientificBlockers(i:Phase4ScientificStatusInput){
   id:"portfolio_reconciliation",requiresUserAction:true,
   detail:"Full account/portfolio cash, positions, orders and fills reconciliation requires an explicitly authorized brokerage/account context."
  });
- return {scientificallyMature:blockers.length===0,blockers,modelPromotionAllowed:false,liveExecutionAllowed:false};
+ return {protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,scientificallyMature:blockers.length===0,blockers,modelPromotionAllowed:false,liveExecutionAllowed:false};
 }

@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 export type EvidenceMetrics={
  total:number;immutableRecords:number;sourceTimeVerified:number;publicationTimeApplicable:boolean;publicationTimeVerified:number;
  outOfSamplePaired:number;independentSessionDates:number;
@@ -9,6 +10,7 @@ export type EvidenceMetrics={
 export type CertificationStatus="BLOCKED"|"RESEARCH_ONLY"|"INDEPENDENTLY_VALIDATED";
 export function certifyResearch(e:EvidenceMetrics){
  const checks=[
+  {id:"outcome_protocol_conformance",pass:OUTCOME_PROTOCOL_CONFORMANCE.scientificallyEligible,detail:OUTCOME_PROTOCOL_CONFORMANCE.reason},
   {id:"immutable_point_in_time",pass:e.immutableRecords>=200&&e.immutableRecords===e.total&&e.sourceTimeVerified===e.total,detail:"At least 200 immutable forecasts with source-time-certified timestamps"},
   {id:"publication_time",pass:!e.publicationTimeApplicable||(e.total>0&&e.publicationTimeVerified===e.total),detail:e.publicationTimeApplicable?"Publication-derived inputs were publicly available before each original decision":"Not applicable: current prospective trial uses stored market observations rather than publication-derived inputs"},
   {id:"untouched_chronological_holdout",pass:e.outOfSamplePaired>=200&&e.independentSessionDates>=20,detail:"At least 200 truly prospective paired predictions across 20 sessions"},
@@ -20,6 +22,6 @@ export function certifyResearch(e:EvidenceMetrics){
  const failures=checks.filter(x=>!x.pass);
  const certified=failures.length===0;
  return {status:(certified?"INDEPENDENTLY_VALIDATED":"BLOCKED") as CertificationStatus,certified,modelPromotionAllowed:certified,liveExecutionAllowed:false,
-  checks,failedChecks:failures.map(x=>x.id),
+  protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,checks,failedChecks:failures.map(x=>x.id),
   note:failures.length?"Certification blocked until objective prospective evidence satisfies every gate. No numerical score substitutes for a missing gate.":"Objective prospective market outcomes, point-in-time lineage, paired skill, verified costs, and brokerage reconciliation satisfy the empirical certification gates. Live execution remains a separate human-controlled authorization."};
 }

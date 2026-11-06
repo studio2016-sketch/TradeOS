@@ -20,7 +20,8 @@ test("Missing point-in-time evidence prevents certification",()=>{
  const result=certifyResearch({total:300,immutableRecords:0,sourceTimeVerified:0,publicationTimeApplicable:false,publicationTimeVerified:0,outOfSamplePaired:300,independentSessionDates:40,predictiveSkillLowerBound:.5,costAdjustedReturnLowerBound:null,portfolioReconciled:false,executionSlippageValidated:false,prospectiveOutcomeRecords:300,prospectiveOutcomeSessions:40,fingerprintedOutcomeRecords:300,prospectiveOutcomePasses:180,prospectiveOutcomeFailures:120});
  assert.ok(result.failedChecks.includes("immutable_point_in_time"));assert.equal(result.liveExecutionAllowed,false);
 });
-test("Objective prospective outcomes can certify model research but never authorize live execution",()=>{
+test("Positive prospective inputs cannot bypass resolver conformance or authorize execution",()=>{
  const result=certifyResearch({total:300,immutableRecords:300,sourceTimeVerified:300,publicationTimeApplicable:false,publicationTimeVerified:0,outOfSamplePaired:250,independentSessionDates:30,predictiveSkillLowerBound:.01,costAdjustedReturnLowerBound:.001,portfolioReconciled:true,executionSlippageValidated:true,prospectiveOutcomeRecords:250,prospectiveOutcomeSessions:30,fingerprintedOutcomeRecords:250,prospectiveOutcomePasses:140,prospectiveOutcomeFailures:110});
- assert.equal(result.certified,true);assert.equal(result.modelPromotionAllowed,true);assert.equal(result.liveExecutionAllowed,false);assert.equal(result.failedChecks.length,0);
+ assert.equal(result.certified,false);assert.equal(result.modelPromotionAllowed,false);assert.equal(result.liveExecutionAllowed,false);assert.deepEqual(result.failedChecks,["outcome_protocol_conformance"]);
+ assert.ok(result.checks.filter(x=>x.id!=="outcome_protocol_conformance").every(x=>x.pass));
 });

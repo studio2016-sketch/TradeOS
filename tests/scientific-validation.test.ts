@@ -19,14 +19,14 @@ test("scientific validation distinguishes ordering from independent timing",()=>
 test("prospective skill cannot pass before sample and session depth",()=>{
  const result=assessScientificValidation({...evidence,prospectiveIntervalLow:.01});
  assert.equal(result.gates.find(g=>g.id==="prospective_skill")?.state,"BLOCKED");
- assert.match(result.nextMilestone,/31 additional valid paired outcomes/);
+ assert.match(result.nextMilestone,/repaired resolver/);
 });
 
 test("even mature positive evidence does not bypass independent certification",()=>{
  const result=assessScientificValidation({...evidence,forecastSessionDates:25,prospectivePairs:250,prospectiveSessionDates:25,
   prospectiveIntervalLow:.01,independentlyTimestampVerified:403,publicationTimeVerified:403,
   executionSlippageValidated:true,brokerReconciled:true,independentReplayVerified:true,registeredHypothesisFamily:true});
- assert.equal(result.gates.find(g=>g.id==="prospective_skill")?.state,"PASS");
+ assert.equal(result.gates.find(g=>g.id==="prospective_skill")?.state,"BLOCKED");
  assert.equal(result.approvedModelInfluence,false);
  assert.equal(result.predictiveCertification,"BLOCKED");
 });
@@ -34,3 +34,4 @@ test("even mature positive evidence does not bypass independent certification",(
 test("invalid evidence fails closed",()=>{
  assert.throws(()=>assessScientificValidation({...evidence,forecastTotal:-1}),/Invalid validation evidence/);
 });
+
