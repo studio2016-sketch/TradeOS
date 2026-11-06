@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 import {db} from "../db";
 
 export interface CertificationDecision{
@@ -98,6 +99,7 @@ export async function certifiedModelVersions(){
       if(e.payload?.independentReplayVerified===true)independentReplayVerified=true;
     }
     const gates={
+      outcomeProtocolConformance:OUTCOME_PROTOCOL_CONFORMANCE.scientificallyEligible,
       independentSources:sources.size>=2,
       prospectiveEvidence:prospectiveSamples>=60,
       sampleSufficiency:Number(r.sample_count??0)>=100,
@@ -109,7 +111,7 @@ export async function certifiedModelVersions(){
       independentReplayVerified
     };
     const certified=Object.values(gates).every(Boolean);
-    out.push({...r,certification:certified?"CERTIFIED":"RESEARCH_ONLY",modelEligible:certified,gates,independentSources:[...sources],prospectiveSamples,holdoutSamples});
+    out.push({...r,protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,certification:certified?"CERTIFIED":"RESEARCH_ONLY",modelEligible:certified,gates,independentSources:[...sources],prospectiveSamples,holdoutSamples});
   }
   return out;
 }

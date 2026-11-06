@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 export type Phase5InfrastructureInput={
  phase4Passed:boolean;
  certificationForecasts:number;
@@ -44,7 +45,7 @@ export type Phase5ScientificInput={
 };
 
 export function phase5ScientificStatus(i:Phase5ScientificInput){
- const blockers:{id:string;requiresUserAction:boolean;detail:string}[]=[];
+ const blockers:{id:string;requiresUserAction:boolean;detail:string}[]=[{id:"outcome_protocol_conformance",requiresUserAction:false,detail:OUTCOME_PROTOCOL_CONFORMANCE.reason}];
  if(i.immutableRecords===0||i.independentlyCertifiedSourceTimes!==i.immutableRecords)blockers.push({id:"independent_source_time_certification",requiresUserAction:false,detail:String(i.independentlyCertifiedSourceTimes)+"/"+String(i.immutableRecords)+" prospective decisions have independently certified source timestamps."});
  if(i.pairedSamples<200)blockers.push({id:"prospective_pair_sample_floor",requiresUserAction:false,detail:String(i.pairedSamples)+"/200 matched prospective outcomes have matured."});
  if(i.independentSessions<20)blockers.push({id:"independent_session_floor",requiresUserAction:false,detail:String(i.independentSessions)+"/20 independent market sessions have matured."});
@@ -52,5 +53,5 @@ export function phase5ScientificStatus(i:Phase5ScientificInput){
  if(!i.modeledCostMature||i.modeledCostLowerBound===null||i.modeledCostLowerBound<=0)blockers.push({id:"spread_adjusted_cost_maturity",requiresUserAction:false,detail:"Quoted-spread-adjusted prospective returns have not yet matured across the required sessions with a positive lower bound."});
  if(!i.empiricalSlippageValidated)blockers.push({id:"empirical_fill_slippage",requiresUserAction:true,detail:"Actual fill-versus-pre-fill-quote slippage is not independently validated from an authorized brokerage history."});
  if(!i.portfolioReconciled)blockers.push({id:"portfolio_reconciliation",requiresUserAction:true,detail:"Full brokerage cash, positions, orders, fills and non-trade activity reconciliation is not certified."});
- return {scientificallyMature:blockers.length===0,blockers,modelPromotionAllowed:false,liveExecutionAllowed:false};
+ return {protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,scientificallyMature:blockers.length===0,blockers,modelPromotionAllowed:false,liveExecutionAllowed:false};
 }

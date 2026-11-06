@@ -22,7 +22,9 @@ test("publication-time gate is conditional on publication-derived inputs",()=>{
   costAdjustedReturnLowerBound:.001,executionSlippageValidated:true,
   portfolioReconciled:true,publicationTimeVerified:0
  };
- assert.equal(phase4ScientificBlockers({...base,publicationTimeApplicable:false}).scientificallyMature,true);
+ const marketOnly=phase4ScientificBlockers({...base,publicationTimeApplicable:false});
+ assert.equal(marketOnly.scientificallyMature,false);
+ assert.deepEqual(marketOnly.blockers.map(x=>x.id),["outcome_protocol_conformance"]);
  const withPublications=phase4ScientificBlockers({...base,publicationTimeApplicable:true});
  assert.equal(withPublications.scientificallyMature,false);
  assert.ok(withPublications.blockers.some(x=>x.id==="publication_time_certification"));

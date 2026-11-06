@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 export type PairedForecast={timestamp:string;symbol:string;baselineP:number;challengerP:number;outcome:0|1};
 /** Paired, session-day clustered errors. No automatic model promotion. */
 export function evaluateProspectivePairs(input:PairedForecast[]){
@@ -23,6 +24,8 @@ export function evaluateProspectivePairs(input:PairedForecast[]){
  challengerBrier:good.length?brier(good,"challengerP"):null,
  pairedBrierImprovement:meanErrorDifference,clustered95PctInterval:interval,
  preliminaryEvidenceOfImprovement:Boolean(interval&&interval[0]>0),
+ protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,eligibleForProspectiveDepth:false,eligibleForPredictiveSkill:false,
  independentlyCertified:false,eligibleForLive:false,
- warnings:["Pre-registration and paired chronological observations do not independently certify market source timing, overlapping labels or execution-cost performance.","Model revisions were frozen before future data collection; promotion requires additional untouched and independent testing.","Brokerage or live order authorization is not connected to this analysis."]};
+ warnings:[OUTCOME_PROTOCOL_CONFORMANCE.reason,"Pre-registration and paired chronological observations do not independently certify market source timing, overlapping labels or execution-cost performance.","Model revisions were frozen before future data collection; promotion requires additional untouched and independent testing.","Brokerage or live order authorization is not connected to this analysis."]};
 }
+

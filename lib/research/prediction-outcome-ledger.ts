@@ -1,3 +1,4 @@
+import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 import {horizonMs} from "../market/horizon";
 import {
  PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,
@@ -42,7 +43,7 @@ export function evaluatePredictionOutcomeRow(row:PredictionOutcomeLedgerRow,cert
   resolvedAt:outcomeTime,realizedReturn:row.realized_return==null?null:Number(row.realized_return),
   maximumFavorableExcursion:row.max_favorable_excursion==null?null:Number(row.max_favorable_excursion),maximumAdverseExcursion:row.max_adverse_excursion==null?null:Number(row.max_adverse_excursion),
   quotedRoundTripCost:cost,...verdict,evidenceClass:completeProtocol?"PROSPECTIVE_PROTOCOL":fingerprintBoundAtPrediction&&rawNotes?.outcomeDisposition==="VOID"?"PROSPECTIVE_PROTOCOL_VOID":fingerprintBoundAtPrediction&&verdict.verdict==="UNRESOLVED"?"PROSPECTIVE_PROTOCOL_PENDING":"HISTORICAL_RECONSTRUCTION",
-  scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL"),sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
+  scientificallyEligible:completeProtocol&&sourceTimeCertified&&(verdict.verdict==="PASS"||verdict.verdict==="FAIL")&&OUTCOME_PROTOCOL_CONFORMANCE.scientificallyEligible,protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,sourceTimeCertified,fingerprintRecorded,fingerprintBoundAtPrediction,sourceId:sourceId||null
  };
 }
 
@@ -52,6 +53,7 @@ export function summarizePredictionOutcomeEntries(entries:PredictionOutcomeEntry
  const count=(verdict:string,eligible?:boolean)=>entries.filter(x=>x.verdict===verdict&&(eligible===undefined||x.scientificallyEligible===eligible)).length;
  const resolved=entries.filter(x=>x.verdict==="PASS"||x.verdict==="FAIL"),eligible=entries.filter(x=>x.scientificallyEligible);
  return{
+  protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,
   predictions:entries.length,
   uniqueMarketTests:new Set(entries.map(x=>`${x.symbol}|${x.horizon}|${x.forecastAt.slice(0,16)}`)).size,
   resolved:resolved.length,passes:count("PASS"),failures:count("FAIL"),voids:count("VOID"),unresolved:count("UNRESOLVED"),
@@ -61,4 +63,5 @@ export function summarizePredictionOutcomeEntries(entries:PredictionOutcomeEntry
   sessions:new Set(eligible.map(x=>x.forecastAt.slice(0,10))).size
  };
 }
+
 
