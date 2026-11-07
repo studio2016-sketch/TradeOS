@@ -4,6 +4,7 @@ import {registerHooks} from 'node:module';
 import {readFileSync} from 'node:fs';
 const hooks=registerHooks({resolve(specifier,context,nextResolve){
  if(['../market/sec','../market/live','../db'].includes(specifier))return nextResolve(new URL('./fixtures/sec-ratio-dependencies.mjs',import.meta.url).href,context);
+ if(specifier==='../market/sec-share-evidence')return nextResolve(new URL('./fixtures/sec-share-dependencies.mjs',import.meta.url).href,context);
  if(specifier==='./aligned-cashflow-yield')return nextResolve(specifier+'.ts',context);
  return nextResolve(specifier,context);
 }});
@@ -11,8 +12,8 @@ const {secRatioEvidence,secRatioEvidenceWithDiagnostics}=await import('../lib/re
 hooks.deregister();
 const p={start:'2025-01-01',end:'2025-12-31',filed:'2026-02-05',accession:'fixture-2026'};
 function setup(){
- const filing={status:'ok',values:{shares:100,annual_operating_cash_flow:150,annual_capex:40},provenance:{annual_operating_cash_flow:p,annual_capex:p}};
- const mocks={fundamentals:async()=>filing,catalysts:async()=>({catalysts:[],statuses:[]}),query:async()=>[],snapshots:async()=>({snapshots:[{price:10,timestamp:'2026-11-05T16:25:00Z',source:'fixture'}]})};
+ const filing={status:'ok',values:{shares:100,annual_operating_cash_flow:150,annual_capex:40},provenance:{shares:{filed:'2026-10-22',end:'2026-10-16',accession:'fixture-shares'},annual_operating_cash_flow:p,annual_capex:p}};
+ const mocks={fundamentals:async()=>filing,catalysts:async()=>({catalysts:[],statuses:[]}),shares:async()=>({reason:'share_observation_missing'}),query:async()=>[],snapshots:async()=>({snapshots:[{price:10,timestamp:'2026-11-05T16:25:00Z',source:'fixture'}]})};
  globalThis.__secRatioMocks=mocks;return {filing,mocks};
 }
 const now=new Date('2026-11-05T16:25:10Z');
@@ -20,7 +21,7 @@ test('missing current shares blocks valuation, with an explicit reason rather th
  const {filing}=setup();delete filing.values.shares;
  const result=await secRatioEvidenceWithDiagnostics('META',now);
  assert.equal(result.evidence.length,0);
- assert.deepEqual(result.diagnostics,[{stage:'market_cap_ratios',reason:'current_common_shares_missing_or_invalid'}]);
+ assert.equal(result.diagnostics[0].reason,'share_observation_missing');assert.equal(result.diagnostics[1].reason,'current_common_shares_missing_or_invalid');
 });
 test('aligned cashflow arithmetic and legacy array API remain unchanged',async()=>{
  setup();const result=await secRatioEvidenceWithDiagnostics('TEST',now);
@@ -50,4 +51,24 @@ test('scheduled receipt persists diagnostics alongside unchanged evidence totals
  assert.match(route,/const \{evidence,diagnostics\}=await secRatioEvidenceWithDiagnostics\(symbol\)/);
  assert.match(route,/saved:persisted.saved,diagnostics/);
  assert.match(route,/details:\{selected,results\}/);
+});
+
+test('META class review cannot be bypassed by an aggregate companyfacts tag',async()=>{
+ const {mocks}=setup();mocks.shares=async()=>({reason:'subsequent_filings_require_corporate_action_review',blockingAccessions:['later-filing']});
+ const result=await secRatioEvidenceWithDiagnostics('META',now);
+ assert.equal(result.evidence.length,0);assert.equal(result.diagnostics[0].details.blockingAccessions[0],'later-filing');
+});
+test('approved share classes reproduce cashflow arithmetic with all components retained',async()=>{
+ const {mocks}=setup();mocks.shares=async()=>({observation:{shares:100,filed:'2026-10-22',end:'2026-10-16',components:[{value:80},{value:20}],rawSha256:'fixture'}});
+ const result=await secRatioEvidenceWithDiagnostics('META',now);
+ assert.equal(result.evidence[0].value,.11);assert.equal(result.evidence[0].metadata.shareClassEvidence.components.length,2);
+ assert.equal(result.evidence[0].metadata.marketCap,1000);
+});
+test('outdated prices and filing/price mismatches produce no valuation',async()=>{
+ const {filing,mocks}=setup();mocks.snapshots=async()=>({snapshots:[{price:10,timestamp:'2026-10-01T00:00:00Z',source:'fixture'}]});
+ assert.equal((await secRatioEvidenceWithDiagnostics('TEST',now)).evidence.length,0);
+ mocks.snapshots=async()=>({snapshots:[{price:10,timestamp:now.toISOString(),source:'fixture'}]});
+ filing.provenance.shares={filed:'2026-11-06',end:'2026-11-01',accession:'future'};
+ const result=await secRatioEvidenceWithDiagnostics('TEST',now);
+ assert.equal(result.evidence.length,0);assert.equal(result.diagnostics[0].reason,'price_share_filing_date_mismatch');
 });
