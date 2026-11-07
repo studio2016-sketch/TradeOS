@@ -1,10 +1,11 @@
 import {secFundamentalsAsOf,secCatalystsWithStatus} from "../market/sec";
+import {secMetaShareEvidence,valuationPriceReason,annualValuationInputUsable,type ShareResult} from "../market/sec-share-evidence";
 import {db} from "../db";
 import {bestSnapshots} from "../market/live";
 import {alignedCashflowYield} from "./aligned-cashflow-yield";
 export type FundamentalEvidence={factor:string;value:number;source:string;subject:string;observedAt:string;availableAt:string;metadata:Record<string,unknown>};
 
-export type SecRatioDiagnostic={stage:string;reason:string};
+export type SecRatioDiagnostic={stage:string;reason:string;details?:Record<string,unknown>};
 export async function secRatioEvidence(symbol:string,now=new Date()):Promise<FundamentalEvidence[]>{
  return (await secRatioEvidenceWithDiagnostics(symbol,now)).evidence;
 }
@@ -13,7 +14,16 @@ export async function secRatioEvidenceWithDiagnostics(symbol:string,now=new Date
  const current=now.toISOString();
  const filing=await secFundamentalsAsOf(symbol,current);
  if(filing.status!=="ok")return {evidence:[],diagnostics:[{stage:"company_facts",reason:filing.status}]};
- const v=filing.values,p=filing.provenance,results:FundamentalEvidence[]=[];
+ const v={...filing.values},p={...filing.provenance},results:FundamentalEvidence[]=[];
+ let classShares:ShareResult|undefined;
+ if(symbol.toUpperCase()==="META"){
+  // META may not bypass class/corporate-action review via a new aggregate tag.
+  classShares=await secMetaShareEvidence(current);
+  delete v.shares;delete p.shares;
+  if(classShares.observation&&!classShares.reason){
+   v.shares=classShares.observation.shares;p.shares=classShares.observation;
+  }else diagnostics.push({stage:"share_classes",reason:classShares.reason??"share_observation_missing",details:{observation:classShares.observation??null,blockingAccessions:classShares.blockingAccessions??[]}});
+ }
  if(!(Number.isFinite(v.shares)&&v.shares>0))diagnostics.push({stage:"market_cap_ratios",reason:"current_common_shares_missing_or_invalid"});
  const rev=p.revenue,net=p.net_income;
  if(Number.isFinite(v.revenue)&&v.revenue>0&&Number.isFinite(v.net_income)&&rev?.end===net?.end&&rev?.start===net?.start&&rev?.accession===net?.accession){
@@ -41,33 +51,35 @@ export async function secRatioEvidenceWithDiagnostics(symbol:string,now=new Date
   let price=Number((row?.metadata as any)?.price);
   let observedAt=row?new Date(row.event_time as string).toISOString():"";
   let priceSource=row?String(row.source_id):"";
-  if(!(Number.isFinite(price)&&price>0&&observedAt)){
+  if(valuationPriceReason(price,observedAt,current,p.shares)){
    const market=await bestSnapshots([symbol.toUpperCase()]);
    const snap=market.snapshots[0];
    if(snap){price=snap.price;observedAt=snap.timestamp;priceSource=snap.source;}
   }
-  if(!(Number.isFinite(price)&&price>0&&observedAt))diagnostics.push({stage:"market_cap_ratios",reason:"market_price_missing_or_invalid"});
+  const priceReason=valuationPriceReason(price,observedAt,current,p.shares)??(p.shares?null:"current_shares_provenance_missing");
+  if(priceReason)diagnostics.push({stage:"market_cap_ratios",reason:priceReason});
   const shares=v.shares;
-  if(Number.isFinite(price)&&price>0&&observedAt&&Number.isFinite(shares)&&shares>0){
+  if(!priceReason&&Number.isFinite(shares)&&shares>0&&Number.isFinite(price*shares)){
    const marketCap=price*shares;
    const source=`${priceSource} + SEC EDGAR XBRL`;
-   const common={price,priceSource,priceObservedAt:observedAt,shares,sharesProvenance:p.shares,backtestEligible:false};
+   const common={price,priceSource,priceObservedAt:observedAt,shares,sharesProvenance:p.shares,shareClassEvidence:classShares?.observation??null,marketCap,backtestEligible:false};
    const annualRevenue=v.annual_revenue,annualNet=v.annual_net_income;
-   if(Number.isFinite(annualRevenue)&&annualRevenue>0&&p.annual_revenue){
+   if(classShares)diagnostics.push({stage:"earnings_and_enterprise_valuation",reason:"META_TTM_common_earnings_and_preferred_debt_bridge_not_verified"});
+   if(annualRevenue>0&&annualValuationInputUsable(annualRevenue,p.annual_revenue,observedAt)){
     results.push({factor:"price_sales",value:marketCap/annualRevenue,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,annualRevenue,annualRevenueProvenance:p.annual_revenue,unit:"ratio"}});
    }
-   if(Number.isFinite(annualNet)&&annualNet>0&&p.annual_net_income){
+   if(!classShares&&annualNet>0&&annualValuationInputUsable(annualNet,p.annual_net_income,observedAt)){
     results.push({factor:"pe_trailing",value:marketCap/annualNet,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,annualNetIncome:annualNet,annualNetIncomeProvenance:p.annual_net_income,unit:"ratio"}});
    }
    const cfo=v.annual_operating_cash_flow,capex=v.annual_capex;
    const cashflow=alignedCashflowYield({value:cfo,provenance:p.annual_operating_cash_flow},{value:capex,provenance:p.annual_capex},marketCap);
-   if(cashflow){
+   if(cashflow&&annualValuationInputUsable(cfo,p.annual_operating_cash_flow,observedAt)&&annualValuationInputUsable(capex,p.annual_capex,observedAt)){
     results.push({factor:"free_cash_flow_yield",value:cashflow.value,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,operatingCashFlow:cfo,capex,freeCashFlow:cashflow.freeCashFlow,cfoProvenance:p.annual_operating_cash_flow,capexProvenance:p.annual_capex,unit:"fraction",method:"same_annual_period_and_accession_cashflow_yield_v2"}});
    }
    else diagnostics.push({stage:"free_cash_flow_yield",reason:"cashflow_inputs_missing_invalid_or_unaligned"});
    const operatingIncome=v.annual_operating_income,da=v.annual_depreciation_amortization,cash=v.cash_and_equivalents;
    const debtParts=[v.debt_current,v.debt_noncurrent].filter(Number.isFinite) as number[];
-   if(Number.isFinite(operatingIncome)&&Number.isFinite(da)&&Number.isFinite(cash)&&debtParts.length){
+   if(!classShares&&Number.isFinite(operatingIncome)&&Number.isFinite(da)&&Number.isFinite(cash)&&debtParts.length){
     const ebitda=operatingIncome+da,totalDebt=debtParts.reduce((sum,x)=>sum+x,0),enterpriseValue=marketCap+totalDebt-cash;
     if(ebitda>0&&enterpriseValue>0&&p.annual_operating_income&&p.annual_depreciation_amortization&&p.cash_and_equivalents){
      results.push({factor:"ev_ebitda",value:enterpriseValue/ebitda,source,subject:symbol,observedAt,availableAt:current,metadata:{...common,enterpriseValue,marketCap,totalDebt,cash,ebitda,operatingIncome,depreciationAmortization:da,operatingIncomeProvenance:p.annual_operating_income,depreciationProvenance:p.annual_depreciation_amortization,cashProvenance:p.cash_and_equivalents,debtCurrentProvenance:p.debt_current??null,debtNoncurrentProvenance:p.debt_noncurrent??null,unit:"ratio",method:"market_cap_plus_reported_debt_minus_cash_divided_by_annual_operating_income_plus_DA"}});
