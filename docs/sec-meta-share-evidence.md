@@ -111,3 +111,24 @@ The index's Eastern acceptance corresponds to 2026-10-22T00:00:08.000Z in
 submissions. The existing conservative next-day filing cutoff is retained.
 There are no source-time certification, independent verification, trading-gate,
 execution-policy or immutable-history relaxations in this change.
+
+## Stored-observation verification
+
+The authorized fresh-capture run appended price/sales record **240409** and
+FCF-yield record **240410**, with a `sec_meta_verified_capture` receipt recording
+2 received / 2 saved. Availability is November 7 at 13:46:08.289 UTC, not the
+historical trade or filing time. The full provenance and capture hashes are in
+`source_metadata`; immutable earlier records were not overwritten.
+
+A fresh SELECT of these stored rows was checked using the separate Python
+Decimal reference. Both reproduce within tolerance. Export their factor/value,
+price, shares, class components and corresponding annual numerator fields, then:
+
+```sh
+python scripts/check-sec-valuation-reference.py /tmp/meta-persisted.json
+```
+
+The reference never promotes calculation/source certification or trading authority.
+The manual capture audit and its receipt are distinguishable from the recurring
+production collector. They establish newly persisted research evidence, not a claim
+that the recurring deployed collector has completed its next run.
