@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 export interface SecCatalyst{
   id:string;
   symbol:string;
@@ -115,7 +116,7 @@ export async function latestSecCatalysts(symbols:string[],limitPerSymbol=5):Prom
 
 // Point-in-time companyfacts: only accessioned reports filed on or before the observation date.
 // SEC companyfacts lacks intraday acceptance times, so use facts only after the filing day.
-export type SecFundamentalResult={symbol:string;status:"ok"|"unmapped"|"http_error"|"network_error"|"invalid_response";values:Record<string,number>;provenance:Record<string,{filed:string;end:string;accession:string;start?:string}>;error?:string};
+export type SecFundamentalResult={symbol:string;status:"ok"|"unmapped"|"http_error"|"network_error"|"invalid_response";values:Record<string,number>;provenance:Record<string,{filed:string;end:string;accession:string;start?:string}>;error?:string;rawSha256?:string;retrievedAt?:string};
 export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<SecFundamentalResult>{
  const values:Record<string,number>={},provenance:SecFundamentalResult["provenance"]={};
  const map=await tickerMap(),company=map.get(symbol.toUpperCase());
@@ -126,7 +127,8 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
  try{
   const response=await fetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${company.cik}.json`,{headers:SEC_HEADERS,cache:"no-store",signal:AbortSignal.timeout(12000)});
   if(!response.ok)return {...base,status:"http_error",error:String(response.status)};
-  const data=await response.json() as any;
+  const raw=await response.text(),rawSha256=createHash("sha256").update(raw).digest("hex"),retrievedAt=new Date().toISOString();
+  const data=JSON.parse(raw) as any;
   if(!data?.facts?.["us-gaap"])return {...base,status:"invalid_response"};
   const gaap=data.facts["us-gaap"];
   const pick=(key:string,tags:string[],unit="USD",duration=false)=>{
@@ -212,7 +214,7 @@ export async function secFundamentalsAsOf(symbol:string,asOf:string):Promise<Sec
    pickInstantAt("equity_prior_annual_end",["StockholdersEquity"],d.toISOString().slice(0,10));
   }
 
-  return {symbol,status:"ok",values,provenance};
+  return {symbol,status:"ok",values,provenance,rawSha256,retrievedAt};
  }catch(e){return {...base,status:"network_error",error:e instanceof Error?e.message:"unknown"};}
 }
 export interface SecIssuerContext{

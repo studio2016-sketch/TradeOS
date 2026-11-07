@@ -44,17 +44,18 @@ export async function secRatioEvidenceWithDiagnostics(symbol:string,now=new Date
 
  try{
   const sql=db();
-  const rows=await sql`select source_id,event_time,metadata from source_observations
+  const rows=await sql`select id,source_id,event_time,received_at,payload_hash,metadata from source_observations
     where symbol=${symbol.toUpperCase()} and data_class='market_snapshot'
     order by received_at desc limit 1`;
   const row=rows[0];
   let price=Number((row?.metadata as any)?.price);
   let observedAt=row?new Date(row.event_time as string).toISOString():"";
   let priceSource=row?String(row.source_id):"";
+  let priceEvidence:Record<string,unknown>|null=row?{observationId:row.id,sourceId:row.source_id,eventTime:row.event_time,receivedAt:row.received_at,payloadHash:row.payload_hash,metadata:row.metadata}:null;
   if(valuationPriceReason(price,observedAt,current,p.shares)){
    const market=await bestSnapshots([symbol.toUpperCase()]);
    const snap=market.snapshots[0];
-   if(snap){price=snap.price;observedAt=snap.timestamp;priceSource=snap.source;}
+   if(snap){price=snap.price;observedAt=snap.timestamp;priceSource=snap.source;priceEvidence={...snap,retrievedAt:new Date().toISOString()};}
   }
   const priceReason=valuationPriceReason(price,observedAt,current,p.shares)??(p.shares?null:"current_shares_provenance_missing");
   if(priceReason)diagnostics.push({stage:"market_cap_ratios",reason:priceReason});
@@ -62,7 +63,7 @@ export async function secRatioEvidenceWithDiagnostics(symbol:string,now=new Date
   if(!priceReason&&Number.isFinite(shares)&&shares>0&&Number.isFinite(price*shares)){
    const marketCap=price*shares;
    const source=`${priceSource} + SEC EDGAR XBRL`;
-   const common={price,priceSource,priceObservedAt:observedAt,shares,sharesProvenance:p.shares,shareClassEvidence:classShares?.observation??null,marketCap,backtestEligible:false};
+   const common={price,priceSource,priceEvidence,priceObservedAt:observedAt,shares,sharesProvenance:p.shares,shareClassEvidence:classShares?.observation??null,shareBasis:classShares?.observation?.shareBasis??"reported_aggregate",methodVersion:"sec_valuation_last_reported_share_basis_v3",companyFactsRawSha256:filing.rawSha256??null,companyFactsRetrievedAt:filing.retrievedAt??null,marketCap,backtestEligible:false};
    const annualRevenue=v.annual_revenue,annualNet=v.annual_net_income;
    if(classShares)diagnostics.push({stage:"earnings_and_enterprise_valuation",reason:"META_TTM_common_earnings_and_preferred_debt_bridge_not_verified"});
    if(annualRevenue>0&&annualValuationInputUsable(annualRevenue,p.annual_revenue,observedAt)){

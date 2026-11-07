@@ -1,4 +1,5 @@
 import test from 'node:test';
+import capitalReview from '../lib/market/meta-capital-review.json';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {parseMetaShareClasses,valuationPriceReason,validateMetaShareEvidence,metaSubsequentFilingReview,annualValuationInputUsable} from '../lib/market/sec-share-evidence';
@@ -50,4 +51,17 @@ test('filing identity, availability and full-document integrity are enforced',()
  assert.equal(check('2026-10-22T20:00:00Z').reason,'filing_identity_or_availability_mismatch');
  s.filings.recent.filingDate[0]='2026-10-21';assert.equal(check().reason,'filing_identity_or_availability_mismatch');
  s.filings.recent.filingDate[0]='2026-10-22';s.filings.recent.primaryDocument[0]='another.htm';assert.equal(check().reason,'filing_identity_or_availability_mismatch');
+});
+
+test('only exact reviewed subsequent filings with freshly verified document digests clear the action gate',()=>{
+ const items=capitalReview.items;
+ const recent={accessionNumber:items.map(i=>i.accession),form:items.map(i=>i.form),filingDate:items.map(i=>i.filed),acceptanceDateTime:items.map(i=>i.acceptedAt),primaryDocument:items.map(i=>i.primaryDocument)};
+ const hashes=Object.fromEntries(items.map(i=>[i.accession,i.sha256]));
+ const check=()=>metaSubsequentFilingReview(recent,'2026-10-22T00:00:08Z','2026-11-07T12:00:00Z',hashes);
+ assert.deepEqual(check(),{});
+ hashes[items[0].accession]='changed';assert.equal(check().reason,'subsequent_filings_require_corporate_action_review');
+ hashes[items[0].accession]=items[0].sha256;
+ recent.primaryDocument[0]='changed.htm';assert.equal(check().reason,'subsequent_filings_require_corporate_action_review');
+ assert.equal(metaSubsequentFilingReview(recent,'2026-10-22T00:00:08Z','2026-11-07T12:00:00Z').reason,'subsequent_filings_require_corporate_action_review');
+ assert.equal(capitalReview.currentSharesVerified,false);assert.equal(capitalReview.shareCountAdjustment,0);
 });

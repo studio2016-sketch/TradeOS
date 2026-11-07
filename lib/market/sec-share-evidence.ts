@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import capitalReview from './meta-capital-review.json';
 
 // Explicitly reviewed issuer/filing policy, not a generic sum of XBRL dimensions.
 export const META_SHARE_POLICY={
@@ -12,7 +13,7 @@ export const META_SHARE_POLICY={
  actionSource:'https://www.sec.gov/Archives/edgar/data/1326801/000162828026068935/meta-20261102.htm',
 } as const;
 export type ShareComponent={member:string;value:number;contextId:string;instant:string;rawFact:string;rawContext:string};
-export type ShareEvidence={shares:number;end:string;filed:string;accession:string;acceptedAt:string;sourceUrl:string;rawSha256:string;receivedAt:string;components:ShareComponent[];pricingMethod:string;backtestEligible:false};
+export type ShareEvidence={shares:number;end:string;filed:string;accession:string;acceptedAt:string;sourceUrl:string;rawSha256:string;receivedAt:string;components:ShareComponent[];pricingMethod:string;backtestEligible:false;shareBasis?:string;currentSharesVerified?:false;capitalReview?:typeof capitalReview;reviewSourcesReceivedAt?:string};
 export type ShareResult={observation?:ShareEvidence;reason?:string;blockingAccessions?:string[]};
 const attr=(s:string,key:string)=>new RegExp('(?:^|\\s)'+key+'="([^"]*)"').exec(s)?.[1];
 const validDate=(s:string)=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;
@@ -41,7 +42,7 @@ export function parseMetaShareClasses(html:string):ShareComponent[]|null{
  if(components.length!==2||new Set(components.map(c=>c.member)).size!==2||new Set(components.map(c=>c.instant)).size!==1)return null;
  return components;
 }
-export function validateMetaShareEvidence(html:string,submissions:any,asOf:string,receivedAt:string):ShareResult{
+export function validateMetaShareEvidence(html:string,submissions:any,asOf:string,receivedAt:string,reviewedDocuments?:Record<string,string>):ShareResult{
  const policy=META_SHARE_POLICY,cutoff=Date.parse(asOf),received=Date.parse(receivedAt);
  if(!Number.isFinite(cutoff)||!Number.isFinite(received)||cutoff>received)return {reason:'invalid_share_request_time'};
  if(cutoff>=Date.parse(policy.stopAt))return {reason:'recapitalization_requires_new_class_and_price_review'};
@@ -62,8 +63,9 @@ export function validateMetaShareEvidence(html:string,submissions:any,asOf:strin
  const observation:ShareEvidence={shares,end,filed:policy.filed,accession:policy.accession,acceptedAt,sourceUrl:policy.url,rawSha256:hash,receivedAt,components,pricingMethod:policy.pricingMethod,backtestEligible:false};
  // Ownership reports do not establish issuer issuance/settlement. All other later
  // filings require explicit review before this snapshot can price current equity.
- const actions=metaSubsequentFilingReview(recent,acceptedAt,asOf);
+ const actions=metaSubsequentFilingReview(recent,acceptedAt,asOf,reviewedDocuments);
  if(actions.reason)return {observation,...actions};
+ observation.shareBasis=capitalReview.basis;observation.currentSharesVerified=false;observation.capitalReview=capitalReview;observation.reviewSourcesReceivedAt=receivedAt;
  return {observation};
 }
 export async function secMetaShareEvidence(asOf:string):Promise<ShareResult>{
@@ -75,7 +77,19 @@ export async function secMetaShareEvidence(asOf:string):Promise<ShareResult>{
   ]);
   if(!filing.ok||!sub.ok)return {reason:'share_source_http_error'};
   const html=await filing.text(),submissions=await sub.json();
-  return validateMetaShareEvidence(html,submissions,asOf,new Date().toISOString());
+  const reviewedDocuments:Record<string,string>={};
+  const recent=(submissions as any)?.filings?.recent;
+  // Unknown material filings are rejected by the validator. Re-fetch reviewed
+  // documents in batches of three, respecting the SEC's request-rate guidance.
+  const required=capitalReview.items.filter(item=>recent?.accessionNumber?.includes(item.accession)&&Date.parse(item.acceptedAt)<=Date.parse(asOf));
+  for(let i=0;i<required.length;i+=3){
+   await Promise.all(required.slice(i,i+3).map(async item=>{
+    const response=await fetch(item.url,{headers,cache:'no-store',signal:AbortSignal.timeout(9000)});
+    if(!response.ok)throw new Error('review_source_unavailable');
+    reviewedDocuments[item.accession]=createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex');
+   }));
+  }
+  return validateMetaShareEvidence(html,submissions,asOf,new Date().toISOString(),reviewedDocuments);
  }catch{return {reason:'share_source_collection_failed'};}
 }
 /** Conservative last-trade age bound includes a normal weekend; never backdates availability. */
@@ -87,13 +101,17 @@ export function valuationPriceReason(price:number,observedAt:string,asOf:string,
  return null;
 }
 
-export function metaSubsequentFilingReview(recent:any,acceptedAt:string,asOf:string):Pick<ShareResult,'reason'|'blockingAccessions'>{
+export function metaSubsequentFilingReview(recent:any,acceptedAt:string,asOf:string,reviewedDocuments?:Record<string,string>):Pick<ShareResult,'reason'|'blockingAccessions'>{
  const blockingAccessions:string[]=[],cutoff=Date.parse(asOf),accepted=Date.parse(acceptedAt);
  if(!Number.isFinite(cutoff)||!Number.isFinite(accepted)||!Array.isArray(recent?.accessionNumber)||!['form','acceptanceDateTime'].every(k=>Array.isArray(recent[k])&&recent[k].length===recent.accessionNumber.length))return {reason:'invalid_submissions'};
  for(let j=0;j<recent.accessionNumber.length;j++){
   const t=Date.parse(recent.acceptanceDateTime[j]);
   if(!Number.isFinite(t))return {reason:'invalid_subsequent_filing_timestamp'};
-  if(t>accepted&&t<=cutoff&&!['3','3/A','4','4/A','5','5/A','144','144/A'].includes(recent.form[j]))blockingAccessions.push(recent.accessionNumber[j]);
+  if(t>accepted&&t<=cutoff&&!['3','3/A','4','4/A','5','5/A','144','144/A'].includes(recent.form[j])){
+   const review=capitalReview.items.find(item=>item.accession===recent.accessionNumber[j]);
+   const reviewed=review&&review.form===recent.form[j]&&review.filed===recent.filingDate?.[j]&&review.acceptedAt===recent.acceptanceDateTime[j]&&review.primaryDocument===recent.primaryDocument?.[j]&&reviewedDocuments?.[review.accession]===review.sha256;
+   if(!reviewed)blockingAccessions.push(recent.accessionNumber[j]);
+  }
  }
  return blockingAccessions.length?{reason:'subsequent_filings_require_corporate_action_review',blockingAccessions}:{};
 }

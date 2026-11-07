@@ -1,108 +1,113 @@
-# META share-class evidence and current valuation blocker
+# META last-reported-share valuation evidence
 
-## Result of fresh-source investigation — November 7, 2026
+## November 7 result
 
-The official September 2026 10-Q contains two dimensional DEI cover-page
-observations at October 16, 2026: Class A 2,214,472,367 and Class B 341,768,886.
-Their arithmetic sum is 2,556,241,253. This is a last-reported common-share
-snapshot, not a verified current count or a sum of independently priced classes.
+The reviewed September 2026 10-Q contains exactly two cover-page DEI observations
+at October 16: Class A 2,214,472,367 and Class B 341,768,886, totaling
+2,556,241,253. Note 3 establishes equal dividend/liquidation rights. A quoted
+Class A price applied to A+B is an explicit common-economic-interest proxy;
+it is not an observed Class B market quote or a verified exact current count.
 
-Note 3 states that A/B have identical dividend/liquidation rights and different
-voting rights. A price applied to A+B is therefore an explicitly identified
-Class A price proxy for common economic interests, not an observed Class B quote.
-Weighted-average EPS shares, preferred shares, public float, and unissued Class C
-shares must not be included. No generic issuer/class equivalence is inferred.
+Fresh SEC captures and TradeOS's Alpaca delayed SIP observation ($612, trade time
+2026-11-07T00:59:34.164304169Z) produce these research candidates:
 
-## Authoritative sources and effective dates
+| Factor | Definition | Value |
+| --- | --- | --- |
+| price_sales | A price × last-reported basic A+B / last fiscal-year revenue | 7.784499103510046 |
+| free_cash_flow_yield | Same annual CFO minus absolute capex / that reported-share equity proxy | 0.029473549564053552 |
 
-- Reviewed 10-Q: https://www.sec.gov/Archives/edgar/data/1326801/000162828026066773/meta-20260930.htm
-- Filing index: https://www.sec.gov/Archives/edgar/data/1326801/000162828026066773/0001628280-26-066773-index.html
-- Current submissions: https://data.sec.gov/submissions/CIK0001326801.json
-- October 29 financing 8-K: https://www.sec.gov/Archives/edgar/data/1326801/000119312526438017/d183592d8k.htm
-- November 2 definitive information statement: https://www.sec.gov/Archives/edgar/data/1326801/000162828026068935/meta-20261102.htm
-- November 5 8-K: https://www.sec.gov/Archives/edgar/data/1326801/000119312526450074/d166273d8k.htm
-- November 6 debt prospectus: https://www.sec.gov/Archives/edgar/data/1326801/000119312526450754/d44678d424b5.htm
+A separate Python Decimal calculation reproduces both within 1e-14 relative
+engineering tolerance (observed errors below 1e-16). This verifies arithmetic,
+not independent provider verification or scientific certification. Both candidates
+pass the unchanged basic evidence gate; `backtestEligible:false`,
+`currentSharesVerified:false`, and `scientificallyCertified:false` remain explicit.
 
-The submissions API identifies acceptance at 2026-10-22T00:00:08.000Z and filing
-date October 22. The index displays the corresponding Eastern acceptance time.
-The collector retains the more conservative existing next-day filing cutoff.
-Retrieval completion is preserved separately from publication and share instant.
+These factors use last-fiscal-year numerators, not TTM. META trailing PE remains
+blocked until TTM income available to common is verified. EV/EBITDA remains
+blocked until preferred claims, updated debt/cash and EBITDA periods are aligned.
+The delayed SIP trade is age-eligible for this weekend research calculation;
+it remains stale under intraday decision checks and cannot authorize a trade.
+Massive's connected snapshot entitlement is unavailable; this observation is Alpaca.
 
-The January 19, 2027 charter effectiveness is a mandatory stop for this policy;
-it is not treated as the dividend payment or exchange ex-date. The dividend
-record/payment dates require further evidence. Do not simply double the old
-share count and apply a split-adjusted A quote: Class C can trade separately.
+## Corporate-action reconciliation
 
-The later filings disclose preferred issuance, a 40 million Class A forward sale,
-a November 4 exercise for a further 6 million, and new debt. Forward-sale contract
-notional amounts are NOT proof of newly issued shares: settlement can differ.
-No 40/46 million addition or preferred conversion is manufactured here. Current
-count and capital-structure reconciliation remains unestablished. This blocks
-META ratios in the fresh-source run, even though cover-page extraction succeeds.
+The initial blanket block treated every subsequent issuer filing as unresolved.
+The versioned `lib/market/meta-capital-review.json` now records 19 separately
+identified subsequent documents, their form, primary document, SEC acceptance,
+filing date, full raw SHA-256, canonical URL and scoped disposition.
 
-## Implementation and rejection rules
+| Disclosed event | Denominator treatment |
+| --- | --- |
+| October common forward offering | The October 29 8-K confirms 40 million initially borrowed from existing holders. Contract notional is not newly issued common stock. |
+| November 4 additional 6 million option | Additional forward agreements, not proof of issuer delivery or settlement. No 6 million addition is made. |
+| Preferred depositary issuance/registration | Excluded from basic common shares; not treated as converted common. Preferred economics prevent unlocking unsupported earnings/EV measures. |
+| USD/euro senior-note offerings | Not common-share issuance; debt/cash bridge still blocks EV/EBITDA. |
+| Shelf registration and offering/pricing materials | Authorize or describe transactions, not a new outstanding-common count. |
+| Class C charter/dividend and plan materials | No Class C is added; January 19, 2027 is a hard policy stop, not an assumed payment/ex-date. |
 
-`lib/market/sec-share-evidence.ts` intentionally supports one reviewed META
-filing. Each collection re-fetches that filing and current submissions. Its exact
-SHA-256, CIK, accession, document, form and filing date must match. New filings
-need a new reviewed policy rather than a silent fallback to an older snapshot.
+This review permits the explicitly defined **last-reported basic-share research
+basis**. It does not establish that the exact current common count is unchanged,
+prove no early forward settlement, or reconstruct all RSU/repurchase/conversion
+activity. No count is rolled forward or manufactured. New unreviewed issuer
+filings, changes to reviewed bytes or metadata, and unknown effective actions
+block use until reviewed. Existing source-time and certification gates are unchanged.
 
-The parser requires exactly A/B, a common instant, one stock-class axis, the same
-CIK, exact positive integer share units and unscaled infinite precision. It
-preserves raw facts, raw contexts, context IDs, per-class counts, URL, accession,
-acceptance, retrieval time and full-document SHA-256. The fixture contains exact
-unit/context/fact excerpts from the official document; synthetic variants in
-unit tests are never observations.
+## Collection and rejection rules
 
-All subsequent issuer filings other than enumerated ownership/144 reports block
-pricing pending corporate-action review. This deliberately includes filings that
-might prove harmless after review. Failed/truncated submissions, unknown document
-content, stale counts (>120 days) and the charter stop date also fail closed.
-The current response must still contain the reviewed accession, so pagination
-that omits it cannot assert completeness.
+The fallback supports one reviewed issuer/10-Q. Each collection verifies the
+filing's exact hash, CIK, accession, form, primary document and filing day against
+current submissions. The parser requires exactly A/B, the same instant and CIK,
+one stock-class axis, positive safe-integer shares, share units, zero scale and
+infinite precision. Raw facts and contexts remain in the evidence bundle.
 
-Prices must be positive, finite, no later than the request, at most 96 hours old
-(a conservative bound accommodating a normal weekend), and after the share filing
-day. This is an age ceiling, not an exchange-calendar freshness certification.
-Stale stored prices trigger a fresh-source attempt before rejection. Annual
-numerators must have valid annual periods, accession and disclosure before price.
-CFO/capex must still match period, accession and filing date exactly.
+Subsequent material documents are re-fetched in batches of three and checked
+against their reviewed digests. Matching accession alone cannot clear review.
+Missing/malformed submissions, missing reviewed accession, document fetch failure,
+unknown subsequent forms/documents, mismatched identity/digest or the charter
+cutoff reject calculations. Ownership/144 reports are not counted as issuer issuance.
 
-If all share/action conditions eventually pass, this fallback permits only the
-existing last-fiscal-year price/sales and annual FCF-yield definitions; those are
-not asserted to be TTM. META `pe_trailing` stays blocked until TTM income available
-to common is established. META EV/EBITDA stays blocked until debt, cash, preferred
-claims and EBITDA periods are reconciled. Other issuers do not gain class fallback.
+A source price must be finite/positive, at most 96 hours old (including an ordinary
+weekend), no later than the request and after the share disclosure day. Share
+snapshots older than 120 days are rejected. This age ceiling is not exchange
+realtime certification. Numerators need valid annual periods, accession and
+publication before price; CFO/capex must match start/end/accession/filing day.
 
-No persistence schema, immutable historical row, evidence gate, source-time
-certification, independent verification, paper-execution policy or live-trading
-setting is changed. `backtestEligible:false` remains explicit. Diagnostic receipts
-retain extracted observations even when ratios are rejected. A numerical candidate
-passing basic persistence validation is not independently certified by this work.
+Metadata preserves class components, source URLs, acceptance, filing day, share
+instant, source/retrieval timestamps, raw hashes, review dispositions, market
+snapshot/price kind/coverage, companyfacts hash and exact numerical inputs.
+Persistence remains append-only through the unchanged evidence-validation rules.
+No historical availability is inferred from a fresh retrieval.
 
-## Reproducible fresh-source check
+## Reproduction
 
-Download the two official responses with the required identifying SEC User-Agent,
-then run (paths must refer to the newly downloaded responses):
+Download the official 10-Q, current submissions, companyfacts and ticker map,
+all 19 review documents at manifest URLs, and a current TradeOS market response.
+Preserve raw bytes and capture timestamps. Then run:
 
 ```sh
-node --import tsx scripts/check-sec-share-evidence.ts /tmp/meta.htm /tmp/meta-sub.json
+node --import tsx scripts/check-sec-share-evidence.ts /tmp/meta.htm /tmp/meta-sub.json /tmp/meta-review
+node --import tsx scripts/audit-meta-valuation.mjs /tmp/meta-valuation-inputs /tmp/meta-candidates.json
 ```
 
-The command is read-only and does not backfill or write production factors.
-The November 7 check reported:
+The audit directory contains `meta.htm`, `meta-sub.json`, `meta-facts.json`,
+`sec-tickers.json`, `meta-market.json`, and `review/<accession>` files.
+The audit is read-only, uses the production selector/calculator/evidence gate,
+requires captures no older than one hour, and marks results
+`fresh_source_capture_replay`. It does not replace actual source-time certification.
+No synthetic fixture is persisted as an observation. The production collector
+continues its normal direct-source collection path.
 
-- filing SHA-256: `3ffe3ab3ece24f40f3a7662c5bd4167f4bd1750249572add801175d5e7acabb1`
-- submissions SHA-256: `4803038a18f27013bf90d2e296b0b73a2f2b918b199f2ed106b57544362ac8b0`
-- extracted sum: `2556241253`, instant `2026-10-16`
-- ratio eligibility: false, `subsequent_filings_require_corporate_action_review`
+## Primary sources
 
-A read-only production DB inspection found the latest META SEC collection on
-November 5 saved four nonvaluation factors. No newly persisted META valuation
-ratio is demonstrated. This branch has not been deployed or used for production
-ingestion; its successful fixture calculations are tests, not production evidence.
+- https://www.sec.gov/Archives/edgar/data/1326801/000162828026066773/meta-20260930.htm
+- https://www.sec.gov/Archives/edgar/data/1326801/000162828026066773/0001628280-26-066773-index.html
+- https://data.sec.gov/submissions/CIK0001326801.json
+- https://www.sec.gov/Archives/edgar/data/1326801/000119312526438017/d183592d8k.htm
+- https://www.sec.gov/Archives/edgar/data/1326801/000119312526450074/d166273d8k.htm
+- https://www.sec.gov/Archives/edgar/data/1326801/000162828026068935/meta-20261102.htm
+- Other canonical source URLs and digests appear in the review manifest.
 
-The remaining work is to independently reconcile the later financing/settlement
-and class changes, obtain a supported newer denominator or reviewed roll-forward,
-and reproduce a newly persisted ratio from its immutable input bundle. Do not
-remove the block merely to increase factor coverage.
+The index's Eastern acceptance corresponds to 2026-10-22T00:00:08.000Z in
+submissions. The existing conservative next-day filing cutoff is retained.
+There are no source-time certification, independent verification, trading-gate,
+execution-policy or immutable-history relaxations in this change.
