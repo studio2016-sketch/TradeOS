@@ -5,17 +5,17 @@ import {proposeQuoteOutcome, PROPOSED_QUOTE_OUTCOME_FINGERPRINT, type FrozenQuot
 
 /** A distinct, unactivated research implementation; never dispatch v3 forecasts here. */
 export const QUOTE_RESOLVER_V4_POLICY = {
- id:'tradeos.quote-resolver.v4.draft.2', activation:null,
+ id:'tradeos.quote-resolver.v4.draft.3', activation:null,
  selector:PROPOSED_QUOTE_OUTCOME_FINGERPRINT, capture:PROPOSED_ENTRY_CAPTURE_FINGERPRINT,
  precision:'retain exact timestamp text; reject comparisons or ordering ambiguous at millisecond precision',
  endpointCap:10000, completeness:'exact PostgreSQL receipt deadline with overflow sentinel; earliest captured quote only',
  reference:'independent nanosecond parser, sorted conflict checks and linear endpoint selection; tolerance 1e-12 absolute plus relative',
- provenance:'readback entry equality and payload hashes; digest is not independent attestation',
+ provenance:'readback entry equality, matching metadata feed/symbol and payload hashes; digest is not independent attestation',
  persistence:'read-only replay; no outcome insert, update, backfill or certification',
  bundle:'replayable typed rows, canonical SHA-256 checksum, explicit as-of; verify reports before use'
 } as const;
 export const QUOTE_RESOLVER_V4_FINGERPRINT=createHash('sha256').update(JSON.stringify(QUOTE_RESOLVER_V4_POLICY)).digest('hex');
-export type EvidenceRow={id:string;symbol:string;source_id:string;received_at:string;metadata:{quoteTimestamp:string;bid:number;ask:number};payload_hash:string};
+export type EvidenceRow={id:string;symbol:string;source_id:string;received_at:string;metadata:{quoteTimestamp:string;bid:number;ask:number;source?:string;symbol?:string};payload_hash:string};
 export type ReplayForecast={id:string;created_at:string;symbol:string;horizonMs:number;source_snapshot:{proposedQuoteEntry?:unknown}};
 function canonical(v:any):string {
  if(v===null||typeof v!=='object')return JSON.stringify(v);
@@ -69,6 +69,7 @@ export function replayQuoteOutcomeV4(f:ReplayForecast,asOf:string,entryRows:Evid
  const identities=new Map<string,string>();
  for(const row of [...entryRows,...endpointRows]){
   if(row.symbol!==f.symbol||row.source_id!==entry.sourceId)return reject('CONFLICTING_SOURCE_IDENTITY');
+  if((row.metadata?.source!==undefined&&row.metadata.source!==row.source_id)||(row.metadata?.symbol!==undefined&&row.metadata.symbol!==row.symbol))return reject('CONTRADICTORY_METADATA_IDENTITY');
   if(typeof row.payload_hash!=='string'||!row.payload_hash.trim())return reject('MISSING_EVIDENCE_PROVENANCE');
   const identity=canonical({...frozen(row),payloadHash:row.payload_hash}),previous=identities.get(row.id);
   if(previous&&previous!==identity)return reject('CONFLICTING_EVIDENCE_ID');
@@ -101,7 +102,7 @@ export function replayQuoteOutcomeV4(f:ReplayForecast,asOf:string,entryRows:Evid
  const referenceCheck={status:'AGREEMENT' as const,reference:'tradeos.quote-reference.v1',independentlyCertified:false,scope:'local implementation agreement only'};
  // Preserve row roles so the returned bundle is itself a complete offline replay input.
  const normalize=(r:EvidenceRow,kind:'entry'|'endpoint')=>({kind,id:r.id,symbol:r.symbol,source_id:r.source_id,received_at:r.received_at,
-  metadata:{quoteTimestamp:r.metadata.quoteTimestamp,bid:r.metadata.bid,ask:r.metadata.ask},payload_hash:r.payload_hash});
+  metadata:{quoteTimestamp:r.metadata.quoteTimestamp,bid:r.metadata.bid,ask:r.metadata.ask,...(r.metadata.source===undefined?{}:{source:r.metadata.source}),...(r.metadata.symbol===undefined?{}:{symbol:r.metadata.symbol})},payload_hash:r.payload_hash});
  const rows=[...entryRows.map(r=>normalize(r,'entry')),...endpointRows.map(r=>normalize(r,'endpoint'))]
   .sort((a,b)=>canonical(a)<canonical(b)?-1:canonical(a)>canonical(b)?1:0);
  const bundle=JSON.parse(JSON.stringify({forecast:f,asOf,complete,policyFingerprint:QUOTE_RESOLVER_V4_FINGERPRINT,rows}));

@@ -92,3 +92,9 @@ test('archived report tampering cannot pass bundled evidence verification',()=>{
   const saved=JSON.parse(JSON.stringify(run()));alter(saved);assert.equal(verifyQuoteReplayV4(saved).status,'REJECTED');
  }
 });
+
+test('metadata feed and symbol contradictions cannot inherit trustworthy row identity',()=>{
+ for(const patch of [{source:'Alpaca:sip'},{symbol:'OTHER'}]){
+  const endpoint=row('end',30);Object.assign(endpoint.metadata,patch);assert.equal(run([endpoint]).status,'UNVERIFIED');
+ }
+});
