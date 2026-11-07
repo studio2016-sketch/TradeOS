@@ -1,0 +1,198 @@
+{
+  "version": "META-last-reported-basic-shares-review-v1",
+  "basis": "last_reported_basic_common_shares_not_verified_current_count",
+  "currentSharesVerified": false,
+  "shareCountAdjustment": 0,
+  "items": [
+    {
+      "accession": "0001193125-26-450754",
+      "form": "424B5",
+      "filed": "2026-11-06",
+      "acceptedAt": "2026-11-06T12:35:49.000Z",
+      "primaryDocument": "d44678d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526450754/d44678d424b5.htm",
+      "sha256": "1720526e160b974ca02cdb27ef8ed63e7e04ce6aa922527d418caca0da6f1b64",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001193125-26-450074",
+      "form": "8-K",
+      "filed": "2026-11-05",
+      "acceptedAt": "2026-11-05T21:58:46.000Z",
+      "primaryDocument": "d166273d8k.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526450074/d166273d8k.htm",
+      "sha256": "5e4a75af293df1a57d0522ce13ce79406dfcfc5518bf9b3f3b6f7cdf2d6ea34c",
+      "disposition": "Additional 6 million forward agreement option exercised; not evidence of issuer settlement. USD notes change debt, not basic common shares."
+    },
+    {
+      "accession": "0001193125-26-448015",
+      "form": "424B5",
+      "filed": "2026-11-05",
+      "acceptedAt": "2026-11-05T02:02:44.000Z",
+      "primaryDocument": "d135326d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526448015/d135326d424b5.htm",
+      "sha256": "1d0c5f188ae0295c3dd60fbef42a7aa9ed02f076f8cf5d577d201b5a75b3e8ea",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001193125-26-447522",
+      "form": "FWP",
+      "filed": "2026-11-04",
+      "acceptedAt": "2026-11-04T21:53:19.000Z",
+      "primaryDocument": "d154804dfwp.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526447522/d154804dfwp.htm",
+      "sha256": "bd3717a342aaaa2eb3bf7f194bece990170496cf04d27b220d90085aeb819f15",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001193125-26-446110",
+      "form": "424B5",
+      "filed": "2026-11-04",
+      "acceptedAt": "2026-11-04T11:01:27.000Z",
+      "primaryDocument": "d44678d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526446110/d44678d424b5.htm",
+      "sha256": "9dbe608333bf5ad77d50fd9e3384c552778208b05dfd94d9dcac7a68500b2bfa",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001193125-26-445646",
+      "form": "FWP",
+      "filed": "2026-11-03",
+      "acceptedAt": "2026-11-03T22:25:13.000Z",
+      "primaryDocument": "d186765dfwp.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526445646/d186765dfwp.htm",
+      "sha256": "3c0ccc99d22cdf15d17f0b035ee1f300350cd2b79af0ffc67b1fdfe97fb5765a",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001193125-26-444440",
+      "form": "424B5",
+      "filed": "2026-11-03",
+      "acceptedAt": "2026-11-03T13:29:28.000Z",
+      "primaryDocument": "d135326d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526444440/d135326d424b5.htm",
+      "sha256": "b8a26fed1bfff8a6c6757992c37cde2c5510f43996d3ed4f2a43678478f5b188",
+      "disposition": "Debt offering/terms; not common-share issuance. Enterprise-value debt/cash reconciliation remains unsupported."
+    },
+    {
+      "accession": "0001628280-26-068939",
+      "form": "DEFA14C",
+      "filed": "2026-11-02",
+      "acceptedAt": "2026-11-02T21:56:17.000Z",
+      "primaryDocument": "meta2026informationstateme.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026068939/meta2026informationstateme.htm",
+      "sha256": "f2ad74e952c6e40aa278ab57eaa5a400ca6a987ddac7601a5c4e18c67ea81f01",
+      "disposition": "Future Class C charter/dividend and equity-plan disclosures; do not issue or double common shares now."
+    },
+    {
+      "accession": "0001628280-26-068935",
+      "form": "DEF 14C",
+      "filed": "2026-11-02",
+      "acceptedAt": "2026-11-02T21:54:22.000Z",
+      "primaryDocument": "meta-20261102.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026068935/meta-20261102.htm",
+      "sha256": "189c59348c8e3bec5a0b6e3f208507ca24e0b3ba75a69ab233e3ad11b77e2667",
+      "disposition": "Future Class C charter/dividend and equity-plan disclosures; do not issue or double common shares now."
+    },
+    {
+      "accession": "0001354457-26-001039",
+      "form": "CERT",
+      "filed": "2026-10-29",
+      "acceptedAt": "2026-10-29T21:28:42.000Z",
+      "primaryDocument": "METAM_8A_Cert.pdf",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000135445726001039/METAM_8A_Cert.pdf",
+      "sha256": "e66e55da9d588ef013cbb10da1fb7e0b1a5d008b766c7edd7f8d355c7a505551",
+      "disposition": "Registration/listing of preferred depositary shares; excluded from basic common-share denominator."
+    },
+    {
+      "accession": "0001193125-26-438111",
+      "form": "8-A12B",
+      "filed": "2026-10-29",
+      "acceptedAt": "2026-10-29T21:27:02.000Z",
+      "primaryDocument": "d184794d8a12b.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526438111/d184794d8a12b.htm",
+      "sha256": "7c20c41a289f08af8969502a629b2fc85b6bf3b0d04902e66618edebbab7b03e",
+      "disposition": "Registration/listing of preferred depositary shares; excluded from basic common-share denominator."
+    },
+    {
+      "accession": "0001193125-26-438017",
+      "form": "8-K",
+      "filed": "2026-10-29",
+      "acceptedAt": "2026-10-29T21:08:00.000Z",
+      "primaryDocument": "d183592d8k.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526438017/d183592d8k.htm",
+      "sha256": "0b8ffac45bf18f7e3ecc7e6ddaed952bbdbb0d7b83c218aee860f4b069dae116",
+      "disposition": "Initial 40 million Class A sale borrowed from existing holders; future issuer settlement is contingent. Preferred issuance is not basic common issuance."
+    },
+    {
+      "accession": "0001193125-26-436410",
+      "form": "424B5",
+      "filed": "2026-10-28",
+      "acceptedAt": "2026-10-28T21:25:08.000Z",
+      "primaryDocument": "d94886d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526436410/d94886d424b5.htm",
+      "sha256": "c468e6ca6c5fed8522de3b46200b229b40e373ca38a5fc5c91a5bec4eb29ccb8",
+      "disposition": "Common-share forward offering: borrowed shares initially; no addition of forward notional to last reported basic common count."
+    },
+    {
+      "accession": "0001193125-26-436405",
+      "form": "424B5",
+      "filed": "2026-10-28",
+      "acceptedAt": "2026-10-28T21:23:03.000Z",
+      "primaryDocument": "d133631d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526436405/d133631d424b5.htm",
+      "sha256": "3e77f2f9ccfc6b90dce0e1af69cc4ede50c008070476b4a6597a1a718984b673",
+      "disposition": "Concurrent preferred/borrowed common-forward offering terms; exclude preferred and unissued forward notional from basic common count."
+    },
+    {
+      "accession": "0001193125-26-432549",
+      "form": "FWP",
+      "filed": "2026-10-27",
+      "acceptedAt": "2026-10-27T10:02:21.000Z",
+      "primaryDocument": "d382225dfwp.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526432549/d382225dfwp.htm",
+      "sha256": "7070551b748aa7b53ff52a9b23bb6c93f3f3912de9f72b354141338cde32593d",
+      "disposition": "Concurrent preferred/borrowed common-forward offering terms; exclude preferred and unissued forward notional from basic common count."
+    },
+    {
+      "accession": "0001193125-26-431043",
+      "form": "424B5",
+      "filed": "2026-10-26",
+      "acceptedAt": "2026-10-26T12:04:56.000Z",
+      "primaryDocument": "d133631d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526431043/d133631d424b5.htm",
+      "sha256": "f2f638a383a674d12aa65495b4e4e4bb197b36099d1e26ab64b5ac9bdb4587f9",
+      "disposition": "Concurrent preferred/borrowed common-forward offering terms; exclude preferred and unissued forward notional from basic common count."
+    },
+    {
+      "accession": "0001193125-26-431040",
+      "form": "424B5",
+      "filed": "2026-10-26",
+      "acceptedAt": "2026-10-26T11:56:09.000Z",
+      "primaryDocument": "d94886d424b5.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526431040/d94886d424b5.htm",
+      "sha256": "a5dcc4f42bb22f641a66e9e9682a5585f94ecd19b33b0c24958a110c918020ff",
+      "disposition": "Common-share forward offering: borrowed shares initially; no addition of forward notional to last reported basic common count."
+    },
+    {
+      "accession": "0001193125-26-431036",
+      "form": "FWP",
+      "filed": "2026-10-26",
+      "acceptedAt": "2026-10-26T11:46:39.000Z",
+      "primaryDocument": "d116268dfwp.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526431036/d116268dfwp.htm",
+      "sha256": "b86d580b447c47bb0afa1ca0998ff91a96a91c7c6ace6fa0533030cf1dcd32d0",
+      "disposition": "Concurrent preferred/borrowed common-forward offering terms; exclude preferred and unissued forward notional from basic common count."
+    },
+    {
+      "accession": "0001193125-26-431009",
+      "form": "S-3ASR",
+      "filed": "2026-10-26",
+      "acceptedAt": "2026-10-26T10:41:26.000Z",
+      "primaryDocument": "d127909ds3asr.htm",
+      "url": "https://www.sec.gov/Archives/edgar/data/1326801/000119312526431009/d127909ds3asr.htm",
+      "sha256": "77211461fd96d32ca0f2a21dc6c54263124f9a20c98a55086b01a0476092c843",
+      "disposition": "Shelf registration permits future offerings; registration does not establish current issuance."
+    }
+  ]
+}
