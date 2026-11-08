@@ -46,12 +46,15 @@ export function parseReportedSurprises(text:string){
 const MONTHS:Record<string,number>={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
 export function parseEarningsDate(text:string,publishedAt:string){
  const patterns=[
-  /(?:earnings|results)[^.!?]{0,45}\b(?:on|due|report(?:ed|ing)?|release(?:d|ing)?)?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:[ ,]+(\d{4}))?(?=\s*(?:[.!?;:]|$|[A-Za-z]))/i,
-  /\breport(?:s|ing)?\s+(?:Q\d\s+)?earnings\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:[ ,]+(\d{4}))?(?=\s*(?:[.!?;:]|$|[A-Za-z]))/i
+  /(?:earnings|results)[^.!?]{0,45}?\b(?:on|due|report(?:ed|ing)?|release(?:d|ing)?)?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:[ ,]+(\d{4})(?![A-Za-z0-9]))?(?=\s*(?:[.!?;:]|,(?!\s*\d)|$|[A-Za-z]))/i,
+  /\breport(?:s|ing)?\s+(?:Q\d\s+)?earnings\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:[ ,]+(\d{4})(?![A-Za-z0-9]))?(?=\s*(?:[.!?;:]|,(?!\s*\d)|$|[A-Za-z]))/i
  ];
+ // A single earnings cue can introduce a date list. Do not pick one alternative.
+ const alternateDate=/^\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or)\s+)(?:on\s+)?(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+)?\d{1,2}(?:st|nd|rd|th)?\b/i;
  const pub=new Date(publishedAt);if(!Number.isFinite(pub.getTime()))return null;
  const dates=new Map<string,{scheduledDate:string;daysToEarnings:number}>();
  for(const pattern of patterns)for(const m of text.matchAll(new RegExp(pattern.source,'gi'))){
+  if(alternateDate.test(text.slice((m.index??0)+m[0].length)))return null;
   const month=MONTHS[m[1].toLowerCase().replace('.','')];if(month===undefined)return null;
   const day=Number(m[2]);let year=m[3]?Number(m[3]):pub.getUTCFullYear();
   const calendar=(y:number)=>{
@@ -122,3 +125,4 @@ export async function observedMarketwideEventEvidence(now=new Date()){
  for(const item of candidates){const article=String(item.metadata?.articleId??"");unique.set([item.factor,item.subject,article].join("|"),item);}
  return {retrievedAt:availableAt,articles:articles.length,candidates:[...unique.values()]};
 }
+
