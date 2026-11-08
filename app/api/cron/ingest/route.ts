@@ -30,6 +30,7 @@ import {certifiedModelVersions} from "../../../../lib/research/certification";
 import {evaluateInstitutionalLens} from "../../../../lib/research/institutionalLens";
 import {persistDecisionMemory} from "../../../../lib/research/decisionMemory";
 import {recordCollectorReceipt} from "../../../../lib/research/collector-receipts";
+import {marketPersistenceDiagnostics} from "../../../../lib/market/persistence-diagnostics";
 
 export const dynamic="force-dynamic";
 export const maxDuration=300;
@@ -63,8 +64,11 @@ export async function GET(req:Request){
   }catch(e){results.errors.push({source:"sec",error:e instanceof Error?e.message:String(e)});}
 
   let market:any={provider:null,snapshots:[],attempts:[]};
+  const marketWrites:{symbol:string;source:string;saved:boolean}[]=[];
   try{
     market=await bestSnapshots(watchlist);
+    results.marketAttempts=market.attempts;
+    results.marketSelection=market.selectionDiagnostics;
     for(const s of market.snapshots){
       const eventTime=new Date(s.timestamp);
       const ageMs=Math.max(0,Date.now()-eventTime.getTime());
@@ -79,11 +83,13 @@ export async function GET(req:Request){
         on conflict do nothing returning id
       `;
       results.marketSaved=(results.marketSaved??0)+stored.length;
+      marketWrites.push({symbol:s.symbol,source:s.source,saved:stored.length>0});
     }
     results.market=market.snapshots.length;
     results.marketProvider=market.provider;
     results.marketAttempts=market.attempts;
   }catch(e){results.errors.push({source:"market",error:e instanceof Error?e.message:String(e)});}
+  results.marketPersistence=marketPersistenceDiagnostics(watchlist,market.snapshots,marketWrites);
 
   try{
     const curated=await curatedNews(watchlist,40);
@@ -231,7 +237,7 @@ export async function GET(req:Request){
     collector:"ingest",status:"finished",
     received:Number(results.market??0)+Number(results.news??0)+Number(results.sec??0),
     saved:Number(results.marketSaved??0),
-    details:{finishedAt,errors:results.errors,marketProvider:results.marketProvider,alignments:results.alignments}
+    details:{startedAt:results.startedAt,finishedAt,errors:results.errors,marketProvider:results.marketProvider,marketAttempts:results.marketAttempts,marketSelection:results.marketSelection,marketPersistence:results.marketPersistence,alignments:results.alignments}
   });
   return NextResponse.json({...results,finishedAt});
 }
