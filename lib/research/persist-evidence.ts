@@ -4,12 +4,16 @@ import {validateEvidence,type EvidenceCandidate} from "./evidence-gate";
 export type PersistableEvidence=EvidenceCandidate&{metadata?:Record<string,unknown>};
 
 export async function persistEvidence(candidates:PersistableEvidence[]){
- const sql=db();
+ return persistEvidenceWithSql(db(),candidates);
+}
+
+/** Injectable storage boundary for deterministic tests; actual callers still use db(). */
+export async function persistEvidenceWithSql(sql:any,candidates:PersistableEvidence[],now?:Date){
  let accepted=0,saved=0;
  const rejected:{factor:string;reasons:string[]}[]=[];
  for(const item of candidates){
-  const gate=validateEvidence(item);
-  if(!gate.accepted){rejected.push({factor:item.factor,reasons:gate.reasons});continue;}
+  const gate=validateEvidence(item,now);
+  if(!gate.accepted){rejected.push({factor:typeof item?.factor==="string"?item.factor:"unknown",reasons:gate.reasons});continue;}
   accepted++;
   const rows=await sql`insert into tradeos_factor_evidence(
    factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata
