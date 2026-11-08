@@ -10,12 +10,13 @@ import {evidenceTimestamp} from '../lib/research/evidence-time';
 test('embedded PostgreSQL roundtrip preserves supported instants and rejects unsafe evidence',async(t)=>{
  const pg=new PGlite();
  try{
-  // Representative persistence contract, not a claim that production schema/transport was inspected.
+  // Column types/unique key match the read-only production schema audit on 2026-11-08.
+  // SQL_REJECT is an extra synthetic constraint for deterministic batch-failure testing.
   await pg.exec(`create table tradeos_factor_evidence (
    id bigserial primary key,factor_key text not null,domain text not null,subject text not null,
    value double precision not null,source_name text not null,observed_at timestamptz not null,
-   available_at timestamptz not null,source_metadata jsonb not null,
-   check(observed_at<=available_at),check(source_name<>'SQL_REJECT'),
+   available_at timestamptz not null default now(),source_metadata jsonb not null default '{}'::jsonb,
+   check(source_name<>'SQL_REJECT'),
    unique(factor_key,domain,subject,source_name,observed_at,available_at)
   ); create table source_observations(id bigserial primary key);`);
   const schema=readFileSync(new URL('../db/schema.sql',import.meta.url),'utf8');
@@ -55,8 +56,18 @@ test('embedded PostgreSQL roundtrip preserves supported instants and rejects uns
    assert.equal(auditEvidence(readback.rows,'2030-02-01T12:00:01Z').evidence[0].value,3);
    assert.equal(auditEvidence(readback.rows,now.toISOString()).evidence[0].value,1);
   });
-  await t.test('engine constraints reject invalid writes; batch SQL errors propagate without rewriting prior rows',async()=>{
-   await assert.rejects(pg.query(`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata) values('eps_surprise','news','RAW',1,'synthetic','2030-02-01T12:00:01Z','2030-02-01T12:00:00Z','{}')`),/check constraint/);
+  await t.test('proposed order constraint rejects future inserts without rewriting immutable historical rows',async()=>{
+   // The deployed schema has no order constraint: reproduce that gap only in this local engine.
+   await pg.query(`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata) values('eps_surprise','news','RAW',1,'synthetic','2030-02-01T12:00:01Z','2030-02-01T12:00:00Z','{}')`);
+   await pg.exec(readFileSync(new URL('../db/migrations/20261108_factor_evidence_vintage_order.sql',import.meta.url),'utf8'));
+   const constraint=await pg.query<{convalidated:boolean}>(`select convalidated from pg_constraint where conrelid='tradeos_factor_evidence'::regclass and conname='tradeos_factor_evidence_vintage_order'`);
+   assert.equal(constraint.rows[0].convalidated,false);
+   const old=await pg.query<{count:number}>(`select count(*)::int as count from tradeos_factor_evidence where subject='RAW' and observed_at>available_at`);
+   assert.equal(old.rows[0].count,1);
+   await assert.rejects(pg.query(`insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata) values('eps_surprise','news','NEW_BAD',1,'synthetic','2030-02-01T12:00:01Z','2030-02-01T12:00:00Z','{}')`),/check constraint/);
+   await assert.rejects(pg.query(`update tradeos_factor_evidence set observed_at=available_at where subject='RAW'`),/append-only/);
+  });
+  await t.test('batch SQL errors propagate without rewriting prior rows and append-only guards remain effective',async()=>{
    await assert.rejects(persistEvidenceWithSql(sql,[{...e,subject:'PARTIAL'},{...e,source:'SQL_REJECT'}],now),/check constraint/);
    const {rows}=await pg.query<{count:number}>(`select count(*)::int as count from tradeos_factor_evidence where subject='PARTIAL'`);
    assert.equal(rows[0].count,1);
