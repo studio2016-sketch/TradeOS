@@ -17,7 +17,7 @@ export async function GET(req:Request){
   const persisted=await persistEvidence([...data.candidates,...marketwide.candidates]);
   await recordCollectorReceipt({
    collector:"news_factors",status:"finished",received:data.newsCount,saved:persisted.saved,
-   details:{symbols:data.symbols,watchlistCandidates:data.candidates.length,marketwideCandidates:marketwide.candidates.length,marketwideArticles:marketwide.articles,marketwideRejectedArticles:marketwide.rejectedArticles,marketwideRetrievedAt:marketwide.retrievedAt,accepted:persisted.accepted,rejected:persisted.rejected,providerErrors:data.errors,retrievedAt:data.retrievedAt}
+   details:{symbols:data.symbols,watchlistCandidates:data.candidates.length,watchlistEligibleNewsCount:data.eligibleNewsCount,watchlistWindowEndAt:data.requestedAt,marketwideCandidates:marketwide.candidates.length,marketwideArticles:marketwide.articles,marketwideRejectedArticles:marketwide.rejectedArticles,marketwideRetrievedAt:marketwide.retrievedAt,accepted:persisted.accepted,rejected:persisted.rejected,providerErrors:data.errors,retrievedAt:data.retrievedAt}
   });
   return NextResponse.json({status:"stored_news_factor_evidence",newsCount:data.newsCount,candidates:data.candidates.length+marketwide.candidates.length,marketwideArticles:marketwide.articles,accepted:persisted.accepted,saved:persisted.saved,errors:data.errors,ordersAllowed:false},{headers:{"Cache-Control":"no-store"}});
  }catch(e){

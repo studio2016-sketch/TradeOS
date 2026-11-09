@@ -5,6 +5,7 @@ export interface NewsReactionContext{
   symbol:string;generatedAt:string;matched:boolean;
   headline:string|null;timestamp:string|null;returnPct:number|null;reactionScore:number|null;
   classification:string;note:string;
+  measuredThrough?:string;
 }
 function clamp(n:number){return Math.max(0,Math.min(100,n))}
 export async function latestNewsReaction(symbol:string):Promise<NewsReactionContext|null>{
@@ -29,7 +30,7 @@ export async function latestNewsReaction(symbol:string):Promise<NewsReactionCont
     const directional=ret>=0?50+mag:50-mag;
     return{
       symbol,generatedAt:new Date().toISOString(),matched:true,
-      headline:item.headline,timestamp:item.timestamp,returnPct:+ret.toFixed(3),
+      headline:item.headline,timestamp:item.timestamp,measuredThrough:post.t,returnPct:+ret.toFixed(3),
       reactionScore:+clamp(directional).toFixed(1),
       classification:Math.abs(ret)<.3?"low-reaction":Math.abs(ret)<1?"moderate-reaction":"strong-reaction",
       note:"Reaction derived from provider-news timestamp and configured Alpaca 5-minute bars; context only, not causal proof."

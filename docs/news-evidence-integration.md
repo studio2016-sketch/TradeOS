@@ -2,6 +2,8 @@
 
 This proposal combines the parser/intake changes from draft PRs #83 and #84 with their integration corrections. It does not include or activate the proposed v4 outcome resolver. PR #82's historical-price validation is retained from current main.
 
+The parallel watchlist producer and cached-news reader are covered by the follow-up in `watchlist-news-evidence-boundaries.md`, including exact publication windows, completion availability, issuer ambiguity, numerical weight failures and reaction measurement chronology.
+
 ## Corrected behavior
 
 - A fractional day such as `March 5.5, 2031` is unavailable, rather than becoming March 5 of the inferred publication year. Ordinary `March 5, 2030, 5 pm` remains usable. Alternative date lists remain unavailable. Parser metadata advances to `tradeos.reported-news-events.v3` only for new extractions.
@@ -19,7 +21,7 @@ This proposal combines the parser/intake changes from draft PRs #83 and #84 with
 
 The follow-up on November 8 inspected production schema/session metadata read-only and executed the actual pinned Neon HTTP driver against temporary tables on the existing staging branch. Text timestamp readback preserved microseconds; native timestamp readback returned JavaScript Date objects. Production INSERTs, deployed-route behavior, production write permissions and provider authenticity remain untested. See `neon-evidence-transport-verification.md` for the executed scope, safeguards and remaining limits.
 
-Local validation after the Neon follow-up: 446 tests passed, full TypeScript passed, and the production build passed with nonproduction placeholders and no deployment. An isolated compatibility run with pending PR #81 also passed all 466 tests and TypeScript; its code was then removed from this proposal. The original 19 integration/embedded-PostgreSQL checks, added migration-preservation check and endpoint-safety check are included in those totals. The actual staging HTTP audit also passed separately. No GitHub CI result is implied by local validation.
+Local validation after the watchlist follow-up: 456 tests passed, full TypeScript passed, and the production build passed with nonproduction placeholders and no deployment. An isolated compatibility run with pending PR #81 (`c26f94c`) also passed all 476 tests and TypeScript; its code was then removed from this proposal. The original 19 integration/embedded-PostgreSQL checks, added migration-preservation and endpoint-safety checks, and ten watchlist regressions are included in those totals. The earlier actual staging HTTP audit passed separately for the marketwide/persistence path; the new watchlist tests use deterministic providers and SQL. No GitHub CI result is implied by local validation.
 
 ## Preserved boundaries and remaining limitations
 

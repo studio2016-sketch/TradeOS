@@ -11,3 +11,10 @@ export function evidenceTimestamp(value:unknown):bigint|null {
  const offsetSeconds=(offsetHours*60+offsetMinutes)*60*(m[9]==='-'?-1:1);
  return BigInt(date.getTime())*BigInt(1000000)-BigInt(offsetSeconds)*BigInt(1000000000)+BigInt((m[7]??'').padEnd(9,'0'));
 }
+
+/** ISO spelling for API consumers, retaining fractional digits instead of going through Date. */
+export function evidenceTimestampIso(value:unknown):string|null {
+ if(typeof value!=='string'||evidenceTimestamp(value)===null)return null;
+ const iso=value.replace(' ','T');
+ return iso.replace(/([+-])(\d{2})(?::?(\d{2}))?$/,(_all,sign:string,hours:string,minutes:string|undefined)=>`${sign}${hours}:${minutes??'00'}`);
+}

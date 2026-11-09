@@ -1,4 +1,5 @@
 import type {NewsSignal} from "./types";
+import {evidenceTimestampIso} from '../research/evidence-time';
 
 
 async function startNewsLedger(provider:string,endpoint:string,symbols:string[],limit:number){
@@ -35,16 +36,19 @@ async function cacheNews(provider:string,items:NewsSignal[]){
 async function cachedNews(provider:string,symbols:string[],limit:number):Promise<NewsSignal[]>{
   try{
     const {db}=await import("../db"); const sql=db();
-    const rows=await sql`select article_id,published_at,headline,symbols,source_name,source_quality,summary
+    return await cachedNewsWithSql(sql,provider,symbols,limit);
+  }catch{return [];}
+}
+export async function cachedNewsWithSql(sql:any,provider:string,symbols:string[],limit:number):Promise<NewsSignal[]>{
+    const rows:Record<string,unknown>[]=await sql`select article_id,published_at::text as published_at,headline,symbols,source_name,source_quality,summary
       from tradeos_news_articles where provider=${provider} and published_at>=now()-interval '48 hours'
       order by published_at desc limit 150`;
     const clean=new Set(cleanSymbols(symbols));
     return rows.map(r=>({
-      id:String(r.article_id),timestamp:new Date(r.published_at as string).toISOString(),headline:String(r.headline),
+      id:String(r.article_id),timestamp:evidenceTimestampIso(r.published_at)??'',headline:String(r.headline),
       symbols:Array.isArray(r.symbols)?r.symbols as string[]:[],source:String(r.source_name),sourceQuality:Number(r.source_quality),
       novelty:1,marketImpact:.5,priceConfirmed:false,summary:String(r.summary??"")
-    } satisfies NewsSignal)).filter(item=>!clean.size||item.symbols.some(s=>clean.has(s))).slice(0,limit);
-  }catch{return [];}
+    } satisfies NewsSignal)).filter(item=>item.timestamp&&(!clean.size||item.symbols.some(s=>clean.has(s)))).slice(0,limit);
 }
 async function claimProviderSlot(provider:string,seconds:number):Promise<boolean>{
   const {db}=await import("../db"); const sql=db();
