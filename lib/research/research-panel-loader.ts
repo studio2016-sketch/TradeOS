@@ -22,11 +22,29 @@ const text: Check = value => typeof value === "string";
 const boolean: Check = value => typeof value === "boolean";
 const scalar: Check = value => value == null || ["string", "number", "boolean"].includes(typeof value);
 const optional = (check: Check): Check => value => value == null || check(value);
+const count: Check = value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const measurement: Check = value => typeof value === "number" && Number.isFinite(value);
 const list = (check: Check): Check => value => Array.isArray(value) && value.every(check);
 const object = (shape: Record<string, Check>): Check => value => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const fields = value as Record<string, unknown>;
   return Object.entries(shape).every(([key, check]) => check(fields[key]));
+};
+
+// This only checks the response contract; it cannot certify evidence or authorize trading.
+const certificationResponse: Check = value => {
+  if (!object({
+    status: text, modelPromotionAllowed: boolean, liveExecutionAllowed: boolean,
+    checks: list(object({ id: text, pass: boolean, detail: scalar })),
+  })(value)) return false;
+  const result = value as Record<string, any>;
+  if (!["BLOCKED", "RESEARCH_ONLY", "INDEPENDENTLY_VALIDATED"].includes(result.status)
+    || result.liveExecutionAllowed !== false) return false;
+  if (result.modelPromotionAllowed) {
+    return result.status === "INDEPENDENTLY_VALIDATED" && result.certified === true
+      && result.checks.length > 0 && result.checks.every((check: any) => check.pass === true);
+  }
+  return result.status !== "INDEPENDENTLY_VALIDATED" && result.certified !== true;
 };
 
 // Validate the containers and fields rendered by the page, not scientific validity.
@@ -35,26 +53,26 @@ const datasetChecks: Record<ResearchPanelKey, Check> = {
   models: object({
     certification: scalar,
     validations: list(object({
-      modelAndHorizon: text, sampleCount: scalar, trainCount: scalar, holdoutCount: scalar,
+      modelAndHorizon: text, sampleCount: optional(count), trainCount: optional(count), holdoutCount: optional(count),
       warnings: optional(list(text)),
     })),
   }),
   factors: object({
-    status: scalar, registryCount: scalar,
-    pointInTimeEvidence: optional(object({ forecasts: scalar, rows: scalar })),
+    status: scalar, registryCount: optional(count),
+    pointInTimeEvidence: optional(object({ forecasts: optional(count), rows: optional(count) })),
     associations: list(object({
-      label: text, recorded: scalar, holdout: scalar, highCount: scalar, lowCount: scalar,
+      label: text, recorded: optional(count), holdout: optional(count), highCount: optional(count), lowCount: optional(count),
     })),
     historicalDiscovery: optional(object({
-      testedFamilySize: scalar, multiplicityMethod: scalar,
+      testedFamilySize: optional(count), multiplicityMethod: scalar,
       findings: optional(list(object({
         label: text, status: text, direction: scalar,
-        observations: scalar, sessions: scalar, symbols: scalar,
+        observations: optional(count), sessions: optional(count), symbols: optional(count),
       }))),
     })),
     factorDependence: optional(object({
       pairs: optional(list(object({
-        first: text, second: text, pearsonR: scalar, paired: scalar, status: scalar,
+        first: text, second: text, pearsonR: optional(measurement), paired: optional(count), status: scalar,
       }))),
     })),
   }),
@@ -63,20 +81,17 @@ const datasetChecks: Record<ResearchPanelKey, Check> = {
     summary: object(Object.fromEntries([
       "uniqueMarketTests", "passes", "failures", "voids", "unresolved", "prospectiveScientificRecords",
       "prospectiveScientificPasses", "prospectiveScientificFailures", "sessions", "fingerprintedScientificRecords",
-    ].map(key => [key, scalar]))),
+    ].map(key => [key, optional(count)]))),
     scientificPolicy: scalar,
     recent: list(object({
       id: scalar, verdict: text, symbol: text, horizon: text, forecastAt: text, evidenceClass: text,
       scientificallyEligible: boolean,
     })),
     prospectiveFactorAssociations: optional(object({
-      findings: optional(list(object({ label: text, observations: scalar, sessions: scalar, status: text }))),
+      findings: optional(list(object({ label: text, observations: optional(count), sessions: optional(count), status: text }))),
     })),
   }),
-  certification: object({
-    status: text, modelPromotionAllowed: boolean, liveExecutionAllowed: boolean,
-    checks: list(object({ id: text, pass: boolean, detail: scalar })),
-  }),
+  certification: certificationResponse,
 };
 
 export function initialResearchPanels(): ResearchPanels {
@@ -189,3 +204,4 @@ export function createResearchPanelLoader(
 
   return { refresh, cancel };
 }
+
