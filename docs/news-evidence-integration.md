@@ -4,6 +4,8 @@ This proposal combines the parser/intake changes from draft PRs #83 and #84 with
 
 The parallel watchlist producer and cached-news reader are covered by the follow-up in `watchlist-news-evidence-boundaries.md`, including exact publication windows, completion availability, issuer ambiguity, numerical weight failures and reaction measurement chronology.
 
+Concurrent provider request identity and rate-budget/cache isolation are covered by `news-request-sharing.md`.
+
 The upstream HTTP adapters are covered by `provider-news-intake.md`: missing source clocks are no longer replaced with server time, and malformed or cache-unsafe source inputs are rejected with explicit ingestion diagnostics before they reach the article cache.
 
 The completed-interval reaction estimator and strict bounded history retrieval are covered by `news-reaction-validation.md`. New reaction metadata distinguishes nominal completed interval ends from bar start labels and retains the prices/times needed to reproduce the descriptive arithmetic.
@@ -25,7 +27,7 @@ The completed-interval reaction estimator and strict bounded history retrieval a
 
 The follow-up on November 8 inspected production schema/session metadata read-only and executed the actual pinned Neon HTTP driver against temporary tables on the existing staging branch. Text timestamp readback preserved microseconds; native timestamp readback returned JavaScript Date objects. Production INSERTs, deployed-route behavior, production write permissions and provider authenticity remain untested. See `neon-evidence-transport-verification.md` for the executed scope, safeguards and remaining limits.
 
-Local validation after the completed-interval reaction follow-up: 485 tests passed, full TypeScript passed, and the production build passed with nonproduction placeholders and no deployment. An isolated compatibility run with pending PR #81 (`c26f94c`) also passed all 505 tests and TypeScript; its code was then removed from this proposal. The reaction follow-up adds twelve test groups, including mocked calls through the real history reader and a shared-snapshot concurrency check. The earlier actual staging HTTP audit passed separately for the marketwide/persistence path; the new reaction/provider/watchlist tests use deterministic providers and SQL. No GitHub CI result is implied by local validation.
+Local validation after the provider request-sharing follow-up: 497 tests passed, full TypeScript passed, and the production build passed with nonproduction placeholders and no deployment. An isolated compatibility run with pending PR #81 (`c26f94c`) also passed all 517 tests and TypeScript; its code was then removed from this proposal. The request-sharing follow-up adds twelve adapter regression groups. The reaction follow-up adds twelve test groups, including mocked calls through the real history reader and a shared-snapshot concurrency check. The earlier actual staging HTTP audit passed separately for the marketwide/persistence path; the new reaction/provider/watchlist tests use deterministic providers and SQL. No GitHub CI result is implied by local validation.
 
 ## Preserved boundaries and remaining limitations
 

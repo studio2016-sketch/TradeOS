@@ -79,29 +79,40 @@ function dedupe(items:NewsSignal[]){
   });
 }
 
-let alpacaNewsInFlight:Promise<NewsSignal[]>|null=null;
+function newsLimit(limit:number,cap:number):number{
+  if(!Number.isSafeInteger(limit)||limit<1)throw new RangeError('News limit must be a positive safe integer');
+  return Math.min(cap,limit);
+}
+async function sharedNewsRequest(pending:Map<string,Promise<NewsSignal[]>>,identity:string,collect:()=>Promise<NewsSignal[]>):Promise<NewsSignal[]>{
+  let request=pending.get(identity);
+  if(!request){request=collect();pending.set(identity,request);}
+  try{
+    // Callers may annotate results; never share mutable article or symbol arrays.
+    return (await request).map(item=>({...item,symbols:[...item.symbols]}));
+  }finally{if(pending.get(identity)===request)pending.delete(identity);}
+}
+const alpacaNewsInFlight=new Map<string,Promise<NewsSignal[]>>();
 export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
+  const count=newsLimit(limit,50),clean=cleanSymbols(symbols).sort();
   const key=process.env.ALPACA_API_KEY,secret=process.env.ALPACA_API_SECRET;
   if(!key||!secret)return[];
-  const clean=cleanSymbols(symbols);
-  if(alpacaNewsInFlight)return alpacaNewsInFlight;
-  alpacaNewsInFlight=(async()=>{
+  return sharedNewsRequest(alpacaNewsInFlight,JSON.stringify([clean,count]),async()=>{
   const url=new URL("https://data.alpaca.markets/v1beta1/news");
   if(clean.length)url.searchParams.set("symbols",clean.join(","));
-  url.searchParams.set("limit",String(Math.min(50,limit)));
+  url.searchParams.set("limit",String(count));
   url.searchParams.set("sort","desc");
   url.searchParams.set("include_content","false");
-  const ledgerId=await startNewsLedger("alpaca","news",clean,Math.min(50,limit));
+  const ledgerId=await startNewsLedger("alpaca","news",clean,count);
   try{
    if(!(await claimProviderSlot("alpaca",30))){
-    const cached=await cachedNews("alpaca",clean,limit);
+    const cached=await cachedNews("alpaca",clean,count);
     await finishNewsLedger(ledgerId,"skipped",cached.length,null,{reason:"shared_rate_budget_exhausted",cacheHit:true});
     return cached;
    }
    const res=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(12000)});
    if(res.status===429){
     await deferProviderSlot("alpaca",massiveRetryDelay(res.headers.get("retry-after")));
-    const cached=await cachedNews("alpaca",clean,limit);
+    const cached=await cachedNews("alpaca",clean,count);
     await finishNewsLedger(ledgerId,"rate_limited",cached.length,429,{retryAfter:res.headers.get("retry-after"),cacheHit:cached.length>0});
     if(cached.length)return cached;
     throw new Error("Alpaca news HTTP 429; shared cooldown activated");
@@ -114,18 +125,17 @@ export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]
    return items;
   }catch(e){
    if(!(e instanceof Error&&e.message.startsWith("Alpaca news HTTP ")))await finishNewsLedger(ledgerId,"failed",0,null,{error:e instanceof Error?e.message:"unknown"});
-   const cached=await cachedNews("alpaca",clean,limit);
+   const cached=await cachedNews("alpaca",clean,count);
    if(cached.length)return cached;
    throw e;
   }
-  })();
-  try{return await alpacaNewsInFlight;}finally{alpacaNewsInFlight=null;}
+  });
 }
 
 // Neon-backed atomic request reservation shared across serverless instances.
 // This limits this endpoint; other Massive consumers must join the same budget
 // before account-wide rate limits can be guaranteed.
-let massiveNewsInFlight:Promise<NewsSignal[]>|null=null;
+const massiveNewsInFlight=new Map<string,Promise<NewsSignal[]>>();
 function massiveRetryDelay(value:string|null):number{
   if(!value)return 300_000;
   const seconds=Number(value);
@@ -141,14 +151,14 @@ async function deferProviderSlot(provider:string,delayMs:number):Promise<void>{
     where provider=${provider} and endpoint='news'`;
 }
 export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[]>{
+  const count=newsLimit(limit,20),clean=cleanSymbols(symbols).sort();
   const key=process.env.MASSIVE_API_KEY;
   if(!key)return [];
-  if(massiveNewsInFlight)return massiveNewsInFlight;
-  massiveNewsInFlight=(async()=>{
+  return sharedNewsRequest(massiveNewsInFlight,JSON.stringify([clean,count]),async()=>{
     // Fail closed if the shared budget cannot be checked; Alpaca remains available.
-    const ledgerId=await startNewsLedger("massive","news",cleanSymbols(symbols),Math.min(20,limit));
+    const ledgerId=await startNewsLedger("massive","news",clean,count);
     if(!(await claimProviderSlot("massive",60))){
-      const cached=await cachedNews("massive",symbols,limit);
+      const cached=await cachedNews("massive",clean,count);
       await finishNewsLedger(ledgerId,"skipped",cached.length,null,{reason:"shared_rate_budget_exhausted",cacheHit:true});
       if(cached.length)return cached;
       throw new Error("Massive news unavailable: shared rate budget exhausted");
@@ -156,11 +166,11 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
     const url=new URL("https://api.massive.com/v2/reference/news");
     url.searchParams.set("order","desc");
     url.searchParams.set("sort","published_utc");
-    url.searchParams.set("limit",String(Math.min(20,limit)));
+    url.searchParams.set("limit",String(count));
     const res=await fetch(url,{headers:{"Authorization":`Bearer ${key}`},cache:"no-store",signal:AbortSignal.timeout(12000)});
     if(res.status===429){
       await deferProviderSlot("massive",massiveRetryDelay(res.headers.get("retry-after")));
-      const cached=await cachedNews("massive",symbols,limit);
+      const cached=await cachedNews("massive",clean,count);
       await finishNewsLedger(ledgerId,"rate_limited",cached.length,429,{retryAfter:res.headers.get("retry-after"),cacheHit:cached.length>0});
       if(cached.length)return cached;
       throw new Error("Massive news HTTP 429; shared cooldown activated");
@@ -176,8 +186,7 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
       await finishNewsLedger(ledgerId,'failed',0,res.status,{reason:'invalid_news_response_or_cache_failure'});
       throw error;
     }
-  })();
-  try{return await massiveNewsInFlight;}finally{massiveNewsInFlight=null;}
+  });
 }
 
 export async function curatedNews(symbols:string[],limit=40){
