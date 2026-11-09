@@ -108,3 +108,23 @@ test('SQL conflict no-op, partial batch failure and protected metadata have expl
   assert.equal(JSON.parse(v[7] as string).evidenceIntake.policyVersion,EVIDENCE_INTAKE_POLICY_VERSION);return[];
  },[{...e,metadata:{...e.metadata,evidenceIntake:{policyVersion:'forged'}}}],clock());
 });
+
+test('release clocks and known timezones cannot hide alternative earnings dates',()=>{
+ for(const prefix of [', ', ', at ', ' at '])for(const clockText of ['4 pm','4:30 p.m.'])for(const zone of ['', ' ET',' EST',' EDT',' CT',' CST',' CDT',' MT',' MST',' MDT',' PT',' PST',' PDT',' UTC',' GMT',' (ET)',' (PDT)',' Eastern Time',' Pacific Standard Time',' Eastern Daylight Time']){
+  const release=`Earnings on March 5, 2030${prefix}${clockText}${zone}`;
+  assert.equal(parseEarningsDate(release+'.',clock().toISOString())?.scheduledDate,'2030-03-05',release);
+  for(const alternative of [' or March 6, 2030.',', March 6, 2030.',' and March 6, 2030.'])assert.equal(parseEarningsDate(release+alternative,clock().toISOString()),null,release+alternative);
+ }
+});
+test('malformed at-prefixed clocks cannot mask ambiguous schedules',()=>{
+ for(const prefix of [', ', ', at ', ' at '])for(const time of ['4:99 pm','0 pm','13 pm','4 pmXYZ'])assert.equal(parseEarningsDate(`Earnings on March 5, 2030${prefix}${time} or March 6, 2030.`,clock().toISOString()),null,prefix+time);
+ // Timezone tokens must not consume a prefix of unrelated prose.
+ assert.equal(parseEarningsDate('Earnings on March 5, 2030 at 4 pm ESTimates remain stable.',clock().toISOString())?.scheduledDate,'2030-03-05');
+});
+test('alternative dates following release clocks never reach persistence',async()=>{
+ for(const tail of [', 4 pm ET or March 6, 2030.',' at 4 pm (ET) or March 6, 2030.',' at 4 pm Eastern Time or March 6, 2030.',' at 4 pm or March 6, 2030.',', at 4:30 p.m. PDT, March 6, 2030.',' at 4:99 pm or March 6, 2030.',', at 4:99 pm or March 6, 2030.',', at 13 pm or March 6, 2030.',', 13 pm or March 6, 2030.']){
+  const {candidates}=await collect(reader([article('Earnings on March 5, 2030'+tail)]),clock);
+  assert.equal(candidates.length,0,tail);
+  assert.equal((await persistEvidenceWithSql(async()=>assert.fail('Ambiguous schedule reached INSERT'),candidates,clock())).saved,0);
+ }
+});

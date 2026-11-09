@@ -52,7 +52,7 @@ export function parseEarningsDate(text:string,publishedAt:string){
  ];
  // A single earnings cue can introduce a date list. Do not pick one alternative.
  const alternateDate=/^\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or)\s+)(?:on\s+)?(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+)?\d{1,2}(?:st|nd|rd|th)?\b/i;
- const releaseTime=/^\s*,\s*(?:at\s+)?(?:[1-9]|1[0-2])(?::[0-5][0-9])?\s*(?:a\.?m\.?|p\.?m\.?)(?![A-Za-z0-9])/i;
+ const releaseTime=/^(?:\s*,\s*(?:at\s+)?|\s+at\s+)(?:[1-9]|1[0-2])(?::[0-5][0-9])?\s*(?:a\.?m\.?|p\.?m\.?)(?![A-Za-z0-9])(?:\s+(?:\((?:[ECMP](?:S|D)?T|UTC|GMT)\)|(?:Eastern|Central|Mountain|Pacific)(?:\s+(?:Standard|Daylight))?\s+Time|[ECMP](?:S|D)?T|UTC|GMT)(?![A-Za-z0-9]))?/i;
  const publication=evidenceTimestamp(publishedAt);if(publication===null)return null;
  const pub=new Date(Number(publication/BigInt(1000000)));
  const dates=new Map<string,{scheduledDate:string;daysToEarnings:number}>();
@@ -60,9 +60,9 @@ export function parseEarningsDate(text:string,publishedAt:string){
   const tail=text.slice((m.index??0)+m[0].length);
   // A decimal day is a malformed token, not a sentence-ending period followed by a new clause.
   if(/^\.\d/.test(tail))return null;
-  // Only an explicit clock may follow the comma without becoming an alternative date.
+  // Skip only an explicit release clock and known timezone before checking a date list.
   const clock=tail.match(releaseTime);
-  if(!clock&&/^\s*,?\s*\d/.test(tail))return null;
+  if(!clock&&/^(?:\s*,?\s*(?:at\s+)?|\s+at\s+)\d/i.test(tail))return null;
   if(alternateDate.test(clock?tail.slice(clock[0].length):tail))return null;
   const month=MONTHS[m[1].toLowerCase().replace('.','')];if(month===undefined)return null;
   const day=Number(m[2]);let year=m[3]?Number(m[3]):pub.getUTCFullYear();
