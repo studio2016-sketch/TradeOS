@@ -5,7 +5,7 @@ import {evidenceTimestamp} from './evidence-time';
 import type {NewsSignal} from '../market/types';
 import type {NewsReactionContext} from '../market/newsReaction';
 export const WATCHLIST_NEWS_EVIDENCE_VERSION='tradeos.watchlist-news-evidence.v2';
-type NewsDependencies={news:(symbols:string[],limit:number)=>Promise<{news:NewsSignal[];errors:string[]}>;reaction:(symbol:string)=>Promise<NewsReactionContext|null>;clock:()=>Date};
+type NewsDependencies={news:(symbols:string[],limit:number)=>Promise<{news:NewsSignal[];errors:string[]}>;reaction:(symbol:string,newsSnapshot?:NewsSignal[])=>Promise<NewsReactionContext|null>;clock:()=>Date};
 const latestTimestamp=(items:NewsSignal[])=>items.reduce((a,b)=>evidenceTimestamp(a.timestamp)!>=evidenceTimestamp(b.timestamp)!?a:b).timestamp;
 
 const POS=/\b(beat|beats|raise[sd]?|upgrade[sd]?|record|strong|growth|win[ns]?|approval|approved|partnership|expand[sd]?|surge[sd]?|bullish|outperform|positive|accelerat(?:e|es|ed|ing))\b/i;
@@ -111,13 +111,15 @@ export async function observedNewsFactorsWithDependencies(symbols:string[],deps:
   candidates.push({factor:"policy_announcement",value:policy.length,source:"CuratedNews:"+sources.join(","),subject:"US_POLICY",observedAt,availableAt:retrievedAt,domain:"news",metadata:{method:"count_of_explicit_government_or_central_bank_policy_action_headlines",windowHours:24,articleIds:policy.map(n=>n.id),unit:"article_count",note:"Secondary-source observation of explicit policy actions; primary-source verification remains a certification gate."}});
  }
 
- for(const symbol of clean.filter(s=>!["QQQ","IWM"].includes(s)).slice(0,3)){
-   let reaction:NewsReactionContext|null;
-   try{reaction=await deps.reaction(symbol);}catch{continue;}
-   const receipt=evidenceTimestamp(stamp())!;
+ // Independent symbols share one completion boundary; do not serialize up to nine history calls.
+ const reactions=await Promise.all(clean.filter(s=>!["QQQ","IWM"].includes(s)).slice(0,3).map(async symbol=>{
+  try{return{symbol,reaction:await deps.reaction(symbol,recentMarket)};}catch{return{symbol,reaction:null};}
+ }));
+ const receipt=evidenceTimestamp(stamp())!;
+ for(const {symbol,reaction} of reactions){
    const articleTime=evidenceTimestamp(reaction?.timestamp),measurementTime=evidenceTimestamp(reaction?.measuredThrough);
    if(reaction?.matched&&reaction.symbol===symbol&&reaction.timestamp&&reaction.measuredThrough&&articleTime!==null&&measurementTime!==null&&articleTime>=start&&articleTime<=cutoff&&measurementTime>=articleTime&&measurementTime<=receipt&&measurementTime-articleTime<=BigInt(7200000000000)&&reaction.returnPct!=null&&Number.isFinite(reaction.returnPct)){
-    const reactionMetadata={articleTimestamp:reaction.timestamp,measuredThrough:reaction.measuredThrough,measurementTimestampKind:"last_return_input_bar_timestamp_not_original_news_publication",headline:reaction.headline,classification:reaction.classification,reactionScore:reaction.reactionScore,unit:"percent_return",method:"news timestamp to latest eligible bar within 120 minutes"};
+    const reactionMetadata={articleTimestamp:reaction.timestamp,measuredThrough:reaction.measuredThrough,measurementTimestampKind:reaction.reactionEvidence?'nominal_completed_bar_end':'last_return_input_bar_timestamp_not_original_news_publication',methodVersion:reaction.methodVersion??null,reactionEvidence:reaction.reactionEvidence??null,headline:reaction.headline,classification:reaction.classification,reactionScore:reaction.reactionScore,unit:"percent_return",method:"bounded descriptive news price reaction; no causal or source-time certification"};
     candidates.push(
      {factor:"news_price_reaction",value:reaction.returnPct,source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.measuredThrough,availableAt:retrievedAt,domain:"news",metadata:reactionMetadata},
      {factor:"event_materiality",value:Math.abs(reaction.returnPct),source:"CuratedNews + Alpaca 5Min bars",subject:symbol,observedAt:reaction.measuredThrough,availableAt:retrievedAt,domain:"news",metadata:{...reactionMetadata,unit:"absolute_percent_return",method:"absolute measured post-news price reaction; descriptive materiality only"}}

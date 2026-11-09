@@ -91,3 +91,10 @@ test('ISO timestamp normalization changes spelling without changing exact instan
  }
  assert.equal(evidenceTimestampIso('2030-02-30T00:00:00Z'),null);
 });
+test('independent reaction lookups start together before extraction availability is stamped',{timeout:1000},async()=>{
+ let started=0,release!:()=>void;
+ const ready=new Promise<void>(resolve=>{release=resolve;});
+ const batch=[article({symbols:['AAA']})];
+ const result=await collect(['AAA','BBB','CCC'],{news:async()=>({news:batch,errors:[]}),reaction:async(_symbol,snapshot)=>{assert.deepEqual(snapshot,batch);if(++started===3)release();await ready;return null;},clock:()=>new Date('2030-02-01T12:00:01Z')},start);
+ assert.equal(started,3);assert.equal(result.retrievedAt,'2030-02-01T12:00:01.000Z');
+});
