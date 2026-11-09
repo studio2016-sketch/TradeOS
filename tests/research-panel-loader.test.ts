@@ -99,7 +99,7 @@ test("failed rechecks retain visibly stale data and time; recovery replaces only
   let round = 1;
   const loader = setup(async url => {
     if (round === 2 && url === RESEARCH_PANELS.certification.url) return response({}, 503);
-    return response({ round, modelPromotionAllowed: true });
+    return response({ round, status: "INDEPENDENTLY_VALIDATED", certified: true, modelPromotionAllowed: true, checks: [{ id: "fixture", pass: true, detail: "Fixture only" }] });
   }, { now: () => round * 1000 });
   await loader.refresh();
   const firstCertification = loader.panels.certification.data;
@@ -276,3 +276,52 @@ test("valid nonempty rendered rows pass the structural guard without changing th
   assert.equal(loader.panels.certification.data?.modelPromotionAllowed, false);
   assert.equal(loader.panels.ledger.data?.recent[0].scientificallyEligible, false);
 });
+
+test("contradictory certification refreshes preserve stale evidence without current permissions", async () => {
+  const invalid = [
+    { status: "BLOCKED", modelPromotionAllowed: true },
+    { liveExecutionAllowed: true },
+    { status: "INDEPENDENTLY_VALIDATED", certified: true, modelPromotionAllowed: true, checks: [] },
+    { status: "INDEPENDENTLY_VALIDATED", certified: true, modelPromotionAllowed: true, checks: [{ id: "evidence", pass: false, detail: "Failed" }] },
+    { status: "INDEPENDENTLY_VALIDATED", modelPromotionAllowed: false },
+    { status: "BLOCKED", certified: true },
+    { status: "UNKNOWN" },
+  ];
+  for (const malformed of invalid) {
+    let round = 1;
+    const loader = setup(async url => response(round === 2 && url === RESEARCH_PANELS.certification.url ? malformed : {}), { now: () => round });
+    await loader.refresh();
+    const previous = loader.panels.certification.data;
+    round = 2;
+    await loader.refresh();
+    assert.ok(loader.panels.certification.error, JSON.stringify(malformed));
+    assert.equal(loader.panels.certification.data, previous);
+    assert.equal(loader.panels.certification.lastSuccessAt, 1);
+    assert.match(researchPanelStatus(loader.panels.certification), /STALE/);
+    assert.equal(hasCurrentResearchResponse(loader.panels.certification), false);
+    assert.equal(loader.panels.models.error, null);
+    round = 3;
+    await loader.refresh();
+    assert.equal(loader.panels.certification.error, null);
+    assert.equal(loader.panels.certification.lastSuccessAt, 3);
+  }
+});
+
+test("malformed counts stay local and cannot replace previous research measurements", async () => {
+  for (const value of ["banana", true, -1, 1.5, 1e100]) {
+    let malformed = false;
+    const loader = setup(async url => response(malformed && url === RESEARCH_PANELS.models.url
+      ? { validations: [{ modelAndHorizon: "fixture", sampleCount: value }] }
+      : malformed && url === RESEARCH_PANELS.ledger.url ? { summary: { passes: value } } : {}));
+    await loader.refresh();
+    const previous = loader.panels.models.data;
+    malformed = true;
+    await loader.refresh();
+    assert.ok(loader.panels.models.error);
+    assert.ok(loader.panels.ledger.error);
+    assert.equal(loader.panels.models.data, previous);
+    assert.equal(loader.panels.certification.error, null);
+    assert.equal(loader.panels.factors.error, null);
+  }
+});
+
