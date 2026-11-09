@@ -1,5 +1,6 @@
 import type {NewsSignal} from "./types";
 import {evidenceTimestampIso} from '../research/evidence-time';
+import {decodeProviderNews} from './provider-news-validation';
 
 
 async function startNewsLedger(provider:string,endpoint:string,symbols:string[],limit:number){
@@ -107,20 +108,9 @@ export async function alpacaNews(symbols:string[],limit=30):Promise<NewsSignal[]
    }
    if(!res.ok){await finishNewsLedger(ledgerId,"failed",0,res.status);throw new Error(`Alpaca news HTTP ${res.status}`);}
    const data=await res.json() as any;
-   const items=(data.news??[]).map((n:any)=>({
-    id:`alpaca:${n.id}`,
-    timestamp:String(n.updated_at??n.created_at??new Date().toISOString()),
-    headline:String(n.headline??""),
-    symbols:Array.isArray(n.symbols)?n.symbols:[],
-    source:"Alpaca News",
-    sourceQuality:.86,
-    novelty:1,
-    marketImpact:.5,
-    priceConfirmed:false,
-    summary:String(n.summary??"")
-   }));
+   const decoded=decodeProviderNews('alpaca',data,new Date().toISOString()),items=decoded.items;
    await cacheNews("alpaca",items);
-   await finishNewsLedger(ledgerId,"finished",items.length,res.status);
+   await finishNewsLedger(ledgerId,"finished",decoded.received,res.status,{accepted:items.length,rejected:decoded.rejected,timestampPolicyVersion:decoded.policyVersion});
    return items;
   }catch(e){
    if(!(e instanceof Error&&e.message.startsWith("Alpaca news HTTP ")))await finishNewsLedger(ledgerId,"failed",0,null,{error:e instanceof Error?e.message:"unknown"});
@@ -176,19 +166,16 @@ export async function massiveNews(symbols:string[],limit=30):Promise<NewsSignal[
       throw new Error("Massive news HTTP 429; shared cooldown activated");
     }
     if(!res.ok){await finishNewsLedger(ledgerId,"failed",0,res.status);throw new Error(`Massive news HTTP ${res.status}`);}
-    const data=await res.json() as any;
-    const items=(data.results??[]).map((n:any)=>({
-      id:`massive:${n.id??n.article_url??n.published_utc}`,
-      timestamp:String(n.published_utc??new Date().toISOString()),
-      headline:String(n.title??""),
-      symbols:Array.isArray(n.tickers)?n.tickers:[],
-      source:`Massive / ${n.publisher?.name??"News"}`,
-      sourceQuality:.78,novelty:1,marketImpact:.5,priceConfirmed:false,
-      summary:String(n.description??"")
-    } satisfies NewsSignal));
-    await cacheNews("massive",items);
-    await finishNewsLedger(ledgerId,"finished",items.length,res.status);
-    return items;
+    try{
+      const data=await res.json() as unknown;
+      const decoded=decodeProviderNews('massive',data,new Date().toISOString()),items=decoded.items;
+      await cacheNews("massive",items);
+      await finishNewsLedger(ledgerId,"finished",decoded.received,res.status,{accepted:items.length,rejected:decoded.rejected,timestampPolicyVersion:decoded.policyVersion});
+      return items;
+    }catch(error){
+      await finishNewsLedger(ledgerId,'failed',0,res.status,{reason:'invalid_news_response_or_cache_failure'});
+      throw error;
+    }
   })();
   try{return await massiveNewsInFlight;}finally{massiveNewsInFlight=null;}
 }
