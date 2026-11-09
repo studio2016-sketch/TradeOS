@@ -1,0 +1,23 @@
+# Completed-interval news reaction validation
+
+The previous descriptive reaction calculation chose the earliest nearby pre-news bar, could treat two bars on the same side of the news as a reaction, and used a final bar's start label as its measurement time. It called the shared history reader in sanitizing mode, allowing malformed rows to disappear before the reaction calculation saw them. Requests also omitted the already computed upper time bound.
+
+## Method
+
+New results identify `tradeos.news-reaction.completed-5min.v2`. Alpaca labels bars with the start of their intervals; a five-minute close therefore uses the nominal end five minutes later. See [Alpaca's market-data FAQ](https://docs.alpaca.markets/us/docs/market-data-faq). A nominal completed interval is not proof that the provider has finalized all late corrections.
+
+- Freeze an explicit request as-of clock. Only single-issuer articles for the requested symbol within the preceding 24 hours are eligible. Order by exact article time with deterministic ID ties. At most three articles can request history.
+- Request explicit start/end bounds, feed and five-minute timeframe. The reaction caller opts into strict row and response handling. Missing/malformed bar arrays, advertised pagination, error-bearing responses and contradictory symbol/feed/timeframe fields are unavailable. Other history consumers retain their existing defaults.
+- Validate the full returned bar array before selecting endpoints: strict calendar/timezone timestamps, five-minute alignment, finite OHLCV, positive price geometry, nonnegative volume and unique instants. Reject future-starting bars and capped arrays. Sort without mutating caller inputs.
+- The baseline is the latest fully pre-news interval starting no more than ten minutes before the article. The endpoint is the latest fully post-news interval ending by both the frozen as-of and article time plus 120 minutes. A straddling bar is neither a wholly pre-news nor a wholly post-news observation. A forming bar cannot supply an endpoint.
+- Require both sides. Missing data, invalid inputs and nonfinite return arithmetic remain unavailable, never zero-filled or clamped into a valid score. For compatibility the returned percentage is rounded to three decimals; the raw return, input prices, start/end times, article ID, configured feed, as-of and method version remain in metadata. `measuredThrough` now means the selected nominal interval end.
+
+The watchlist uses its already retrieved, validated news snapshot for reaction lookup instead of fetching a different per-symbol news set. Up to three independent symbols start together and share the final extraction-availability boundary. This avoids serializing their history requests and avoids the existing per-provider in-flight news promise selecting a different symbol's article set. Shared snapshot coverage is bounded and is not claimed to contain every relevant article.
+
+## Verification and limits
+
+The pure-engine tests cover bracket selection, forming/straddling bars, exact completion boundaries, offsets/input permutations, malformed/duplicate data, missing brackets, overflow and the 120-minute bound. Orchestration tests verify bounded strict requests, issuer/window filtering, the three-article budget, backwards clocks and actual persistence metadata. A mocked HTTP test executes the real history reader/reaction wrapper and confirms that chart sanitization cannot hide bad rows or incomplete/mismatched envelopes. A concurrency test confirms that independent symbols share their news snapshot and finish before availability is stamped. No live provider or production database calls occur in these tests.
+
+The final local suite passed 485 tests, TypeScript and the production build. A temporary compatibility run with pending PR #81 at `c26f94c` passed 505 tests and TypeScript; that inactive resolver code remains excluded. A corrupt local generated Turbopack cache was cleared before the successful build. Final-head remote CI must be evaluated separately.
+
+This is a changed descriptive estimator, not an activated outcome protocol. Historical observations are neither recalculated nor relabeled. Endpoint metadata permits arithmetic reproduction but is not a complete archived candidate set or independent source attestation. Provider omission, completeness, late revisions, exact source receipt/vintage, configured-feed entitlement and causal interpretation remain unverified. Quote-midpoint outcome rules, v4 activation, immutable prediction binding, promotion/certification gates and paper-only execution restrictions are unchanged. The database constraint remains unapplied.

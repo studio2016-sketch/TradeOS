@@ -1,5 +1,6 @@
 import {db} from "../db";
 import type {PersistableEvidence} from "./persist-evidence";
+import {evidenceTimestamp} from './evidence-time';
 
 type CachedArticle={article_id:string;published_at:string;headline:string;summary:string;symbols:string[];source_name:string};
 
@@ -15,35 +16,70 @@ const CUSTOMER_NEG=/\b(?:loss|lost|loses|losing)\s+(?:of\s+)?(?:a\s+)?(?:major\s
 const CUSTOMER_POS=/\b(?:wins?|lands?|adds?|secure(?:s|d)?|signs?)\b.{0,45}\b(?:new\s+|major\s+|key\s+)?(?:customer|client)\b|\b(?:customer|client)\b.{0,35}\b(?:award(?:s|ed)?|expands?|renews?)\b/i;
 
 export function isUnambiguousIssuerArticle(symbols:string[]){return symbols.length===1;}
+export const REPORTED_NEWS_PARSER_VERSION='tradeos.reported-news-events.v3';
 function money(raw:string,suffix:string|undefined){
- const n=Number(raw.replace(/,/g,""));if(!Number.isFinite(n))return null;
- const m=!suffix?1:suffix.toUpperCase()==="K"?1e3:suffix.toUpperCase()==="M"?1e6:suffix.toUpperCase()==="B"?1e9:suffix.toUpperCase()==="T"?1e12:1;
- return n*m;
+ // Commas must separate three-digit groups; never turn 1,43 into 143.
+ if(!/^[+-]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?$/.test(raw))return null;
+ const n=Number(raw.replace(/,/g,''));
+ const multiplier=!suffix?1:({K:1e3,M:1e6,B:1e9,T:1e12} as Record<string,number>)[suffix.toUpperCase()];
+ const value=n*multiplier;
+ return Number.isFinite(value)?value:null;
 }
 export function parseReportedSurprises(text:string){
- const eps=text.match(/\bEPS\s+\$?(-?[0-9][0-9,.]*)\s+(?:beats?|miss(?:es|ed)?)\s+\$?(-?[0-9][0-9,.]*)\s+(?:estimate|consensus)/i);
- const rev=text.match(/\b(?:sales|revenue)\s+\$?(-?[0-9][0-9,.]*)([KMBT])?\s+(?:beats?|miss(?:es|ed)?)\s+\$?(-?[0-9][0-9,.]*)([KMBT])?\s+(?:estimate|consensus)/i);
- const epsActual=eps?money(eps[1],undefined):null,epsEstimate=eps?money(eps[2],undefined):null;
- const revActual=rev?money(rev[1],rev[2]):null,revEstimate=rev?money(rev[3],rev[4]):null;
- return {
-  eps:epsActual!==null&&epsEstimate!==null&&epsEstimate!==0?{actual:epsActual,estimate:epsEstimate,surprise:(epsActual-epsEstimate)/Math.abs(epsEstimate)}:null,
-  revenue:revActual!==null&&revEstimate!==null&&revEstimate!==0?{actual:revActual,estimate:revEstimate,surprise:(revActual-revEstimate)/Math.abs(revEstimate)}:null
+ const eps=/\bEPS\s+\$?([+-]?[0-9][0-9,.]*)\s+(beats?|miss(?:es|ed)?)\s+\$?([+-]?[0-9][0-9,.]*)\s+(?:estimate|consensus)\b/gi;
+ const revenue=/\b(?:sales|revenue)\s+\$?([+-]?[0-9][0-9,.]*)([KMBT])?\s+(beats?|miss(?:es|ed)?)\s+\$?([+-]?[0-9][0-9,.]*)([KMBT])?\s+(?:estimate|consensus)\b/gi;
+ const extract=(pattern:RegExp,isRevenue:boolean)=>{
+  let chosen:{actual:number;estimate:number;surprise:number}|null=null;
+  for(const match of text.matchAll(pattern)){
+   const actual=money(match[1],isRevenue?match[2]:undefined);
+   const estimate=money(match[isRevenue?4:3],isRevenue?match[5]:undefined);
+   const action=match[isRevenue?3:2].toLowerCase();
+   if(actual===null||estimate===null||estimate===0)return null;
+   const surprise=(actual-estimate)/Math.abs(estimate);
+   if(!Number.isFinite(surprise)||(action.startsWith('beat')?actual<=estimate:actual>=estimate))return null;
+   if(chosen&&(chosen.actual!==actual||chosen.estimate!==estimate))return null;
+   chosen={actual,estimate,surprise};
+  }
+  return chosen;
  };
+ return {eps:extract(eps,false),revenue:extract(revenue,true)};
 }
 const MONTHS:Record<string,number>={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
 export function parseEarningsDate(text:string,publishedAt:string){
  const patterns=[
-  /(?:earnings|results)[^.!?]{0,45}\b(?:on|due|report(?:ed|ing)?|release(?:d|ing)?)?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:,\s*(\d{4}))?/i,
-  /\breport(?:s|ing)?\s+(?:Q\d\s+)?earnings\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:,\s*(\d{4}))?/i
+  /(?:earnings|results)[^.!?]{0,45}?\b(?:on|due|report(?:ed|ing)?|release(?:d|ing)?)?\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:[ ,]+(\d{4})(?![A-Za-z0-9]))?(?=\s*(?:[.!?;:]|,|$|[A-Za-z]))/i,
+  /\breport(?:s|ing)?\s+(?:Q\d\s+)?earnings\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:[ ,]+(\d{4})(?![A-Za-z0-9]))?(?=\s*(?:[.!?;:]|,|$|[A-Za-z]))/i
  ];
- const m=patterns.map(p=>text.match(p)).find(Boolean);if(!m)return null;
- const pub=new Date(publishedAt);if(!Number.isFinite(pub.getTime()))return null;
- const month=MONTHS[m[1].toLowerCase().replace(".","")];if(month===undefined)return null;
- let year=m[3]?Number(m[3]):pub.getUTCFullYear();
- let date=new Date(Date.UTC(year,month,Number(m[2]),12));
- if(!m[3]&&date.getTime()<pub.getTime()-2*86400000)date=new Date(Date.UTC(year+1,month,Number(m[2]),12));
- const days=(date.getTime()-pub.getTime())/86400000;
- return days>=-1&&days<=180?{scheduledDate:date.toISOString().slice(0,10),daysToEarnings:days}:null;
+ // A single earnings cue can introduce a date list. Do not pick one alternative.
+ const alternateDate=/^\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or)\s+)(?:on\s+)?(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+)?\d{1,2}(?:st|nd|rd|th)?\b/i;
+ const releaseTime=/^(?:\s*,\s*(?:at\s+)?|\s+at\s+)(?:[1-9]|1[0-2])(?::[0-5][0-9])?\s*(?:a\.?m\.?|p\.?m\.?)(?![A-Za-z0-9])(?:\s+(?:\((?:[ECMP](?:S|D)?T|UTC|GMT)\)|(?:Eastern|Central|Mountain|Pacific)(?:\s+(?:Standard|Daylight))?\s+Time|[ECMP](?:S|D)?T|UTC|GMT)(?![A-Za-z0-9]))?/i;
+ const publication=evidenceTimestamp(publishedAt);if(publication===null)return null;
+ const pub=new Date(Number(publication/BigInt(1000000)));
+ const dates=new Map<string,{scheduledDate:string;daysToEarnings:number}>();
+ for(const pattern of patterns)for(const m of text.matchAll(new RegExp(pattern.source,'gi'))){
+  const tail=text.slice((m.index??0)+m[0].length);
+  // A decimal day is a malformed token, not a sentence-ending period followed by a new clause.
+  if(/^\.\d/.test(tail))return null;
+  // Skip only an explicit release clock and known timezone before checking a date list.
+  const clock=tail.match(releaseTime);
+  if(!clock&&/^(?:\s*,?\s*(?:at\s+)?|\s+at\s+)\d/i.test(tail))return null;
+  if(alternateDate.test(clock?tail.slice(clock[0].length):tail))return null;
+  const month=MONTHS[m[1].toLowerCase().replace('.','')];if(month===undefined)return null;
+  const day=Number(m[2]);let year=m[3]?Number(m[3]):pub.getUTCFullYear();
+  const calendar=(y:number)=>{
+   const date=new Date(Date.UTC(y,month,day,12));
+   return date.getUTCFullYear()===y&&date.getUTCMonth()===month&&date.getUTCDate()===day?date:null;
+  };
+  let date=calendar(year);
+  // A missing year can refer to the next calendar year, but never normalize an invalid day.
+  if(!m[3]&&(!date||date.getTime()<pub.getTime()-2*86400000))date=calendar(++year);
+  if(!date)return null;
+  const days=(date.getTime()-pub.getTime())/86400000;
+  if(days< -1||days>180)return null;
+  const scheduledDate=date.toISOString().slice(0,10);
+  dates.set(scheduledDate,{scheduledDate,daysToEarnings:days});
+ }
+ return dates.size===1?[...dates.values()][0]:null;
 }
 export function customerEventDirection(text:string){
  if(CUSTOMER_NEG.test(text))return -1;
@@ -57,12 +93,22 @@ export function guidanceDirection(text:string){
  return 0;
 }
 
-export async function observedMarketwideEventEvidence(now=new Date()){
- const sql=db(),availableAt=now.toISOString();
- const rows=await sql`select article_id,published_at,headline,summary,symbols,source_name
+export async function observedMarketwideEventEvidence(){
+ return observedMarketwideEventEvidenceWithSql(db());
+}
+
+/** Same collector as production, with deterministic SQL and completion clock for tests. */
+export async function observedMarketwideEventEvidenceWithSql(sql:any,clock:()=>Date=()=>new Date()){
+ const rows=await sql`select article_id,published_at::text as published_at,headline,summary,symbols,source_name
    from tradeos_news_articles where published_at>=now()-interval '7 days' order by published_at desc limit 1000`;
- const articles:CachedArticle[]=rows.map(r=>({article_id:String(r.article_id),published_at:new Date(r.published_at as string).toISOString(),headline:String(r.headline),summary:String(r.summary??""),symbols:Array.isArray(r.symbols)?r.symbols as string[]:[],source_name:String(r.source_name)}));
- const candidates:PersistableEvidence[]=[];
+ const receivedAt=clock().toISOString(),receipt=evidenceTimestamp(receivedAt)!;
+ const articles:CachedArticle[]=[],rejectedArticles:{articleId:string;reason:string}[]=[];
+ for(const r of rows){
+  if(evidenceTimestamp(r.published_at)===null){rejectedArticles.push({articleId:String(r.article_id),reason:'invalid_publication_timestamp'});continue;}
+  if(evidenceTimestamp(r.published_at)!>receipt){rejectedArticles.push({articleId:String(r.article_id),reason:'publication_after_retrieval'});continue;}
+  articles.push({article_id:String(r.article_id),published_at:r.published_at as string,headline:String(r.headline),summary:String(r.summary??''),symbols:Array.isArray(r.symbols)?r.symbols as string[]:[],source_name:String(r.source_name)});
+ }
+ const candidates:Omit<PersistableEvidence,'availableAt'>[]=[];
  const symbolTotals=new Map<string,number>(),symbolTariffs=new Map<string,CachedArticle[]>();
  for(const a of articles)for(const symbol of a.symbols){
   symbolTotals.set(symbol,(symbolTotals.get(symbol)??0)+1);
@@ -70,8 +116,8 @@ export async function observedMarketwideEventEvidence(now=new Date()){
  }
  for(const [symbol,items] of symbolTariffs){
   const total=symbolTotals.get(symbol)??0;if(!total||!items.length)continue;
-  const latest=items.map(x=>x.published_at).sort().at(-1)!;
-  candidates.push({factor:"tariff_exposure",value:items.length/total,source:"Persisted Alpaca/Massive news cache",subject:symbol,observedAt:latest,availableAt,domain:"news",metadata:{method:"share_of_symbol_news_explicitly_referencing_tariffs_or_trade_restrictions",windowDays:7,matchedArticles:items.length,totalArticles:total,articleIds:items.map(x=>x.article_id),unit:"fraction"}});
+  const latest=items.reduce((a,b)=>evidenceTimestamp(a.published_at)!>=evidenceTimestamp(b.published_at)!?a:b).published_at;
+  candidates.push({factor:"tariff_exposure",value:items.length/total,source:"Persisted Alpaca/Massive news cache",subject:symbol,observedAt:latest,domain:"news",metadata:{method:"share_of_symbol_news_explicitly_referencing_tariffs_or_trade_restrictions",windowDays:7,matchedArticles:items.length,totalArticles:total,articleIds:items.map(x=>x.article_id),unit:"fraction"}});
  }
  for(const a of articles){
   if(!a.symbols.length)continue;
@@ -82,19 +128,23 @@ export async function observedMarketwideEventEvidence(now=new Date()){
   if(!isUnambiguousIssuerArticle(a.symbols))continue;
   for(const symbol of a.symbols){
    const base={articleId:a.article_id,headline:a.headline,sourceName:a.source_name,symbolCount:1};
-   if(surprises.eps)candidates.push({factor:"eps_surprise",value:surprises.eps.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,...surprises.eps,unit:"fraction_vs_reported_estimate"}});
-   if(surprises.revenue)candidates.push({factor:"revenue_surprise",value:surprises.revenue.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,...surprises.revenue,unit:"fraction_vs_reported_estimate"}});
+   if(surprises.eps)candidates.push({factor:"eps_surprise",value:surprises.eps.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,parserVersion:REPORTED_NEWS_PARSER_VERSION,...surprises.eps,unit:"fraction_vs_reported_estimate"}});
+   if(surprises.revenue)candidates.push({factor:"revenue_surprise",value:surprises.revenue.surprise,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,parserVersion:REPORTED_NEWS_PARSER_VERSION,...surprises.revenue,unit:"fraction_vs_reported_estimate"}});
    const earnings=parseEarningsDate(text,a.published_at);
-   if(earnings)candidates.push({factor:"earnings_date",value:earnings.daysToEarnings,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,scheduledDate:earnings.scheduledDate,unit:"calendar_days_from_publication"}});
+   if(earnings)candidates.push({factor:"earnings_date",value:earnings.daysToEarnings,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,parserVersion:REPORTED_NEWS_PARSER_VERSION,scheduledDate:earnings.scheduledDate,unit:"calendar_days_from_publication"}});
    const gd=guidanceDirection(text);
-   if(gd!==null)candidates.push({factor:"guidance_change",value:gd,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"direction_-1_0_1",method:"explicit_guidance_outlook_or_forecast_change"}});
-   if(REGULATOR.test(text)&&REG_ACTION.test(text))candidates.push({factor:"regulatory_change",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_named_regulator_action_headline_or_summary"}});
-   if(BUYBACK.test(text)&&BUYBACK_ACTION.test(text))candidates.push({factor:"buyback_announcement",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"event",method:"explicit_buyback_or_repurchase_announcement"}});
+   if(gd!==null)candidates.push({factor:"guidance_change",value:gd,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,unit:"direction_-1_0_1",method:"explicit_guidance_outlook_or_forecast_change"}});
+   if(REGULATOR.test(text)&&REG_ACTION.test(text))candidates.push({factor:"regulatory_change",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,unit:"event",method:"explicit_named_regulator_action_headline_or_summary"}});
+   if(BUYBACK.test(text)&&BUYBACK_ACTION.test(text))candidates.push({factor:"buyback_announcement",value:1,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,unit:"event",method:"explicit_buyback_or_repurchase_announcement"}});
    const customerDirection=customerEventDirection(text);
-   if(customerDirection!==null)candidates.push({factor:"customer_event",value:customerDirection,source:a.source_name,subject:symbol,observedAt:a.published_at,availableAt,domain:"news",metadata:{...base,unit:"direction_-1_1",method:"explicit_customer_or_client_win_loss_event",note:"Requires explicit customer/client relationship language in a single-symbol article."}});
+   if(customerDirection!==null)candidates.push({factor:"customer_event",value:customerDirection,source:a.source_name,subject:symbol,observedAt:a.published_at,domain:"news",metadata:{...base,unit:"direction_-1_1",method:"explicit_customer_or_client_win_loss_event",note:"Requires explicit customer/client relationship language in a single-symbol article."}});
   }
  }
- const unique=new Map<string,PersistableEvidence>();
+ const unique=new Map<string,Omit<PersistableEvidence,'availableAt'>>();
  for(const item of candidates){const article=String(item.metadata?.articleId??"");unique.set([item.factor,item.subject,article].join("|"),item);}
- return {retrievedAt:availableAt,articles:articles.length,candidates:[...unique.values()]};
+ // Availability starts only once retrieval and parsing have completed.
+ const availableAt=clock().toISOString();
+ if(evidenceTimestamp(availableAt)!<receipt)throw Error('Collector completion clock precedes retrieval');
+ const completedCandidates:PersistableEvidence[]=[...unique.values()].map(item=>({...item,availableAt,metadata:{...item.metadata,availabilityKind:'extraction_completed'}}));
+ return {retrievedAt:availableAt,articles:articles.length,rejectedArticles,candidates:completedCandidates};
 }
