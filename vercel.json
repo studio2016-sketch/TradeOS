@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "fix/news-evidence-integration": false,
-      "fix/earnings-clock-alternatives": false
+      "fix/earnings-clock-alternatives": false,
+      "fix/storage-timezone-offsets": false
     }
   },
   "crons": [

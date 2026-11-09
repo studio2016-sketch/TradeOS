@@ -16,6 +16,11 @@ export async function persistEvidenceWithSql(sql:any,candidates:PersistableEvide
  for(const item of candidates){
   const gate=validateEvidence(item,now);
   if(!gate.accepted){rejected.push({factor:typeof item?.factor==="string"?item.factor:"unknown",reasons:gate.reasons});continue;}
+  // General evidence parsing permits offsets that PostgreSQL cannot store.
+  // Reject them individually before INSERT instead of aborting the remaining batch.
+  if([item.observedAt,item.availableAt].some(t=>Number(t.match(/[+-](\d{2})(?::?\d{2})?$/)?.[1]??0)>=16)){
+   rejected.push({factor:item.factor,reasons:['unsupported_storage_timezone_offset']});continue;
+  }
   // PostgreSQL timestamptz cannot preserve nonzero submicrosecond digits.
   // Do not let rounding turn a later receipt into an eligible decision-time tie.
   if([item.observedAt,item.availableAt].some(t=>evidenceTimestamp(t)! % BigInt(1000) !== BigInt(0))){
