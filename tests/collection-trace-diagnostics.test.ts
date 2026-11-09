@@ -22,6 +22,18 @@ test('completed polls and another feed do not fill a missing frozen-source endpo
  assert.equal(f.otherFeedOnTimeQuoteReceipts,1);assert.deepEqual(f.otherStoredFeeds,['Alpaca:delayed_sip']);
  assert.equal(f.maxStartGapIncludingWindowEdgesNanoseconds,'600000000000');
  assert.equal(r.activated,false);assert.equal(r.scientificallyCertified,false);
+ assert.equal(f.candidateAccounting?.status,'UNAVAILABLE');assert.equal(f.candidateAccounting?.counts,null);
+});
+test('wrapper reads candidate accounting without promoting discarded quotes to outcomes',()=>{
+ const x=fixture(),base=x.collection.runs[0];
+ const c={symbol:'TEST',sourceId:'Alpaca:iex',priceAt:'2026-11-06T21:00:00Z',quoteAt:'2026-11-06T21:31:00Z',selectionEligible:true,selected:false};
+ const run={...base,marketSelection:[c],marketPersistence:{schema:'tradeos.market-persistence.v1',selected:[]}};
+ const r=collectionTraceDiagnostics({...x,collection:{...x.collection,runs:[run]}});
+ assert.equal(r.status,'DIAGNOSTIC_ONLY');if(r.status!=='DIAGNOSTIC_ONLY')return;
+ assert.equal(r.policy,'tradeos.collection-trace.v2');assert.equal(r.timingSummary.noCapturedEndpoint,1);
+ assert.equal(r.forecasts[0].candidateAccounting?.counts?.windowQuoteCandidatesNotSelected,1);assert.equal(r.activated,false);
+ run.marketPersistence.schema='corrupt';const rejected=collectionTraceDiagnostics({...x,collection:{...x.collection,runs:[run]}});
+ assert.equal(rejected.status,'UNVERIFIED');
 });
 test('missing polls are distinct from stale receipts and errors are reported without asserting cause',()=>{
  const x=fixture();x.collection.runs=[];x.timing.observations[0].sourceId='Alpaca:iex';x.timing.observations[0].quoteAt='2026-11-06T21:00:00Z';

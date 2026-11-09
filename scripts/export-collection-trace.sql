@@ -18,7 +18,8 @@ f AS (
  ORDER BY o.received_at,o.id LIMIT 10001
 ), r AS (
  SELECT a.id::text,a.created_at::text AS "recordedAt",a.payload->>'startedAt' AS "startedAt",a.payload->>'finishedAt' AS "finishedAt",
- a.payload->'watchlist' AS symbols,a.payload->'marketAttempts' AS attempts,a.payload->'errors' AS errors,a.payload->'marketSaved' AS saved
+ a.payload->'watchlist' AS symbols,a.payload->'marketAttempts' AS attempts,a.payload->'errors' AS errors,a.payload->'marketSaved' AS saved,
+ a.payload->'marketSelection' AS "marketSelection",a.payload->'marketPersistence' AS "marketPersistence"
  FROM audit_events a,p,bounds b
  WHERE a.event_type='ingestion_run' AND a.created_at<=p.as_of
  AND (a.payload->>'startedAt')::timestamptz BETWEEN b.run_from AND b.run_through
