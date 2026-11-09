@@ -122,12 +122,14 @@ export async function bestSnapshots(symbols:string[]){
       : Promise.resolve({name:"Alpaca",data:[] as MarketSnapshot[],error:"unconfigured"})
   ]);
   const picks=new Map<string,MarketSnapshot>();
+  const candidates:{attempt:string;snapshot:MarketSnapshot;selectionEligible:boolean}[]=[];
   const apply=(name:string,data:MarketSnapshot[],error="")=>{
     attempts.push({source:name,...(error?{error}:{}),count:data.length});
     for(const snapshot of data){
-      if(!clean.includes(snapshot.symbol)||!Number.isFinite(snapshot.price)||snapshot.price<=0)continue;
       const stamp=Date.parse(snapshot.timestamp);
-      if(!Number.isFinite(stamp)||stamp<=0||stamp>Date.now()+60_000)continue;
+      const selectionEligible=clean.includes(snapshot.symbol)&&Number.isFinite(snapshot.price)&&snapshot.price>0&&Number.isFinite(stamp)&&stamp>0&&stamp<=Date.now()+60_000;
+      candidates.push({attempt:name,snapshot,selectionEligible});
+      if(!selectionEligible)continue;
       const prev=picks.get(snapshot.symbol),prevTime=prev?Date.parse(prev.timestamp):0;
       if(!prev||stamp>prevTime)picks.set(snapshot.symbol,snapshot);
     }
@@ -143,7 +145,8 @@ export async function bestSnapshots(symbols:string[]){
   }
   const snapshots=clean.map(s=>picks.get(s)).filter((s):s is MarketSnapshot=>Boolean(s));
   const providers=[...new Set(snapshots.map(s=>s.source.split(":")[0]))];
-  return {provider:providers.length===0?null:providers.length===1?providers[0]:"Mixed",snapshots,attempts};
+  const selectionDiagnostics=candidates.map(({attempt,snapshot,selectionEligible})=>({attempt,symbol:snapshot.symbol,sourceId:snapshot.source,priceAt:snapshot.timestamp,quoteAt:snapshot.quoteTimestamp??null,selectionEligible,selected:picks.get(snapshot.symbol)===snapshot}));
+  return {provider:providers.length===0?null:providers.length===1?providers[0]:"Mixed",snapshots,attempts,selectionDiagnostics};
 }
 
 export async function alpacaMarketClock(){

@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "investigate/endpoint-collection": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/ingest",
