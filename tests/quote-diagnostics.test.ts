@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {quoteDiagnostics} from '../lib/market/quoteDiagnostics.ts';
+const now=Date.parse('2026-11-06T15:00:00Z');
+test('price and quote clocks remain separate',()=>{const d=quoteDiagnostics({timestamp:'2026-11-06T14:59:59Z',quoteTimestamp:'2026-11-06T14:45:00Z',bid:99,ask:101,source:'Alpaca:iex'},now);assert.equal(d.priceAgeMs,1000);assert.equal(d.quoteAgeMs,900000);assert.equal(d.spreadBps,200);assert.equal(d.source,'Alpaca:iex');});
+test('missing or future quote never inherits price age',()=>{for(const quoteTimestamp of [undefined,'invalid','2026-11-06T15:00:01Z'])assert.equal(quoteDiagnostics({timestamp:'2026-11-06T14:59:59Z',quoteTimestamp},now).quoteAgeMs,null);});
+test('malformed or crossed sides have no spread',()=>{for(const [bid,ask] of [[0,1],[2,1],[NaN,2],[1,Infinity]])assert.equal(quoteDiagnostics({bid,ask},now).spreadBps,null);assert.equal(quoteDiagnostics({bid:2,ask:2},now).spreadBps,0);});
+test('no assumed feed or fabricated receipt timing',()=>{assert.deepEqual(quoteDiagnostics(undefined,now),{priceAgeMs:null,quoteAgeMs:null,spreadBps:null,source:null,coverage:null});assert.equal(quoteDiagnostics({timestamp:'2026-11-06T14:59:59Z'},NaN).priceAgeMs,null);});
+test('wide quotes remain descriptive, no invented pass threshold',()=>{const d=quoteDiagnostics({bid:90,ask:110,source:'Alpaca:iex',coverage:'single exchange'},now);assert.equal(d.spreadBps,2000);assert.equal(d.coverage,'single exchange');assert.equal('executionEligible' in d,false);});
+test('large finite sides retain finite midpoint calculation',()=>{assert.equal(quoteDiagnostics({bid:1e308,ask:1e308},now).spreadBps,0);});
