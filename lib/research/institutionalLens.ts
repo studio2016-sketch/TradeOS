@@ -15,15 +15,17 @@ export interface InstitutionalLens{
   generatedAt:string;
   observed:number;
   total:number;
-  score:number;
+  score:number|null;
   playbooks:InstitutionalPlaybook[];
   safety:{executionEligible:false;ordersAllowed:false;mode:"shadow-institutional-research"};
 }
 
 function clamp(n:number){return Math.max(0,Math.min(100,n))}
 function avg(xs:Array<number|null|undefined>){
-  const v=xs.filter((x):x is number=>Number.isFinite(Number(x))).map(Number);
-  return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;
+  const v=xs.filter((x):x is number=>typeof x==="number"&&Number.isFinite(x));
+  if(!v.length)return null;
+  const mean=v.reduce((sum,value)=>sum+value/v.length,0);
+  return Number.isFinite(mean)?mean:null;
 }
 function state(score:number|null){
   return score==null?"unavailable" as const:score>=80?"strong" as const:score>=55?"watch" as const:"weak" as const;
@@ -126,9 +128,10 @@ export function evaluateInstitutionalLens(symbol:string,ctx:any):InstitutionalLe
     ],["Strong trends can remain extended longer than mean-reversion models expect."])
   ];
   const observed=playbooks.filter(x=>x.score!=null);
+  const score=avg(observed.map(x=>x.score));
   return{
     symbol,generatedAt:new Date().toISOString(),observed:observed.length,total:playbooks.length,
-    score:+(avg(observed.map(x=>x.score))??0).toFixed(1),
+    score:score===null?null:+score.toFixed(1),
     playbooks,
     safety:{executionEligible:false,ordersAllowed:false,mode:"shadow-institutional-research"}
   };

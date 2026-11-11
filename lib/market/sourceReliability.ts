@@ -81,8 +81,10 @@ export function evaluateSourceReliability(args:{
       }else coverage=95;
       redundancy=(Boolean(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET)&&Boolean(process.env.MASSIVE_API_KEY))?90:35;
     }else if(off){
-      runtimeVerified=off.status==="live"||off.status==="degraded";
+      // A recent timestamp cannot rehabilitate an unsuccessful source result.
+      runtimeVerified=off.status==="live";
       if(off.status==="unconfigured"){freshness="unconfigured";freshnessScore=0}
+      else if(!runtimeVerified){freshness="unknown";freshnessScore=45}
       else{
         const expected=s.id==="cftc"?9*86400000:s.id==="finra"?20*86400000:s.id==="treasury"?2*86400000:s.id==="bls-data"?40*86400000:s.id==="cboe"?2*86400000:7*86400000;
         const ts=latestDateFromData(s.id,off.data);
