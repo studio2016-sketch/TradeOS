@@ -1,3 +1,5 @@
+import {officialNumber as n,officialCount,sumOfficialCounts,finiteOfficialCalculation} from "./official-numeric-validation";
+
 export interface OfficialSourceResult{
   id:string;
   label:string;
@@ -10,7 +12,6 @@ export interface OfficialSourceResult{
 }
 
 function now(){return new Date().toISOString()}
-function n(v:any){const x=Number(String(v??"").replace(/,/g,""));return Number.isFinite(x)?x:null}
 function latest<T>(xs:T[],key:(x:T)=>string){return [...xs].sort((a,b)=>key(b).localeCompare(key(a)))[0]}
 
 export async function cftcPositioning():Promise<OfficialSourceResult>{
@@ -24,18 +25,18 @@ export async function cftcPositioning():Promise<OfficialSourceResult>{
     const wanted=/S&P|NASDAQ|RUSSELL|DOW|SOFR|EURODOLLAR|U\.S\. TREASURY|TREASURY|VIX|DOLLAR|EURO|YEN|BITCOIN/i;
     const filtered=rows.filter(r=>wanted.test(String(r.market_and_exchange_names||r.contract_market_name||r.commodity_name||""))).slice(0,80);
     const data=filtered.map(r=>{
-      const oi=n(r.open_interest_all);
-      const dealerLong=n(r.dealer_positions_long_all),dealerShort=n(r.dealer_positions_short_all);
-      const assetLong=n(r.asset_mgr_positions_long),assetShort=n(r.asset_mgr_positions_short);
-      const levLong=n(r.lev_money_positions_long_all),levShort=n(r.lev_money_positions_short_all);
-      const pct=(a:number|null,b:number|null)=>oi&&a!=null&&b!=null?+(((a-b)/oi)*100).toFixed(2):null;
+      const oi=officialCount(r.open_interest_all);
+      const dealerLong=officialCount(r.dealer_positions_long_all),dealerShort=officialCount(r.dealer_positions_short_all);
+      const assetLong=officialCount(r.asset_mgr_positions_long),assetShort=officialCount(r.asset_mgr_positions_short);
+      const levLong=officialCount(r.lev_money_positions_long_all),levShort=officialCount(r.lev_money_positions_short_all);
+      const pct=(a:number|null,b:number|null)=>oi!=null&&oi>0&&a!=null&&b!=null?finiteOfficialCalculation(+(((a-b)/oi)*100).toFixed(2)):null;
       return{
         date:String(r.report_date_as_yyyy_mm_dd||""),market:String(r.market_and_exchange_names||r.contract_market_name||""),
         commodity:String(r.commodity_name||""),openInterest:oi,
         dealerNetPct:pct(dealerLong,dealerShort),assetManagerNetPct:pct(assetLong,assetShort),leveragedMoneyNetPct:pct(levLong,levShort)
       };
     });
-    return{id:"cftc",label:"CFTC Traders in Financial Futures",status:data.length?"live":"degraded",authoritative:true,generatedAt:now(),data,note:"Official weekly futures/options positioning; dealer, asset-manager and leveraged-money classifications."};
+    return{id:"cftc",label:"CFTC Traders in Financial Futures",status:data.some(row=>row.openInterest!==null)?"live":"degraded",authoritative:true,generatedAt:now(),data,note:"Official weekly futures/options positioning; dealer, asset-manager and leveraged-money classifications."};
   }catch(error){return{id:"cftc",label:"CFTC Traders in Financial Futures",status:"degraded",authoritative:true,generatedAt:now(),data:[],note:"Official CFTC positioning feed.",error:error instanceof Error?error.message:String(error)}}
 }
 
@@ -74,17 +75,17 @@ export async function finraEquityContext(symbols:string[]):Promise<OfficialSourc
     for(const r of latestReg){const s=String(r.securitiesInformationProcessorSymbolIdentifier||"");regBy.set(s,[...(regBy.get(s)||[]),r]);}
     const out=clean.map(symbol=>{
       const rr=regBy.get(symbol)||[];
-      const short=rr.reduce((a,r)=>a+(n(r.shortParQuantity)||0),0);
-      const exempt=rr.reduce((a,r)=>a+(n(r.shortExemptParQuantity)||0),0);
-      const total=rr.reduce((a,r)=>a+(n(r.totalParQuantity)||0),0);
+      const short=sumOfficialCounts(rr,"shortParQuantity");
+      const exempt=sumOfficialCounts(rr,"shortExemptParQuantity");
+      const total=sumOfficialCounts(rr,"totalParQuantity");
       const si=latest(shortInterest.filter(r=>String(r.symbolCode||"")===symbol),r=>String(r.settlementDate||""));
       return{
         symbol,regShoDate:String(rr[0]?.tradeReportDate||""),shortVolume:short,shortExemptVolume:exempt,totalVolume:total,
-        shortVolumeRatio:total?+((short/total)*100).toFixed(2):null,
-        shortInterest:si?{settlementDate:si.settlementDate,current:n(si.currentShortPositionQuantity),previous:n(si.previousShortPositionQuantity),daysToCover:n(si.daysToCoverQuantity),changePercent:n(si.changePercent)}:null
+        shortVolumeRatio:short!==null&&total!==null&&total>0&&short<=total?finiteOfficialCalculation(+((short/total)*100).toFixed(2)):null,
+        shortInterest:si?{settlementDate:si.settlementDate,current:officialCount(si.currentShortPositionQuantity),previous:officialCount(si.previousShortPositionQuantity),daysToCover:n(si.daysToCoverQuantity),changePercent:n(si.changePercent)}:null
       };
     });
-    const usable=latestReg.length||shortInterest.length;
+    const usable=out.some(row=>row.shortVolumeRatio!==null||row.totalVolume!==null||row.shortInterest?.current!=null);
     return{id:"finra",label:"FINRA Reg SHO + Consolidated Short Interest",status:usable?"live":"degraded",authoritative:true,generatedAt:now(),data:out,note:"Official off-exchange short-sale volume and consolidated short-interest context."};
   }catch(error){return{id:"finra",label:"FINRA Reg SHO + Consolidated Short Interest",status:"degraded",authoritative:true,generatedAt:now(),data:[],note:"Official FINRA equity transparency feed.",error:error instanceof Error?error.message:String(error)}}
 }
@@ -103,7 +104,7 @@ export async function treasuryYieldCurve():Promise<OfficialSourceResult>{
       return{date:dm?.[1]??"",m1:parse(body,"BC_1MONTH"),m3:parse(body,"BC_3MONTH"),m6:parse(body,"BC_6MONTH"),y1:parse(body,"BC_1YEAR"),y2:parse(body,"BC_2YEAR"),y5:parse(body,"BC_5YEAR"),y10:parse(body,"BC_10YEAR"),y20:parse(body,"BC_20YEAR"),y30:parse(body,"BC_30YEAR")};
     }).filter(x=>x.date);
     const row=rows[rows.length-1]??null;
-    const curve10y2y=row?.y10!=null&&row?.y2!=null?+(row.y10-row.y2).toFixed(3):null;
+    const curve10y2y=row?.y10!=null&&row?.y2!=null?finiteOfficialCalculation(+(row.y10-row.y2).toFixed(3)):null;
     return{id:"treasury",label:"U.S. Treasury Yield Curve",status:row?"live":"degraded",authoritative:true,generatedAt:now(),data:row?{...row,curve10y2y}:null,note:"Official Treasury daily par-yield curve; independent confirmation of rate regime."};
   }catch(error){return{id:"treasury",label:"U.S. Treasury Yield Curve",status:"degraded",authoritative:true,generatedAt:now(),data:null,note:"Official Treasury yield-curve feed.",error:error instanceof Error?error.message:String(error)}}
 }
@@ -126,14 +127,15 @@ export async function blsSeriesContext():Promise<OfficialSourceResult>{
     });
     if(!res.ok)throw new Error(`HTTP ${res.status}`);
     const json=await res.json() as any;
+    if(json?.status!=="REQUEST_SUCCEEDED")throw new Error("BLS did not report a successful data request");
     const series=(json?.Results?.series??[]).map((s:any)=>{
       const label=BLS_SERIES.find(x=>x[0]===s.seriesID)?.[1]??s.seriesID;
       const rows=(s.data??[]).filter((x:any)=>/^M(0[1-9]|1[0-2])$/.test(String(x.period))).slice(0,14);
       const latest=rows[0],prev=rows[1];
       const lv=n(latest?.value),pv=n(prev?.value);
-      return{id:s.seriesID,label,period:latest?`${latest.year}-${latest.period}`:null,value:lv,previous:pv,change:lv!=null&&pv!=null?+(lv-pv).toFixed(4):null};
+      return{id:s.seriesID,label,period:latest?`${latest.year}-${latest.period}`:null,value:lv,previous:pv,change:lv!=null&&pv!=null?finiteOfficialCalculation(+(lv-pv).toFixed(4)):null};
     });
-    return{id:"bls-data",label:"BLS Economic Series",status:series.length?"live":"degraded",authoritative:true,generatedAt:now(),data:series,note:"Official CPI, PPI, payroll, unemployment, wage and job-openings series via the keyless BLS public API."};
+    return{id:"bls-data",label:"BLS Economic Series",status:series.some((row:{value:number|null;period:string|null})=>row.value!==null&&row.period!==null)?"live":"degraded",authoritative:true,generatedAt:now(),data:series,note:"Official CPI, PPI, payroll, unemployment, wage and job-openings series via the keyless BLS public API."};
   }catch(error){return{id:"bls-data",label:"BLS Economic Series",status:"degraded",authoritative:true,generatedAt:now(),data:[],note:"Official BLS series feed.",error:error instanceof Error?error.message:String(error)}}
 }
 

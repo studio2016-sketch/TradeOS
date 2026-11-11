@@ -1,3 +1,5 @@
+import {parseFredHistoryCsv} from "./fred-history-validation";
+
 export interface FredPoint{series:string;date:string;value:number|null;previous?:number|null;changePct?:number|null}
 export interface FredSeriesResult{series:string;point:FredPoint|null;status:"ok"|"empty"|"error";error?:string}
 export interface FredHistoryResult{series:string;points:Array<{date:string;value:number}>;status:"ok"|"empty"|"error";error?:string}
@@ -5,23 +7,16 @@ export interface FredHistoryResult{series:string;points:Array<{date:string;value
 function isoDate(d:Date){return d.toISOString().slice(0,10)}
 
 export async function fredSeriesHistory(series:string,lookbackDays=60):Promise<FredHistoryResult>{
-  const start=new Date(Date.now()-lookbackDays*24*60*60*1000);
-  const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}&cosd=${isoDate(start)}`;
   try{
+    if(typeof series!=="string"||!series.trim()||/[\r\n,"]/.test(series))throw new Error("Invalid FRED series identifier");
+    if(!Number.isFinite(lookbackDays)||lookbackDays<=0)throw new Error("Invalid FRED history lookback");
+    const requestedAt=new Date();
+    const start=new Date(requestedAt.getTime()-lookbackDays*24*60*60*1000);
+    const url=`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(series)}&cosd=${isoDate(start)}`;
     const res=await fetch(url,{cache:"no-store",signal:AbortSignal.timeout(10000)});
     if(!res.ok)return{series,points:[],status:"error",error:`HTTP ${res.status}`};
     const text=await res.text();
-    const lines=text.trim().split(/\r?\n/);
-    const valid:{date:string,value:number}[]=[];
-    for(let i=1;i<lines.length;i++){
-      const cols=lines[i].split(",");
-      if(cols.length<2)continue;
-      const raw=cols[1]?.trim();
-      if(!raw||raw===".")continue;
-      const value=Number(raw);
-      if(Number.isFinite(value))valid.push({date:cols[0],value});
-    }
-    return valid.length?{series,points:valid,status:"ok"}:{series,points:[],status:"empty"};
+    return {series,...parseFredHistoryCsv(text,series,requestedAt)};
   }catch(error){
     return{series,points:[],status:"error",error:error instanceof Error?error.message:String(error)};
   }
@@ -31,7 +26,8 @@ async function latestSeries(series:string):Promise<FredSeriesResult>{
   const result=await fredSeriesHistory(series);
   if(result.status!=="ok")return{series,point:null,status:result.status,error:result.error};
   const latest=result.points[result.points.length-1],previous=result.points.length>1?result.points[result.points.length-2]:null;
-  const changePct=previous&&previous.value!==0?(latest.value-previous.value)/Math.abs(previous.value)*100:null;
+  const computedChange=previous&&previous.value!==0?(latest.value-previous.value)/Math.abs(previous.value)*100:null;
+  const changePct=computedChange!==null&&Number.isFinite(computedChange)?computedChange:null;
   return{series,point:{series,date:latest.date,value:latest.value,previous:previous?.value??null,changePct},status:"ok"};
 }
 
