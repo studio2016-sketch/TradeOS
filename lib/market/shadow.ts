@@ -1,3 +1,4 @@
+import {evidenceTimestamp} from "../research/evidence-time";
 import {createHash} from "node:crypto";
 import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,PREDICTION_OUTCOME_RULE_VERSION} from "../research/prediction-outcome-verdict";
 import {TRIAL_ACTIVATION,CHALLENGER_VERSION,challengerProbability} from "../research/frozenChallenger";
@@ -5,6 +6,13 @@ import {db} from "../db";
 import {loadProposedEntry} from "../research/proposed-entry-capture";
 
 type Obs={id:number;event_time:string;received_at:string;source_id:string;payload_hash:string|null;metadata:any;freshness_score:number|null;quality_score:number|null};
+
+// Check the actual INSERT RETURNING boundary, never the later decision-record time.
+// Text casts preserve database fractions; Date is still used for descriptive features.
+function sourcePrecedesForecast(eventAt:unknown,receivedAt:unknown,createdAt:unknown){
+  const event=evidenceTimestamp(eventAt),receipt=evidenceTimestamp(receivedAt),forecast=evidenceTimestamp(createdAt);
+  return event!==null&&receipt!==null&&forecast!==null&&event<=receipt&&receipt<=forecast;
+}
 
 function clamp(n:number,min:number,max:number){return Math.max(min,Math.min(max,n));}
 
@@ -14,7 +22,7 @@ export async function generateShadowForecasts(symbols:string[]){
 
   for(const symbol of symbols.filter(s=>!["VIX"].includes(s))){
     const recent=await sql`
-      select id,event_time,received_at,source_id,payload_hash,metadata,freshness_score,quality_score
+      select id,event_time::text as event_time,received_at::text as received_at,source_id,payload_hash,metadata,freshness_score,quality_score
       from source_observations
       where data_class='market_snapshot'
         and symbol=${symbol}
@@ -28,7 +36,8 @@ export async function generateShadowForecasts(symbols:string[]){
     const rows=recent.map(r=>({
       t:new Date(r.event_time).getTime(),
       observationId:Number(r.id),
-      receivedAt:new Date(r.received_at).toISOString(),
+      eventAt:r.event_time,
+      receivedAt:r.received_at,
       payloadHash:r.payload_hash?String(r.payload_hash):null,
       sourceId:String(r.source_id??"unknown"),
       quoteObservedAt:typeof r.metadata?.quoteTimestamp==="string"?r.metadata.quoteTimestamp:null,
@@ -90,7 +99,7 @@ export async function generateShadowForecasts(symbols:string[]){
          ${JSON.stringify(evidence)}::jsonb,
          ${JSON.stringify(["Shadow research only","Not eligible for execution"])}::jsonb,
          ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),sourceTimestampType:"stored_observation_event_time_not_exchange_certified",sourceDataCutoff:new Date(last.t).toISOString(),outcomeProtocol,proposedQuoteEntry})}::jsonb)
-      returning id,created_at
+      returning id,created_at::text as created_at
     `;
 
     const forecast=(inserted as any[])[0];
@@ -127,13 +136,13 @@ export async function generateShadowForecasts(symbols:string[]){
           ${applied[0].id},${last.observationId},'direct_at_creation',
           ${Math.abs(last.t-Date.parse(new Date(last.t).toISOString()))},${last.payloadHash},false
         ) on conflict(immutable_decision_id) do nothing`;
-        const forecastCreatedAt=new Date(forecast.created_at).toISOString();
-        if(Date.parse(last.receivedAt)<=Date.parse(forecastCreatedAt)&&last.t<=Date.parse(forecastCreatedAt)){
+        const forecastCreatedAt=forecast.created_at;
+        if(sourcePrecedesForecast(last.eventAt,last.receivedAt,forecastCreatedAt)){
           await sql`insert into tradeos_decision_source_verifications(
             immutable_decision_id,source_observation_id,verification_rule,source_event_time,source_received_at,forecast_created_at,source_payload_hash,backfilled
           ) values(
             ${applied[0].id},${last.observationId},'event_and_received_before_forecast',
-            ${new Date(last.t).toISOString()},${last.receivedAt},${forecastCreatedAt},${last.payloadHash},false
+            ${last.eventAt},${last.receivedAt},${forecastCreatedAt},${last.payloadHash},false
           ) on conflict(immutable_decision_id) do nothing`;
         }
       }
@@ -160,7 +169,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${JSON.stringify({samples:rows.length,first:first.p,last:last.p,spread,avgFreshness,avgQuality,
                 observedAt:new Date(last.t).toISOString(),firstObservedAt:new Date(first.t).toISOString(),
                 trialStart:TRIAL_ACTIVATION,sourceTimestampType:"stored_observation_event_time_not_exchange_certified",outcomeProtocol,proposedQuoteEntry})}::jsonb)
-             returning id
+             returning id,created_at::text as created_at
           `;
           const challengerFingerprint=createHash("sha256").update("shadow-trend-v2|2.5 return cap .075|VWAP +.025 -.035|spread -.035|quality -.025|20261018").digest("hex");
           const challengerChecksum=createHash("sha256").update(JSON.stringify({
@@ -177,7 +186,7 @@ export async function generateShadowForecasts(symbols:string[]){
                ${new Date(last.t).toISOString()}::timestamptz,'stored_observation_event_time',${sourceIdentity},
                ${JSON.stringify(frozenFeatures)}::jsonb,${inputFingerprint},${challengerFingerprint},
                ${challengerChecksum},'research_only',${challenger[0].id})
-             on conflict(forecast_id) do nothing returning id,recorded_at
+             on conflict(forecast_id) do nothing returning id
           `;
           if(insertedChallenger.length&&Number.isFinite(last.observationId)){
             await sql`insert into tradeos_decision_source_attestations(
@@ -185,13 +194,13 @@ export async function generateShadowForecasts(symbols:string[]){
             ) values(
               ${insertedChallenger[0].id},${last.observationId},'direct_at_creation',0,${last.payloadHash},false
             ) on conflict(immutable_decision_id) do nothing`;
-            const challengerCreatedAt=new Date(insertedChallenger[0].recorded_at).toISOString();
-            if(Date.parse(last.receivedAt)<=Date.parse(challengerCreatedAt)&&last.t<=Date.parse(challengerCreatedAt)){
+            const challengerCreatedAt=challenger[0].created_at;
+            if(sourcePrecedesForecast(last.eventAt,last.receivedAt,challengerCreatedAt)){
               await sql`insert into tradeos_decision_source_verifications(
                 immutable_decision_id,source_observation_id,verification_rule,source_event_time,source_received_at,forecast_created_at,source_payload_hash,backfilled
               ) values(
                 ${insertedChallenger[0].id},${last.observationId},'event_and_received_before_forecast',
-                ${new Date(last.t).toISOString()},${last.receivedAt},${challengerCreatedAt},${last.payloadHash},false
+                ${last.eventAt},${last.receivedAt},${challengerCreatedAt},${last.payloadHash},false
               ) on conflict(immutable_decision_id) do nothing`;
             }
           }
