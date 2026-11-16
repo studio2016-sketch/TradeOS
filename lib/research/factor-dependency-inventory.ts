@@ -43,6 +43,8 @@ export function factorDependencyInventory():FactorDependency[]{
    "SOURCE_ENTITLEMENT_UNVERIFIED","CALCULATION_INDEPENDENTLY_UNVERIFIED",
    "POINT_IN_TIME_AND_FRESHNESS_UNVERIFIED","EVIDENCE_PERSISTENCE_UNVERIFIED"
   ];
+  // The former study route still exists, but no standing cron schedules it.
+  if(collectorPath==="app/api/cron/acceleration/route.ts")blockers.unshift("COLLECTOR_NOT_SCHEDULED");
   if(!implementationPath)blockers.unshift("NO_IMPLEMENTATION_IDENTIFIED");
   if(rejectedLegacyProxy.has(key))blockers.unshift("LEGACY_SINGLE_SECURITY_PROXY_REJECTED_USE_PORTFOLIO_ENGINE");
   return {key,family,sourceClass,sourceCandidate,implementationPath,collectorPath,
