@@ -2,7 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "fix/data-integration-review": false,
       "fix/forecast-source-chronology": false,
+      "fix/lossless-daily-preparation": false,
+      "fix/ingestion-coverage-nov16": false,
       "fix/news-evidence-integration": false,
       "fix/earnings-clock-alternatives": false,
       "fix/storage-timezone-offsets": false

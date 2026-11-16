@@ -4,6 +4,7 @@ import {db,hasDatabase} from "../../../lib/db";
 import {auditFactorVerification,type FactorEvidenceAudit} from "../../../lib/research/factor-verification";
 import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 
+import {readSlippageCoverage} from "../../../lib/research/slippage-coverage-reader";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"private, no-store"};
 export async function GET(){
@@ -38,6 +39,8 @@ export async function GET(){
    implementationMethods:Array.isArray(row.implementation_methods)?row.implementation_methods.map(String):[]
   }));
   const certificates:SourceTimeCertificate[]=(certificateRows as any[]).map(row=>({provider:String(row.provider),feed:String(row.feed),certification_kind:String(row.certification_kind),valid_from:new Date(row.valid_from).toISOString(),valid_to:row.valid_to?new Date(row.valid_to).toISOString():null,created_at:new Date(row.created_at).toISOString()}));
-  return NextResponse.json(auditFactorVerification(evidence,certificates,new Date().toISOString()),{headers});
+  const asOf=new Date().toISOString();
+  const exactSlippageCoverage=await readSlippageCoverage(sql,asOf);
+  return NextResponse.json({...auditFactorVerification(evidence,certificates,asOf),evidenceStorageScope:"legacy_microseconds; exact slippage is descriptive only and excluded from certification",exactSlippageCoverage},{headers});
  }catch(error){return NextResponse.json({error:"Factor verification audit unavailable",reason:error instanceof Error?error.message:"unknown"},{status:503,headers});}
 }
