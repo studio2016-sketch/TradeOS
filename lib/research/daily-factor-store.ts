@@ -57,13 +57,23 @@ export function dailyFactorStore(sql:any,clock:()=>Date){
      and started_at=${plan.startedAt}::timestamptz and expires_at=${plan.expiresAt}::timestamptz
      and clock_timestamp()>=${result.details.finishedAt}::timestamptz and clock_timestamp()<expires_at
      and not exists(select 1 from tradeos_daily_factor_completions where session=${plan.session}::date)
+   ), proposed as materialized (
+    select * from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as x(factor text,domain text,subject text,value double precision,source text,"observedAt" text,"availableAt" text,metadata jsonb)
+   ), identical_existing as materialized (
+    select e.id from proposed x join tradeos_factor_evidence e
+     on e.factor_key=x.factor and e.domain=x.domain and e.subject=x.subject and e.source_name=x.source
+      and e.observed_at=x."observedAt"::timestamptz and e.available_at=x."availableAt"::timestamptz
+    where e.value is not distinct from x.value and e.source_metadata is not distinct from x.metadata
    ), inserted as (
     insert into tradeos_factor_evidence(factor_key,domain,subject,value,source_name,observed_at,available_at,source_metadata)
     select x.factor,x.domain,x.subject,x.value,x.source,x."observedAt"::timestamptz,x."availableAt"::timestamptz,x.metadata
-    from jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) as x(factor text,domain text,subject text,value double precision,source text,"observedAt" text,"availableAt" text,metadata jsonb)
+    from proposed x
     where exists(select 1 from eligible) on conflict do nothing returning id
    ) insert into tradeos_daily_factor_completions(session,saved,details)
-    select session,(select count(*) from inserted),${JSON.stringify(result.details)}::jsonb from eligible returning saved`;
+    select session,(select count(*) from inserted),${JSON.stringify(result.details)}::jsonb from eligible
+    where tradeos_assert_daily_completion((select count(*)::int from proposed),
+     (select count(*)::int from inserted)+(select count(*)::int from identical_existing),${plan.expiresAt}::timestamptz)
+    returning saved`;
    if(done.length!==1)throw Error('daily_claim_expired_or_already_finished');
    return Number(done[0].saved);
   },

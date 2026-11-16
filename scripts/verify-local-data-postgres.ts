@@ -5,6 +5,7 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {persistExactEvidenceWithSql,readExactEvidenceAtDecisionWithSql} from '../lib/research/exact-evidence-store';
 import {readSlippageCoverage,readSlippageAtDecisionWithSql} from '../lib/research/slippage-coverage-reader';
+import {assertDataStorageReady} from '../lib/research/data-storage-readiness';
 import {dailyFactorStore} from '../lib/research/daily-factor-store';
 import {dailyCollectionPlan,isPinnedSession,pinnedSessionClose,runDailyFactorCollection} from '../lib/research/daily-factor-collection';
 async function main(){
@@ -29,6 +30,8 @@ async function main(){
   assert.equal(JSON.stringify((await owner.query('select * from tradeos_factor_evidence')).rows),before);checks.push('additive migrations preserve legacy sentinel');
   await owner.query(`grant usage on schema public to ${writer},${reader};grant select,insert on all tables in schema public to ${writer};grant usage,select on all sequences in schema public to ${writer};grant select on all tables in schema public to ${reader}`);
   const a=await client(writer),b=await client(writer),r=await client(reader);
+  await assertDataStorageReady(sql(a),'exact');await assertDataStorageReady(sql(a),'daily');
+  await assert.rejects(assertDataStorageReady(sql(r),'exact'),/not_ready/);checks.push('activation interlocks accept writer grants and reject read-only grants');
   const now=new Date(),stamp=now.toISOString().replace(/\.\d{3}Z$/,'.000000001Z'),later=stamp.replace('001Z','002Z');
   const evidence={factor:'slippage_estimate',domain:'stock' as const,subject:'SPY',source:'Alpaca:iex',value:1.25,observedAt:stamp,availableAt:later,metadata:{method:'local_fixture'}};
   const duplicates=await Promise.all([persistExactEvidenceWithSql(sql(a),[evidence],now),persistExactEvidenceWithSql(sql(b),[evidence],now)]);

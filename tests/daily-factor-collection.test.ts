@@ -63,7 +63,7 @@ async function storeFixture(){
  const pg=new PGlite();
  await pg.exec(`create table tradeos_factor_evidence(id serial primary key,factor_key text,domain text,subject text,value double precision,source_name text,observed_at timestamptz,available_at timestamptz,source_metadata jsonb,
  unique(factor_key,domain,subject,source_name,observed_at,available_at));`);
- await pg.exec(readFileSync(new URL('../db/migrations/20261116_daily_factor_claims.sql',import.meta.url),'utf8'));
+ await pg.exec(readFileSync(new URL('../db/migrations/20261116_daily_factor_claims.sql',import.meta.url),'utf8').replaceAll('clock_timestamp()',"'2026-11-16T22:00:00Z'::timestamptz"));
  const sql=async(s:TemplateStringsArray,...v:unknown[])=>{
   const query=s.reduce((q,p,i)=>q+(i?'$'+i:'')+p,'').replaceAll('clock_timestamp()',"'2026-11-16T22:00:00Z'::timestamptz");
   return (await pg.query(query,v)).rows;
@@ -120,5 +120,32 @@ test('expired SQL finalization leaves evidence and completion empty while retain
   assert.equal((await pg.query<any>('select count(*)::int n from tradeos_factor_evidence')).rows[0].n,0);
   assert.equal((await pg.query<any>('select count(*)::int n from tradeos_daily_factor_completions')).rows[0].n,0);
   assert.equal(await dailyFactorStore(sql,()=>now).claim(plan),false);
+ }finally{await pg.close();}
+});
+
+import {persistEvidenceWithSql} from '../lib/research/persist-evidence';
+test('conflicting existing value or provenance aborts every new row and never completes the consumed claim',async()=>{
+ for(const change of [{value:99999},{metadata:{conflicting:true}}]){
+  const {pg,sql}=await storeFixture();try{
+   const store=dailyFactorStore(sql,()=>now);let captured:any;
+   await runDailyFactorCollection({clock:()=>now,claim:store.claim,history:async()=>history,finish:async(_p,r)=>{captured=r;return 0;}});
+   const existing={...captured.evidence[0],...change};
+   await persistEvidenceWithSql(sql,[existing],now);
+   await assert.rejects(store.finish(plan,captured),/conflicting_or_unverified_daily_evidence_identity/);
+   assert.equal((await pg.query<any>('select count(*)::int n from tradeos_factor_evidence')).rows[0].n,1);
+   assert.equal((await pg.query<any>('select count(*)::int n from tradeos_daily_factor_completions')).rows[0].n,0);
+   assert.equal((await pg.query<any>('select count(*)::int n from tradeos_daily_factor_claims')).rows[0].n,1);
+   assert.equal(await dailyFactorStore(sql,()=>now).claim(plan),false);
+  }finally{await pg.close();}
+ }
+});
+test('identical preexisting evidence is an idempotent replay with accurate saved count',async()=>{
+ const {pg,sql}=await storeFixture();try{
+  const store=dailyFactorStore(sql,()=>now);let captured:any;
+  await runDailyFactorCollection({clock:()=>now,claim:store.claim,history:async()=>history,finish:async(_p,r)=>{captured=r;return 0;}});
+  await persistEvidenceWithSql(sql,[captured.evidence[0]],now);
+  assert.equal(await store.finish(plan,captured),71);
+  assert.equal((await pg.query<any>('select count(*)::int n from tradeos_factor_evidence')).rows[0].n,72);
+  assert.equal((await pg.query<any>('select saved from tradeos_daily_factor_completions')).rows[0].saved,71);
  }finally{await pg.close();}
 });

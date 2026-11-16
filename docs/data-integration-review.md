@@ -1,5 +1,7 @@
 # Data integration review on released main #99
 
+Follow-up: independent review subsequently found a conflicting-identity finalization bug not covered by the original nine checks. See [the correction and disabled activation wiring](data-activation-wiring.md) for its real-PostgreSQL reproduction and fix. The earlier checks alone do not establish that invariant.
+
 Base: `df00e071e46d28dad2eaf72a0c158ec2528aae73`. Reconciles #98 (`1a3e317`) and #100 (`9969222`) without changing either source branch. The only cherry-pick conflicts were their Vercel deployment-disable maps; all entries were retained, including #99's. Main's `lib/market/shadow.ts` and its chronology regressions remain byte-identical. This is a fresh integration review by the implementing agent, not a separate third-party reviewer sign-off.
 
 ## Findings and repairs

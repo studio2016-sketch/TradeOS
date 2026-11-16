@@ -2,6 +2,7 @@ import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {forwardPE,estimateRevision,ivRank,portfolioRiskFactors} from "../../../../lib/research/specialized-factor-calculations";
+import {readSlippageCoverage} from "../../../../lib/research/slippage-coverage-reader";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 
@@ -73,7 +74,9 @@ export async function GET(req:Request){
   verifiedImplementation:factors.filter(x=>x.verifiedImplementation).length,
   verifiedPermission:factors.filter(x=>x.verifiedPermission).length,
   fullyVerified:factors.filter(x=>x.verifiedImplementation&&x.verifiedPermission).length};
- return NextResponse.json({generatedAt:new Date().toISOString(),summary,factors,
+ const generatedAt=new Date().toISOString();
+ const exactSlippageCoverage=await readSlippageCoverage(sql,generatedAt);
+ return NextResponse.json({generatedAt,summary,factors,evidenceStorageScope:"legacy verification counts; exact slippage descriptive only",exactSlippageCoverage,
   certificationGranted:false,modelPromotionAllowed:false,liveExecutionAllowed:false,
   warning:"Calculation smoke checks execute deterministic samples only. Freshness is checked against latest available_at and the registered SLA; vendor permission is not re-probed, so permission remains unverified regardless of stored labels. No factor is promoted."},
   {headers:{"Cache-Control":"no-store"}});
