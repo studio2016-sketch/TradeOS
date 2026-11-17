@@ -19,7 +19,8 @@
       "release/private-study-garden": false,
       "fix/audit-failure-diagnostics": false,
       "fix/audit-context-diagnostics": false,
-      "fix/audit-context-relationship": false
+      "fix/audit-context-relationship": false,
+      "fix/audit-same-workflow-context": false
     }
   },
   "crons": [

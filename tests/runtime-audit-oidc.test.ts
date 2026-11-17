@@ -17,6 +17,10 @@ test('valid signed GitHub job admits only its exact fixed scope',async()=>{
  for(const [scope,file,path] of [['sources','extended-production-audit','detailed'],['models','model-runtime-audit','detailed'],['graph','knowledge-graph-production','detailed'],['readiness','broker-clock-readiness','market'],['advancement','market-hours-advance','market']]){
  const token=await signed({workflow_ref:`studio2016-sketch/TradeOS/.github/workflows/${file}.yml@refs/heads/main`});
  assert.equal(await authorizeOidcAudit(req(token,`/api/private-${path}-audit?scope=${scope}`),key,now),200);
+ const exactWorkflow=`studio2016-sketch/TradeOS/.github/workflows/${file}.yml@refs/heads/main`;
+ const paired=await signed({workflow_ref:exactWorkflow,job_workflow_ref:exactWorkflow,job_workflow_sha:base.workflow_sha});
+ assert.equal(await authorizeOidcAudit(req(paired,`/api/private-${path}-audit?scope=${scope}`),key,now),200);
+ assert.equal(await authorizeOidcAudit(req(paired),key,now),403);
  assert.equal(await authorizeOidcAudit(req(token),key,now),403);
  }
 });
@@ -55,7 +59,7 @@ test('JOSE failures are classified without serializing provider error data',asyn
  assert.equal(await authorizeOidcAudit(req(await signed()),failed,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,['jwt_key_fetch']);
 });
 test('context denial distinguishes fixed categories without exposing claim values',async()=>{
- for(const [claim,reason] of [['environment','context_environment'],['job_workflow_ref','context_reusable_ref_other'],['job_workflow_sha','context_reusable_sha'],['head_ref','context_pr_ref'],['base_ref','context_pr_ref']]){
+ for(const [claim,reason] of [['environment','context_environment'],['job_workflow_ref','context_reusable_ref_other'],['job_workflow_sha','context_reusable_ref_other'],['head_ref','context_pr_ref'],['base_ref','context_pr_ref']]){
   const reasons:string[]=[];const token=await signed({[claim]:'PRIVATE-CONTEXT-CANARY'});
   assert.equal(await authorizeOidcAudit(req(token),key,now,r=>reasons.push(r)),403);
   assert.deepEqual(reasons,[reason]);assert.ok(!JSON.stringify(reasons).includes('PRIVATE-CONTEXT-CANARY'));
@@ -66,18 +70,18 @@ test('context denial distinguishes fixed categories without exposing claim value
  assert.equal(await authorizeOidcAudit(req(await signed({head_ref:'',base_ref:''})),key,now),200);
 });
 
-test('reusable context relationship diagnostics report only fixed equality classes and still deny',async()=>{
- const cases=[
-  [{job_workflow_ref:base.workflow_ref,job_workflow_sha:base.workflow_sha},'context_reusable_ref_equal_sha_equal'],
-  [{job_workflow_ref:base.workflow_ref},'context_reusable_ref_equal_sha_absent'],
-  [{job_workflow_ref:base.workflow_ref,workflow_sha:undefined},'context_reusable_ref_equal_sha_absent'],
-  [{job_workflow_ref:base.workflow_ref,workflow_sha:'invalid',job_workflow_sha:'invalid'},'context_reusable_ref_equal_sha_other'],
-  [{job_workflow_ref:base.workflow_ref,job_workflow_sha:'PRIVATE-CANARY'},'context_reusable_ref_equal_sha_other'],
-  [{job_workflow_ref:''},'context_reusable_ref_empty'],
-  [{job_workflow_ref:null},'context_reusable_ref_empty'],
-  [{job_workflow_ref:'PRIVATE-CANARY'},'context_reusable_ref_other'],
- ] as const;
- for(const [claims,expected] of cases){
-  const reasons:string[]=[];assert.equal(await authorizeOidcAudit(req(await signed(claims)),key,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,[expected]);
- }
+test('same direct workflow job claims require an exact complete pair and all original constraints',async()=>{
+ const pair={job_workflow_ref:base.workflow_ref,job_workflow_sha:base.workflow_sha};
+ assert.equal(await authorizeOidcAudit(req(await signed(pair)),key,now),200);
+ const rejected=[
+  {job_workflow_ref:base.workflow_ref}, {job_workflow_sha:base.workflow_sha},
+  {...pair,job_workflow_ref:'other/workflow'}, {...pair,job_workflow_sha:'b'.repeat(40)},
+  {...pair,workflow_sha:undefined}, {...pair,workflow_sha:'invalid',job_workflow_sha:'invalid'},
+  {...pair,job_workflow_ref:null}, {...pair,job_workflow_sha:null},
+  {...pair,sha:'b'.repeat(40)}, {...pair,environment:'production'},
+  {...pair,head_ref:'pr'}, {...pair,base_ref:'pr'}, {...pair,event_name:'pull_request'},
+  {...pair,repository_id:'2'}, {...pair,ref:'refs/heads/feature'},
+ ];
+ for(const claims of rejected)assert.equal(await authorizeOidcAudit(req(await signed(claims)),key,now),403);
+ assert.equal(await authorizeOidcAudit(req(await signed(pair),'/api/private-market-audit?scope=readiness'),key,now),403);
 });
