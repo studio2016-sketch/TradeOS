@@ -13,7 +13,8 @@
       "fix/read-only-data-diagnostic": false,
       "fix/owner-read-only-diagnostic": false,
       "fix/owner-diagnostic-empty-stream": false,
-      "fix/owner-window-nov17": false
+      "fix/owner-window-nov17": false,
+      "fix/owner-window-nov17-second": false
     }
   },
   "crons": [
