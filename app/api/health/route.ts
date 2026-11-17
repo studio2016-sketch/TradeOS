@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {configuredSourceHealth} from "../../../lib/market/providers";
@@ -10,7 +11,7 @@ import {alpacaMarketClock} from "../../../lib/market/live";
 
 export const dynamic="force-dynamic";
 
-export async function GET(){
+async function privateGET(){
   const configured=configuredSourceHealth();
   const [official,fredProbe,macroProbe,secProbe,marketClock]=await Promise.all([
     freeOfficialSnapshot(["NVDA","SPY","QQQ"]).catch(()=>null),
@@ -108,3 +109,5 @@ export async function GET(){
     return NextResponse.json({status:"degraded",database:"error",sources,reliability,error:error instanceof Error?error.message:String(error)},{status:503});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

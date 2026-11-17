@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {latestSecCatalysts} from "../../../lib/market/sec";
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){
+async function privateGET(req:Request){
   const {searchParams}=new URL(req.url);
   const symbols=(searchParams.get("symbols")??"NVDA,AMD,PLTR").split(",");
   try{
@@ -24,3 +25,5 @@ export async function GET(req:Request){
     },{status:502});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {PREDICTION_OUTCOME_PROTOCOL,PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,PREDICTION_OUTCOME_RULE_VERSION} from "../../../lib/research/prediction-outcome-verdict";
@@ -6,7 +7,7 @@ import {discoverHistoricalFactorAssociations} from "../../../lib/research/histor
 import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 export const dynamic="force-dynamic";
 
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Scientific ledger database unavailable"},{status:503});
  try{
   const sql=db();
@@ -44,3 +45,5 @@ export async function GET(){
   return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),rule:{version:PREDICTION_OUTCOME_RULE_VERSION,activation:PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,fingerprint:PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT,protocol:PREDICTION_OUTCOME_PROTOCOL,pass:"direction-adjusted realized return minus recorded quoted round-trip cost >= 0.001",fail:"a mature valid outcome that misses the pass threshold",void:"invalid evidence or a missing same-feed horizon observation after the fixed grace window",unresolved:"evaluation horizon or fixed grace window is still open"},summary,byModel,prospectiveFactorAssociations,recent:entries.slice(0,250),scientificPolicy:"Objective market outcomes are the factual source. Scientific eligibility additionally requires a prediction frozen after protocol activation and before the outcome, the exact protocol fingerprint, complete same-feed start/end provenance, certified source-time semantics, and recorded cost. Factor associations remain hypotheses until prospective depth, chronological stability, family-wide multiplicity control, skill, and execution gates all pass."},{headers:{"Cache-Control":"no-store"}});
  }catch(error){return NextResponse.json({status:"UNAVAILABLE",reason:error instanceof Error?error.message:"Scientific ledger unavailable"},{status:503});}
 }
+
+export const GET=withPrivateRead(privateGET);

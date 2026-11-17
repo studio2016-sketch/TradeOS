@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {bestSnapshots} from "../../../lib/market/live";
 export const dynamic="force-dynamic";
 const ticker=/^[A-Z][A-Z0-9.\-]{0,9}$/;
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const params=new URL(req.url).searchParams;
  const symbols=[...new Set((params.get("symbols")||"SPY,QQQ,NVDA").split(",").map(s=>s.trim().toUpperCase()))].slice(0,8);
  if(!symbols.length||symbols.some(x=>!ticker.test(x)))return NextResponse.json({error:"Use valid symbols (maximum eight)."}, {status:400});
@@ -24,3 +25,5 @@ export async function GET(req:Request){
   return NextResponse.json({generatedAt:asOf,scope:"read_only_data_freshness",checks,providerAttempts:response.attempts||[],policy:"No quote is certified real-time by timestamp alone. Real-time status additionally requires provider feed entitlement, exchange attribution, and verified network delivery; this endpoint does not assert these."},{headers:{"Cache-Control":"no-store"}});
  }catch(error){return NextResponse.json({generatedAt:asOf,checks:[],status:"unavailable",error:error instanceof Error?error.message:"Upstream unavailable"},{status:503,headers:{"Cache-Control":"no-store"}});}
 }
+
+export const GET=withPrivateRead(privateGET);

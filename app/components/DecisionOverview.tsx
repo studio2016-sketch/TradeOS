@@ -1,4 +1,5 @@
 "use client";
+import StudyPath from "./StudyPath";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -144,6 +145,7 @@ export default function DecisionOverview({
           </dl>
         </div>
       </section>
+      <StudyPath onExplore={() => onNavigate("Learn")} />
       <section
         className="overviewMetrics"
         aria-label="Recorded research, not performance"

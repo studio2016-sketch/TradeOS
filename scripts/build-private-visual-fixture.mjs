@@ -1,0 +1,18 @@
+import {build} from 'esbuild';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const out='/tmp/tradeos-private-visual-fixture';
+const pages={'home':'app/private-page','research':'app/research-lab/private-page','operations':'app/operations/private-page','readiness':'app/operations/data-readiness/private-page','graph':'app/knowledge-graph/private-page','live':'app/live-board/private-page','replay':'app/replay-lab/private-page','week':'app/week-one/private-page','agents':'app/agent-network/private-page'};
+const imports=Object.entries(pages).map(([name,file])=>`import ${name} from './${file}';`).join('\n');
+const entry=`import React from 'react';import {createRoot} from 'react-dom/client';import './app/globals.css';${imports}\nconst pages={${Object.keys(pages).join(',')}};const selected=new URL(location.href).searchParams.get('view')||'home';const Page=pages[selected]||pages.home;createRoot(document.getElementById('root')).render(<Page/>);`;
+const result=await build({stdin:{contents:entry,resolveDir:root,loader:'tsx'},bundle:true,platform:'browser',jsx:'automatic',minify:true,outfile:path.join(out,'app.js'),metafile:true,write:false,define:{'process.env.NODE_ENV':'"production"'},plugins:[{name:'fixture-link',setup(b){b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`import React from 'react';export default function Link({children,...props}){return <a {...props}>{children}</a>;}`,loader:'jsx',resolveDir:root}));}}]});
+const serverInputs=Object.keys(result.metafile.inputs).filter(x=>/app\/api\/|lib\/db|lib\/auth\/server|lib\/broker\/|internal-audit-models/.test(x));
+if(serverInputs.length)throw Error('Server dependency found in visual bundle; refusing output');
+await mkdir(out,{recursive:true});
+for(const file of result.outputFiles)await writeFile(file.path,file.contents);
+await writeFile(path.join(out,'mock.js'),await readFile(path.join(root,'tests/fixtures/private-visual-transport.js')));
+await writeFile(path.join(out,'index.html'),`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; worker-src 'none';"><title>TradeOS synthetic visual fixture</title><link rel="stylesheet" href="app.css"></head><body><aside role="status" style="background:#ffd487;color:#241800;padding:12px;font:14px system-ui"><strong>SYNTHETIC VISUAL FIXTURE ONLY</strong><p>No production connection, server APIs, authentication, or trading. Network blocked; auth/navigation flows unverified. Next Link uses a fixture anchor.</p><div id="qa-status"></div></aside><div id="root"></div><script src="mock.js"></script><script src="app.js"></script></body></html>`);
+await writeFile(path.join(out,'manifest.json'),JSON.stringify({syntheticOnly:true,serverInputs:[],views:Object.keys(pages),scenarios:['empty','error','fixture'],sourceRoot:root},null,2));
+console.log('Built nine client-only synthetic views at '+out+'; no browser verification or owner-auth proof.');

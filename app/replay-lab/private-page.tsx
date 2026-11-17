@@ -1,0 +1,16 @@
+"use client";
+import {useState} from "react";
+import SymbolPicker from "../components/SymbolPicker";
+export default function ReplayPage(){
+ const [symbol,setSymbol]=useState("SPY");
+ const [asOf,setAsOf]=useState("2026-10-16T15:00");
+ const [data,setData]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [step,setStep]=useState(20);
+ const points=(data?.points||[]) as {t:string;c:number;v:number}[];
+ const display=points.slice(0,Math.min(points.length,Math.max(1,step+1)));
+ const closes=display.map(x=>x.c);
+ const low=closes.length?Math.min(...closes):0,high=closes.length?Math.max(...closes):1;
+ const poly=display.map((x,i)=>`${15+i*570/Math.max(1,display.length-1)},${170-125*(x.c-low)/(high-low||1)}`).join(" ");
+ const load=async()=>{setBusy(true);setError("");setData(null);try{const t=new Date(asOf).toISOString();const r=await fetch("/api/replay-bars?symbol="+encodeURIComponent(symbol)+"&asOf="+encodeURIComponent(t),{cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Replay source unavailable");setData(j);setStep(Math.min(20,Math.max(0,(j.points?.length||1)-1)))}catch(e){setError(e instanceof Error?e.message:"Unavailable")}finally{setBusy(false)}};
+ return <main style={{margin:"auto",maxWidth:950,minHeight:"100vh",background:"#0c1b29",color:"#e9f5f3",padding:"32px",fontFamily:"system-ui"}}><a href="/" style={{color:"#a4f1df"}}>← Dashboard</a><h1>TradeOS · Historical Replay Laboratory</h1><p>Observe recorded market bars as they would have been available at a selected historical cutoff. This does not yet reconstruct historical news, company filings, macro releases, or execution costs.</p><SymbolPicker value={symbol} onChange={v=>{setSymbol(v);setData(null)}}/><label style={{display:"block",margin:"20px 0"}}>Historical cutoff (your local timezone)<input type="datetime-local" value={asOf} onChange={e=>{setAsOf(e.target.value);setData(null)}} style={{display:"block",padding:12,marginTop:6}}/></label><button type="button" onClick={load} disabled={busy} style={{padding:"12px 18px",background:"#155e55",color:"#fff",border:0,borderRadius:8}}>{busy?"Loading recorded bars…":"Load historical replay"}</button>{error&&<p role="alert">{error}</p>}{data&&<section style={{marginTop:26,padding:20,border:"1px solid #36616e",borderRadius:12}}><h2>{data.symbol} · {data.timeframe} recorded observations</h2><p>Provider: {data.source} · Cutoff: {new Date(data.requestedAsOf).toLocaleString()} · Last recorded: {data.latestRecordedAt?new Date(data.latestRecordedAt).toLocaleString():"Unavailable"}</p>{display.length>1?<><svg viewBox="0 0 600 200" role="img" aria-label="Point-in-time historical closing prices" style={{width:"100%"}}><polyline fill="none" stroke="#60d5c8" strokeWidth="3" points={poly}/></svg><label>Reveal recorded bars (no future candles)<input type="range" min="1" max={points.length-1} value={Math.min(step,points.length-1)} onChange={e=>setStep(Number(e.target.value))} style={{width:"100%"}}/></label><p>Visible observations: {display.length}/{points.length} · Last close: ${display.at(-1)?.c.toFixed(2)} at {display.at(-1)?.t}</p></>:<p>No eligible historical bars returned; no substitute chart generated.</p>}<p style={{fontSize:13,color:"#b0c6cf"}}>{data.limitations?.join(" ")}</p></section>}</main>;
+}

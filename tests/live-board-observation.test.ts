@@ -34,7 +34,7 @@ test("partial market response counts only displayed valid observations",()=>{
  assert.equal(states.filter(s=>s==="unverified").length,6);
 });
 test("board classifications use displayed snapshots without an independent verification fetch",()=>{
- const page=readFileSync(new URL("../app/live-board/page.tsx",import.meta.url),"utf8");
+ const page=readFileSync(new URL("../app/live-board/private-page.tsx",import.meta.url),"utf8");
  assert.ok(!page.includes("/api/data-verification"));
  assert.ok(!page.includes("verification?.checks"));
  assert.ok(page.includes("snapshotObservationState(snapshots.find(s=>s.symbol===symbol),clock)"));

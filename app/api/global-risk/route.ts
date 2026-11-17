@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {bestSnapshots} from "../../../lib/market/live";
 import {globalEventRisk} from "../../../lib/market/globalRisk";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
   const symbols=["SPY","QQQ","IWM","NVDA","AMD","PLTR"];
   try{
     const market=await bestSnapshots(symbols);
@@ -12,3 +13,4 @@ export async function GET(){
     return NextResponse.json({mode:"degraded",level:"BACKGROUND",score:0,events:[],error:error instanceof Error?error.message:String(error)},{status:502});
   }
 }
+export const GET=withPrivateRead(privateGET);

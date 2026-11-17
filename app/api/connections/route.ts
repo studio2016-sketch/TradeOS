@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {configuredSourceHealth} from "../../../lib/market/providers";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
   const brokerReadEnabled=process.env.TRADEOS_ALLOW_ACCOUNT_READ==="true";
   const tradingEnvironment=process.env.ALPACA_TRADING_ENV||null;
   const alpacaConfigured=Boolean(process.env.ALPACA_API_KEY&&process.env.ALPACA_API_SECRET);
@@ -47,3 +48,5 @@ export async function GET(){
     }
   });
 }
+
+export const GET=withPrivateRead(privateGET);

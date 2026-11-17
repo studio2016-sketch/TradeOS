@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {certifiedModelVersions} from "../../../lib/research/certification";
@@ -5,7 +6,7 @@ import {championChallengerEvaluation} from "../../../lib/research/championChalle
 
 export const dynamic="force-dynamic";
 
-export async function GET(){
+async function privateGET(){
   if(!hasDatabase()) return NextResponse.json({status:"database_unconfigured"});
   try{
     const sql=db();
@@ -66,3 +67,5 @@ export async function GET(){
     return NextResponse.json({status:"degraded",error:error instanceof Error?error.message:String(error)},{status:503});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

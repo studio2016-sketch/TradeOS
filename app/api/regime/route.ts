@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {latestRegimeContext} from "../../../lib/market/fred";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
   try{
     const data=await latestRegimeContext();
     const usable=Boolean(data.vix||data.tenYear||data.fedFunds);
@@ -18,3 +19,5 @@ export async function GET(){
     });
   }
 }
+
+export const GET=withPrivateRead(privateGET);
