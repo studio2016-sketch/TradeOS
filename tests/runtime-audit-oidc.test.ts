@@ -55,7 +55,7 @@ test('JOSE failures are classified without serializing provider error data',asyn
  assert.equal(await authorizeOidcAudit(req(await signed()),failed,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,['jwt_key_fetch']);
 });
 test('context denial distinguishes fixed categories without exposing claim values',async()=>{
- for(const [claim,reason] of [['environment','context_environment'],['job_workflow_ref','context_reusable_ref'],['job_workflow_sha','context_reusable_sha'],['head_ref','context_pr_ref'],['base_ref','context_pr_ref']]){
+ for(const [claim,reason] of [['environment','context_environment'],['job_workflow_ref','context_reusable_ref_other'],['job_workflow_sha','context_reusable_sha'],['head_ref','context_pr_ref'],['base_ref','context_pr_ref']]){
   const reasons:string[]=[];const token=await signed({[claim]:'PRIVATE-CONTEXT-CANARY'});
   assert.equal(await authorizeOidcAudit(req(token),key,now,r=>reasons.push(r)),403);
   assert.deepEqual(reasons,[reason]);assert.ok(!JSON.stringify(reasons).includes('PRIVATE-CONTEXT-CANARY'));
@@ -64,4 +64,20 @@ test('context denial distinguishes fixed categories without exposing claim value
   for(const value of ['',null])assert.equal(await authorizeOidcAudit(req(await signed({[claim]:value})),key,now),403);
  }
  assert.equal(await authorizeOidcAudit(req(await signed({head_ref:'',base_ref:''})),key,now),200);
+});
+
+test('reusable context relationship diagnostics report only fixed equality classes and still deny',async()=>{
+ const cases=[
+  [{job_workflow_ref:base.workflow_ref,job_workflow_sha:base.workflow_sha},'context_reusable_ref_equal_sha_equal'],
+  [{job_workflow_ref:base.workflow_ref},'context_reusable_ref_equal_sha_absent'],
+  [{job_workflow_ref:base.workflow_ref,workflow_sha:undefined},'context_reusable_ref_equal_sha_absent'],
+  [{job_workflow_ref:base.workflow_ref,workflow_sha:'invalid',job_workflow_sha:'invalid'},'context_reusable_ref_equal_sha_other'],
+  [{job_workflow_ref:base.workflow_ref,job_workflow_sha:'PRIVATE-CANARY'},'context_reusable_ref_equal_sha_other'],
+  [{job_workflow_ref:''},'context_reusable_ref_empty'],
+  [{job_workflow_ref:null},'context_reusable_ref_empty'],
+  [{job_workflow_ref:'PRIVATE-CANARY'},'context_reusable_ref_other'],
+ ] as const;
+ for(const [claims,expected] of cases){
+  const reasons:string[]=[];assert.equal(await authorizeOidcAudit(req(await signed(claims)),key,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,[expected]);
+ }
 });
