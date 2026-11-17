@@ -6,7 +6,7 @@ const now=new Date('2026-11-17T12:00:00Z'),window={opensAt:now.toISOString(),exp
 const headers={origin:'https://tradeos-lac.vercel.app','sec-fetch-site':'same-origin','x-tradeos-diagnostic':'owner-read-only-v1'};
 const request=(extra:RequestInit={},url='https://tradeos-lac.vercel.app/api/operations/owner-data-readiness')=>new Request(url,{method:'POST',headers,...extra});
 test('release window is pinned; only fixed-origin bodyless same-origin POST fits approved window',()=>{
- assert.deepEqual(OWNER_DIAGNOSTIC_WINDOW,{opensAt:'2026-11-17T07:50:00Z',expiresAt:'2026-11-17T08:05:00Z'});assert.ok(Object.isFrozen(OWNER_DIAGNOSTIC_WINDOW));assert.equal(ownerDiagnosticRequest(request(),null,now),409);
+ assert.deepEqual(OWNER_DIAGNOSTIC_WINDOW,{opensAt:'2026-11-17T13:51:00Z',expiresAt:'2026-11-17T14:06:00Z'});assert.ok(Object.isFrozen(OWNER_DIAGNOSTIC_WINDOW));assert.equal(ownerDiagnosticRequest(request(),null,now),409);
  assert.equal(ownerDiagnosticRequest(request(),window,now),200);
  for(const bad of [request({method:'GET'}),request({headers:{...headers,origin:'https://evil.invalid'}}),request({headers:{...headers,'sec-fetch-site':'cross-site'}}),request({headers:{origin:headers.origin}}),request({},'https://preview.vercel.app/api/operations/owner-data-readiness')])assert.equal(ownerDiagnosticRequest(bad,window,now),403);
  for(const bad of [request({},'https://tradeos-lac.vercel.app/api/operations/owner-data-readiness?symbol=SPY')])assert.equal(ownerDiagnosticRequest(bad,window,now),400);
