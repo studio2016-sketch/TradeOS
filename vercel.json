@@ -20,7 +20,9 @@
       "fix/audit-failure-diagnostics": false,
       "fix/audit-context-diagnostics": false,
       "fix/audit-context-relationship": false,
-      "fix/audit-same-workflow-context": false
+      "fix/audit-same-workflow-context": false,
+      "fix/bounded-owner-daily-pilot": false,
+      "fix/pilot-reconcile-current": false
     }
   },
   "crons": [
