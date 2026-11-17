@@ -100,6 +100,7 @@
     "app/week-one/page.tsx",
     "app/knowledge-graph/page.tsx",
     "app/replay-lab/page.tsx",
-    "app/operations/data-readiness/page.tsx"
+    "app/operations/data-readiness/page.tsx",
+    "app/operations/daily-pilot/page.tsx"
   ]
 }
