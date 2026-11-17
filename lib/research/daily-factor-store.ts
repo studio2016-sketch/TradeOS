@@ -4,7 +4,7 @@ import {validateEvidence} from './evidence-gate';
 import {EVIDENCE_PERSISTENCE_TIME_POLICY} from './persist-evidence';
 
 /** Explicit injected connection only. Caller must apply the reviewed additive migration first. */
-export function dailyFactorStore(sql:any,clock:()=>Date){
+export function dailyFactorStore(sql:any,clock:()=>Date,requireComplete=false){
  let claimed:DailyPlan|undefined;
  function validatePlan(plan:DailyPlan,now:Date){
   if(JSON.stringify(dailyCollectionPlan(new Date(plan.startedAt)))!==JSON.stringify(plan)||
@@ -22,6 +22,7 @@ export function dailyFactorStore(sql:any,clock:()=>Date){
   },
   async finish(plan:DailyPlan,result:DailyResult){
    const now=clock();validatePlan(plan,now);
+   if(requireComplete&&result.evidence.length!==DAILY_SYMBOLS.length*DAILY_KEYS.length)throw Error('daily_pilot_incomplete');
    if(!claimed||JSON.stringify(plan)!==JSON.stringify(claimed)||result.evidence.length>72||result.details.policy!==plan.policy||
     result.details.session!==plan.session||result.details.startedAt!==plan.startedAt||typeof result.details.finishedAt!=='string')throw Error('invalid_daily_completion');
    const finished=evidenceTimestamp(result.details.finishedAt);

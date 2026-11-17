@@ -7,5 +7,5 @@ import {dailyFactorStore} from './daily-factor-store';
  */
 export async function runPreparedDailyFactorCollection(sql:any,clock=()=>new Date()){
  if((process.env.ALPACA_FEED||'iex')!=='iex')throw Error('daily_collection_requires_existing_iex_feed');
- return runDailyFactorCollection({...dailyFactorStore(sql,clock),clock,history:alpacaDailyHistory});
+ return runDailyFactorCollection({...dailyFactorStore(sql,clock,true),clock,history:alpacaDailyHistory},true);
 }

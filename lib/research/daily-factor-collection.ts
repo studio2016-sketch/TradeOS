@@ -1,3 +1,5 @@
+import {DAILY_RUN_BUDGET_MS} from './daily-request-budget';
+import {DAILY_HISTORY_TIMEOUT_MS} from './market-factor-history';
 import {createHash} from 'node:crypto';
 import {IEX_2026_REGULAR_SCHEDULE as calendar} from './iex-session-comparison';
 import {calculateMarketFactors} from './market-factor-engine';
@@ -43,7 +45,7 @@ export function dailyCollectionPlan(now:Date):DailyPlan{
   if(Date.parse(close)>now.getTime())continue;
   // Wait for daily finalization, but never substitute yesterday after today's close.
   if(now.getTime()-Date.parse(close)<15*60000)throw Error('daily_session_finalization_pending');
-  let expires=now.getTime()+120000;
+  let expires=now.getTime()+DAILY_RUN_BUDGET_MS;
   if(isPinnedSession(today)&&Date.parse(pinnedSessionClose(today))>now.getTime())expires=Math.min(expires,Date.parse(pinnedSessionClose(today)));
   return {policy:DAILY_COLLECTION_POLICY,session:day,sessionClose:close,startedAt:now.toISOString(),expiresAt:new Date(expires).toISOString()};
  }
@@ -98,14 +100,14 @@ export type DailyDependencies={clock:()=>Date;claim:(plan:DailyPlan)=>Promise<bo
  history:(symbol:string,asOf:string,completedSession:string)=>Promise<HistoryResult>;
  finish:(plan:DailyPlan,result:DailyResult)=>Promise<number>};
 /** Library entry only: no route, schedule, DB credentials, automatic retry or production invocation. */
-export async function runDailyFactorCollection(deps:DailyDependencies){
+export async function runDailyFactorCollection(deps:DailyDependencies,requireComplete=false){
  const plan=dailyCollectionPlan(deps.clock());
  if(!await deps.claim(plan))return {status:'already_attempted',saved:0};
  let lastClock=Date.parse(plan.startedAt);
  const clock=()=>{const now=deps.clock();checkPlan(plan,now);if(now.getTime()<lastClock)throw Error('clock_regressed');lastClock=now.getTime();return now;};
  const evidence:PersistableEvidence[]=[],histories:Record<string,unknown>={};
  for(let i=0;i<DAILY_SYMBOLS.length;i+=2){
-  clock();
+  if(+clock()+DAILY_HISTORY_TIMEOUT_MS+3000>Date.parse(plan.expiresAt))throw Error('daily_provider_budget');
   await Promise.all(DAILY_SYMBOLS.slice(i,i+2).map(async symbol=>{
    let history:HistoryResult;
    try{history=await deps.history(symbol,plan.startedAt,plan.session);}catch{history={bars:[],source:'Alpaca:iex',error:'fetch_failed'};}
@@ -113,6 +115,7 @@ export async function runDailyFactorCollection(deps:DailyDependencies){
    histories[symbol]={...result.provenance,retrievedAt:received.toISOString()};evidence.push(...result.evidence);
   }));
  }
+ if(requireComplete&&(evidence.length!==DAILY_SYMBOLS.length*DAILY_KEYS.length||DAILY_SYMBOLS.some(symbol=>evidence.filter(e=>e.subject===symbol).length!==DAILY_KEYS.length)))throw Error('daily_pilot_incomplete');
  const finishedAt=clock().toISOString();
  for(const row of evidence){row.availableAt=finishedAt;if(!validateEvidence(row,new Date(finishedAt)).accepted)throw Error('invalid_generated_evidence');}
  if(evidence.length>72)throw Error('row_limit');
