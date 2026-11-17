@@ -54,3 +54,14 @@ test('JOSE failures are classified without serializing provider error data',asyn
  const reasons:string[]=[];const failed=async()=>{throw Object.assign(Error('PRIVATE-CANARY'),{code:'ERR_JWKS_TIMEOUT'});};
  assert.equal(await authorizeOidcAudit(req(await signed()),failed,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,['jwt_key_fetch']);
 });
+test('context denial distinguishes fixed categories without exposing claim values',async()=>{
+ for(const [claim,reason] of [['environment','context_environment'],['job_workflow_ref','context_reusable_ref'],['job_workflow_sha','context_reusable_sha'],['head_ref','context_pr_ref'],['base_ref','context_pr_ref']]){
+  const reasons:string[]=[];const token=await signed({[claim]:'PRIVATE-CONTEXT-CANARY'});
+  assert.equal(await authorizeOidcAudit(req(token),key,now,r=>reasons.push(r)),403);
+  assert.deepEqual(reasons,[reason]);assert.ok(!JSON.stringify(reasons).includes('PRIVATE-CONTEXT-CANARY'));
+ }
+ for(const claim of ['environment','job_workflow_ref','job_workflow_sha']){
+  for(const value of ['',null])assert.equal(await authorizeOidcAudit(req(await signed({[claim]:value})),key,now),403);
+ }
+ assert.equal(await authorizeOidcAudit(req(await signed({head_ref:'',base_ref:''})),key,now),200);
+});
