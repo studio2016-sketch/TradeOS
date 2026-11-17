@@ -31,6 +31,7 @@ test('all GET APIs require an explicit shared or preexisting guard; auth callbac
  function walk(dir:string):string[]{return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);}
  for(const file of walk('app/api').filter(x=>x.endsWith('/route.ts'))){
   const src=fs.readFileSync(file,'utf8');
+  if(['app/api/private-runtime-audit/route.ts','app/api/private-detailed-audit/route.ts','app/api/private-market-audit/route.ts'].includes(file)){assert.match(src,/authorizeRuntimeAudit\(request\)/);continue;}
   if(file==='app/api/auth/[...path]/route.ts'){assert.match(src,/auth.handler\(\)/);continue;}
   if(/export const GET=withPrivateRead\(privateGET\)/.test(src))continue;
   const m=src.match(/export async function GET\([^)]*\)\s*\{([\s\S]*)/);if(!m)continue;

@@ -1,0 +1,19 @@
+name: Scoped private runtime boundary audit
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '10 16 * * 1-5'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  boundary-and-connectivity:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check anonymous denial and scoped stored heartbeat flags
+        run: python3 scripts/run-private-oidc-audit.py heartbeat

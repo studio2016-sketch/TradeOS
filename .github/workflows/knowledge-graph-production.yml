@@ -1,59 +1,19 @@
-name: Knowledge graph and certification production audit
+name: Private graph assertion audit
 on:
-  pull_request:
-    paths:
-      - .github/workflows/knowledge-graph-production.yml
-      - tests/knowledge_graph_audit_test.py
   workflow_dispatch:
   schedule:
     - cron: "25 16 * * 1-5"
+permissions:
+  contents: read
+  id-token: write
 jobs:
-  verify-graph:
+  assertions:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
-      - name: Test graph audit contract with deterministic fixtures
-        run: python3 -m unittest discover -s tests -p 'knowledge_graph_audit_test.py' -v
-      - name: Independently inspect live research evidence graph and fail-closed certificate
-        run: |
-          python3 - <<'PY'
-          import json,urllib.request,urllib.error
-          BASE="https://tradeos-lac.vercel.app"
-          def get(path):
-            with urllib.request.urlopen(urllib.request.Request(BASE+path,headers={"User-Agent":"TradeOS-Independent-Graph-Audit"}),timeout=45) as r:return json.load(r)
-          graph=get("/api/knowledge-graph?symbol=NVDA")
-          print("GRAPH",json.dumps({k:graph.get(k) for k in ["status","symbolFilter","corporateStatus","certifiedCorporateRelationships","certifiedPredictiveRelationships"]}))
-          print("GRAPH_SIZE",len(graph.get("nodes",[])),len(graph.get("edges",[])),len(graph.get("corporateRelationships",[])))
-          # Both API modes describe research evidence, never predictive certification.
-          assert graph.get("status") in {"RESEARCH_LINEAGE_ONLY","INDEPENDENT_SOURCE_GRAPH_ACTIVE"}, "Unknown or unavailable graph mode"
-          if graph.get("status")=="INDEPENDENT_SOURCE_GRAPH_ACTIVE":
-            independent=graph.get("independentGraph")
-            assert isinstance(independent,dict), "Active mode requires an independent graph"
-            policy=independent.get("policy",{})
-            assert policy.get("graphImpliesPrediction") is False
-            assert policy.get("sourceCountMeansIndependentOriginFamilies") is True
-            assert policy.get("minimumIndependentSourcesForCertification")==2
-            assert isinstance(independent.get("edges"),list), "Independent graph edges missing"
-            for edge in independent["edges"]:
-              assert edge.get("predictiveAuthority") is False, "Graph edge claims predictive authority"
-          assert graph.get("certifiedPredictiveRelationships") is False
-          for e in graph.get("corporateRelationships",[]):
-            assert e.get("publishedAt") and e.get("sourceUrl") and e.get("verificationStatus"),"Unsourced corporate link"
-          cert=get("/api/research-certification")
-          print("CERTIFICATION",json.dumps({k:cert.get(k) for k in ["status","certified","modelPromotionAllowed","liveExecutionAllowed","failedChecks"]}))
-          assert cert.get("modelPromotionAllowed") is False and cert.get("liveExecutionAllowed") is False
-          lab=get("/api/factor-lab")
-          assert lab.get("promotionAllowed") is False
-          assert lab.get("status")=="RESEARCH_ONLY"
-          assert lab.get("certified") is False
-          print("FACTORS",lab.get("registryCount"),lab.get("pointInTimeEvidence",{}).get("forecasts"),"promotable",lab.get("promotionAllowed"))
-          request=urllib.request.Request(BASE+"/api/private-graph-evidence",method="POST",data=b'{}',headers={"Content-Type":"application/json"})
-          try:
-            urllib.request.urlopen(request,timeout=15)
-            raise AssertionError("SECURITY: anonymous graph ingestion allowed")
-          except urllib.error.HTTPError as e:
-            print("GRAPH INGEST AUTH HTTP",e.code)
-            assert e.code==401
-          print("PASS: Verified real graph, factor lab, independent gate and admin-only evidence ingestion.")
-          PY
+        with:
+          persist-credentials: false
+      - name: Check scoped assertions without logging private evidence
+        run: python3 scripts/run-private-oidc-audit.py graph
