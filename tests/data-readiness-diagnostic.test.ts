@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dataReadinessDiagnostic,readOnlyDiagnosticSql} from '../lib/research/data-readiness-diagnostic';
-import {isPinnedSession,pinnedSessionClose} from '../lib/research/daily-factor-collection';
+import {DAILY_SYMBOLS,DAILY_KEYS,runDailyFactorCollection,isPinnedSession,pinnedSessionClose} from '../lib/research/daily-factor-collection';
+import {invokeApprovedDailyCollection} from '../lib/research/daily-invocation';
 const now=new Date('2026-11-17T07:00:00Z');
 const sql=async(s:TemplateStringsArray)=>{
  const q=s.join('?');assert.match(q.trim(),/^select/i);
@@ -75,4 +76,48 @@ test('budget boundary reserves twelve seconds plus three seconds; one millisecon
   }}),/provider_budget/);
   assert.deepEqual(called,initialElapsed===40000?['NVDA','AMD']:[]);
  }
+});
+
+// These fixtures reproduce readiness logic; they are not recovered production results.
+test('each individual pilot symbol can veto aggregate readiness, including the last batch',async()=>{
+ assert.deepEqual(DAILY_SYMBOLS,['NVDA','AMD','PLTR']);assert.equal(DAILY_KEYS.length,24);
+ for(const failed of DAILY_SYMBOLS){
+  const called:string[]=[];
+  const result=await dataReadinessDiagnostic({sql,feed:'iex',clock:()=>now,history:async symbol=>{called.push(symbol);return {source:'Alpaca:iex',bars:symbol===failed?bars().slice(1):bars()};}});
+  assert.deepEqual(called,[...DAILY_SYMBOLS]);assert.equal(result.status,'blocked');
+  assert.deepEqual(result.histories.filter(h=>!h.ready).map(h=>h.symbol),[failed]);
+  assert.equal(result.histories.filter(h=>h.ready&&h.factorCount===24).length,2);
+ }
+});
+test('aggregate readiness waits for PLTR, never returns after only the first two symbols',async()=>{
+ let release!:()=>void,started!:()=>void,settled=false;
+ const lastStarted=new Promise<void>(resolve=>{started=resolve;});
+ const wait=new Promise<void>(resolve=>{release=resolve;});
+ const pending=dataReadinessDiagnostic({sql,feed:'iex',clock:()=>now,history:async symbol=>{
+  if(symbol==='PLTR'){started();await wait;}return {source:'Alpaca:iex',bars:bars()};
+ }}).then(result=>{settled=true;return result;});
+ await lastStarted;assert.equal(settled,false);release();
+ const result=await pending;assert.equal(result.status,'ready_for_activation_review');assert.equal(result.histories.length,3);
+});
+test('approved single-session pilot composes bounded invocation and collector with at most 72 candidates',async()=>{
+ const approval={id:'fixture-pilot',session:'2026-11-16',opensAt:now.toISOString(),expiresAt:new Date(+now+15*60000).toISOString()};
+ const input={approvalId:approval.id,session:approval.session};
+ let claimed=false,finishes=0;const calls:string[]=[];
+ const run=(clock:()=>Date)=>runDailyFactorCollection({clock,claim:async()=>{if(claimed)return false;claimed=true;return true;},history:async symbol=>{calls.push(symbol);return {source:'Alpaca:iex',bars:bars()};},finish:async(plan,result)=>{
+  finishes++;assert.equal(plan.session,approval.session);assert.equal(result.evidence.length,72);
+  assert.equal(new Set(result.evidence.map(e=>e.subject+':'+e.factor)).size,72);
+  assert.ok(result.evidence.every(e=>e.availableAt===result.details.finishedAt));return result.evidence.length;
+ }});
+ const deps={authorized:true,clock:()=>now,preflight:async()=>{},run};
+ const first=await invokeApprovedDailyCollection(input,approval,deps);assert.equal(first.httpStatus,200);
+ assert.deepEqual((first.body as any).result,{status:'observed_not_certified',candidates:72,saved:72,session:approval.session});
+ const duplicate=await invokeApprovedDailyCollection(input,approval,deps);
+ assert.deepEqual((duplicate.body as any).result,{status:'already_attempted',saved:0});assert.equal(finishes,1);assert.deepEqual(calls,[...DAILY_SYMBOLS]);
+});
+test('pilot partial completion is explicit and does not invent the failed symbol evidence',async()=>{
+ const result=await runDailyFactorCollection({clock:()=>now,claim:async()=>true,history:async symbol=>symbol==='PLTR'?{source:'Alpaca:iex',bars:[],error:'fetch_failed'}:{source:'Alpaca:iex',bars:bars()},finish:async(_,r)=>{
+  assert.equal(r.evidence.length,48);assert.ok(r.evidence.every(e=>e.subject!=='PLTR'));
+  assert.equal((r.details.histories as any).PLTR.error,'fetch_failed');return r.evidence.length;
+ }});
+ assert.equal(result.status,'observed_not_certified');assert.equal(result.saved,48);
 });
