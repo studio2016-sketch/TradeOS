@@ -23,7 +23,7 @@ export function auditRequestScope(request:Request):string|null{
  return null;
 }
 /** Never returns claims, token values, provider errors or any owner-session authority. */
-export type AuditDenial='token_shape'|'jwt_header'|'jwt_time'|'audience'|'identity'|'ref_or_runner'|'event'|'workflow'|'context_environment'|'context_reusable_ref'|'context_reusable_sha'|'context_pr_ref'|'subject'|'sha'|'run'|'jwt_validation'|'jwt_key_fetch'|'jwt_signature'|'jwt_claim_time'|'jwt_claim_issuer'|'jwt_claim_audience'|'jwt_claim_other';
+export type AuditDenial='token_shape'|'jwt_header'|'jwt_time'|'audience'|'identity'|'ref_or_runner'|'event'|'workflow'|'context_environment'|'context_reusable_ref_equal_sha_equal'|'context_reusable_ref_equal_sha_absent'|'context_reusable_ref_equal_sha_other'|'context_reusable_ref_empty'|'context_reusable_ref_other'|'context_reusable_sha'|'context_pr_ref'|'subject'|'sha'|'run'|'jwt_validation'|'jwt_key_fetch'|'jwt_signature'|'jwt_claim_time'|'jwt_claim_issuer'|'jwt_claim_audience'|'jwt_claim_other';
 export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=keys,now=new Date(),report?:(reason:AuditDenial)=>void):Promise<200|401|403>{
  const deny=(reason:AuditDenial):403=>{try{report?.(reason);}catch{/* diagnostics must never change authorization */}return 403;};
  const scope=auditRequestScope(request),auth=request.headers.get('authorization');
@@ -44,7 +44,13 @@ export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=key
   if(p.workflow_ref!==`${repo}/.github/workflows/${workflows[scope]}@${main}`)return deny('workflow');
   // No reusable-workflow/environment/PR claim interpretation or wildcard subjects.
   if(p.environment!==undefined)return deny('context_environment');
-  if(p.job_workflow_ref!==undefined)return deny('context_reusable_ref');
+  if(p.job_workflow_ref!==undefined){
+   if(p.job_workflow_ref===p.workflow_ref){
+    if(typeof p.workflow_sha==='string'&&/^[a-f0-9]{40}$/.test(p.workflow_sha)&&p.job_workflow_sha===p.workflow_sha)return deny('context_reusable_ref_equal_sha_equal');
+    return deny(p.job_workflow_sha===undefined?'context_reusable_ref_equal_sha_absent':'context_reusable_ref_equal_sha_other');
+   }
+   return deny(p.job_workflow_ref===''||p.job_workflow_ref===null?'context_reusable_ref_empty':'context_reusable_ref_other');
+  }
   if(p.job_workflow_sha!==undefined)return deny('context_reusable_sha');
   if(p.head_ref||p.base_ref)return deny('context_pr_ref');
   const legacy=`repo:${repo}:ref:${main}`;
