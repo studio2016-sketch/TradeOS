@@ -3,7 +3,7 @@ import {auth} from '../../../../lib/auth/server';
 import {db} from '../../../../lib/db';
 import {alpacaDailyHistory} from '../../../../lib/research/market-factor-history';
 import {dataReadinessDiagnostic,readOnlyDiagnosticSql} from '../../../../lib/research/data-readiness-diagnostic';
-import {OWNER_DIAGNOSTIC_WINDOW,ownerDiagnosticRequest,verifiedDiagnosticOwner,boundedOwnerSession} from '../../../../lib/research/owner-data-diagnostic';
+import {OWNER_DIAGNOSTIC_WINDOW,ownerDiagnosticRequest,verifiedDiagnosticOwner,boundedOwnerSession,emptyOwnerDiagnosticBody} from '../../../../lib/research/owner-data-diagnostic';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function POST(req:Request){
@@ -11,6 +11,7 @@ export async function POST(req:Request){
  const headers={'Cache-Control':'private, no-store'};
  const status=ownerDiagnosticRequest(req,OWNER_DIAGNOSTIC_WINDOW,new Date());
  if(status!==200)return NextResponse.json({status:'owner_diagnostic_not_permitted'},{status,headers});
+ if(!await emptyOwnerDiagnosticBody(req))return NextResponse.json({status:'owner_diagnostic_not_permitted'},{status:400,headers});
  try{
   const session=await boundedOwnerSession(()=>auth.getSession());
   const sql=readOnlyDiagnosticSql(db(),signal);

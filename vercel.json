@@ -11,7 +11,8 @@
       "fix/earnings-clock-alternatives": false,
       "fix/storage-timezone-offsets": false,
       "fix/read-only-data-diagnostic": false,
-      "fix/owner-read-only-diagnostic": false
+      "fix/owner-read-only-diagnostic": false,
+      "fix/owner-diagnostic-empty-stream": false
     }
   },
   "crons": [
