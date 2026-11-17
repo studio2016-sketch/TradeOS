@@ -9,7 +9,8 @@
       "fix/ingestion-coverage-nov16": false,
       "fix/news-evidence-integration": false,
       "fix/earnings-clock-alternatives": false,
-      "fix/storage-timezone-offsets": false
+      "fix/storage-timezone-offsets": false,
+      "fix/read-only-data-diagnostic": false
     }
   },
   "crons": [
