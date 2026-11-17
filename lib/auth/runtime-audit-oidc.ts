@@ -42,16 +42,14 @@ export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=key
   if(p.ref!==main||p.ref_type!=='branch'||p.runner_environment!=='github-hosted')return deny('ref_or_runner');
   if(typeof p.event_name!=='string'||!['schedule','workflow_dispatch'].includes(p.event_name))return deny('event');
   if(p.workflow_ref!==`${repo}/.github/workflows/${workflows[scope]}@${main}`)return deny('workflow');
-  // No reusable-workflow/environment/PR claim interpretation or wildcard subjects.
+  // GitHub may include job claims for the same direct workflow. Accept only a
+  // complete pair exactly matching the already allowlisted workflow and valid SHA.
+  // Other reusable workflows, environment contexts and PR refs stay denied.
   if(p.environment!==undefined)return deny('context_environment');
-  if(p.job_workflow_ref!==undefined){
-   if(p.job_workflow_ref===p.workflow_ref){
-    if(typeof p.workflow_sha==='string'&&/^[a-f0-9]{40}$/.test(p.workflow_sha)&&p.job_workflow_sha===p.workflow_sha)return deny('context_reusable_ref_equal_sha_equal');
-    return deny(p.job_workflow_sha===undefined?'context_reusable_ref_equal_sha_absent':'context_reusable_ref_equal_sha_other');
-   }
-   return deny(p.job_workflow_ref===''||p.job_workflow_ref===null?'context_reusable_ref_empty':'context_reusable_ref_other');
+  if(p.job_workflow_ref!==undefined||p.job_workflow_sha!==undefined){
+   if(p.job_workflow_ref!==p.workflow_ref)return deny('context_reusable_ref_other');
+   if(typeof p.workflow_sha!=='string'||! /^[a-f0-9]{40}$/.test(p.workflow_sha)||p.job_workflow_sha!==p.workflow_sha)return deny('context_reusable_ref_equal_sha_other');
   }
-  if(p.job_workflow_sha!==undefined)return deny('context_reusable_sha');
   if(p.head_ref||p.base_ref)return deny('context_pr_ref');
   const legacy=`repo:${repo}:ref:${main}`;
   const immutable=`repo:studio2016-sketch@${ownerId}/TradeOS@${repoId}:ref:${main}`;
