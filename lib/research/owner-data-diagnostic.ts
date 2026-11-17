@@ -1,6 +1,6 @@
 export type OwnerDiagnosticWindow=Readonly<{opensAt:string;expiresAt:string}>;
 /** Pin a <=15-minute window in the separately reviewed release. No environment/request override. */
-export const OWNER_DIAGNOSTIC_WINDOW:OwnerDiagnosticWindow|null=Object.freeze({opensAt:'2026-11-17T13:51:00Z',expiresAt:'2026-11-17T14:06:00Z'});
+export const OWNER_DIAGNOSTIC_WINDOW:OwnerDiagnosticWindow|null=Object.freeze({opensAt:'2026-11-17T14:12:00Z',expiresAt:'2026-11-17T14:27:00Z'});
 export function ownerDiagnosticRequest(req:Request,window:OwnerDiagnosticWindow|null,now:Date){
  if(req.method!=='POST'||new URL(req.url).origin!=='https://tradeos-lac.vercel.app'||
   req.headers.get('origin')!=='https://tradeos-lac.vercel.app'||req.headers.get('sec-fetch-site')!=='same-origin'||
