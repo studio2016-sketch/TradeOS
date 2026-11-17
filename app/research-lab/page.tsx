@@ -1,38 +1,42 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createResearchPanelLoader, hasCurrentResearchResponse, initialResearchPanels,
+  researchPanelStatus, type ResearchPanelState,
+} from "../../lib/research/research-panel-loader";
+
+function PanelStatus({ panel, label }: { panel: ResearchPanelState; label: string }) {
+  return (
+    <div aria-label={`${label} load status`} aria-live="polite" style={{ fontSize: 14, color: "#cfdae0" }}>
+      <p>{researchPanelStatus(panel)}</p>
+      {panel.error ? <p role="alert" style={{ color: "#ffc9a0" }}>{label}: {panel.error}</p> : null}
+      <p>Last successful load: {panel.lastSuccessAt === null ? "Never" : (
+        <time dateTime={new Date(panel.lastSuccessAt).toISOString()}>{new Date(panel.lastSuccessAt).toLocaleString()}</time>
+      )}. Load time does not establish source freshness or scientific certification.</p>
+    </div>
+  );
+}
+
 export default function ResearchLab() {
-  const [models, setModels] = useState<any>(null),
-    [factors, setFactors] = useState<any>(null),
-    [ledger, setLedger] = useState<any>(null),
-    [certification, setCertification] = useState<any>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const refresh = useCallback(async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const [a, b, c, d] = await Promise.all([
-        fetch("/api/model-validation", { cache: "no-store" }),
-        fetch("/api/factor-lab", { cache: "no-store" }),
-        fetch("/api/prediction-outcome-ledger", { cache: "no-store" }),
-        fetch("/api/research-certification", { cache: "no-store" }),
-      ]);
-      if (!a.ok || !b.ok || !c.ok || !d.ok)
-        throw Error("One or more research datasets are unavailable.");
-      const [m, f, l, r] = await Promise.all([a.json(), b.json(), c.json(), d.json()]);
-      setModels(m);
-      setFactors(f);
-      setLedger(l);
-      setCertification(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Research unavailable");
-    } finally {
-      setBusy(false);
-    }
+  const [panels, setPanels] = useState(initialResearchPanels);
+  const loader = useRef<ReturnType<typeof createResearchPanelLoader> | null>(null);
+  const refresh = useCallback(() => {
+    void loader.current?.refresh();
   }, []);
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    const current = createResearchPanelLoader(setPanels);
+    loader.current = current;
+    void current.refresh();
+    return () => {
+      current.cancel();
+      if (loader.current === current) loader.current = null;
+    };
+  }, []);
+  const { models: modelPanel, factors: factorPanel, ledger: ledgerPanel, certification: certificationPanel } = panels;
+  const models = modelPanel.data, factors = factorPanel.data, ledger = ledgerPanel.data;
+  const certification = certificationPanel.data;
+  const certificationCurrent = hasCurrentResearchResponse(certificationPanel);
+  const busy = Object.values(panels).some(panel => panel.loading);
   const pct = (n: any) =>
     typeof n === "number" && Number.isFinite(n)
       ? (n * 100).toFixed(1) + "%"
@@ -75,7 +79,7 @@ export default function ResearchLab() {
       >
         {busy ? "Evaluating…" : "Recheck recorded evidence"}
       </button>
-      {error ? <p role="alert">{error}</p> : null}
+      <p>Each dataset loads independently. A failed recheck keeps its previous response visibly marked as stale.</p>
       <section
         style={{
           background: "#102f39",
@@ -86,6 +90,7 @@ export default function ResearchLab() {
         }}
       >
         <h2>Prediction–Outcome Scientific Ledger</h2>
+        <PanelStatus panel={ledgerPanel} label="Scientific ledger" />
         <p>
           Objective market outcomes grade predictions under the frozen <b>{ledger?.rule?.version ?? "checking"}</b> protocol.
         </p>
@@ -98,13 +103,15 @@ export default function ResearchLab() {
           <div><small>PROSPECTIVE SCIENTIFIC</small><h3>{ledger?.summary?.prospectiveScientificRecords ?? "—"}</h3></div>
         </div>
         <p>
-          Historical reconstructed pass rate: <strong>{pct(ledger?.summary?.passRate)}</strong> · Prospective PASS/FAIL: <strong>{ledger?.summary?.prospectiveScientificPasses ?? 0}/{ledger?.summary?.prospectiveScientificFailures ?? 0}</strong> · Prospective sessions: <strong>{ledger?.summary?.sessions ?? 0}</strong>
+          Historical reconstructed pass rate: <strong>{pct(ledger?.summary?.passRate)}</strong> · Prospective PASS/FAIL: <strong>{ledger?.summary?.prospectiveScientificPasses ?? "—"}/{ledger?.summary?.prospectiveScientificFailures ?? "—"}</strong> · Prospective sessions: <strong>{ledger?.summary?.sessions ?? "—"}</strong>
         </p>
         <p>
-          Protocol fingerprint: <code>{ledger?.rule?.fingerprint ? `${ledger.rule.fingerprint.slice(0, 16)}…` : "checking"}</code> · Fingerprint-bound records: <strong>{ledger?.summary?.fingerprintedScientificRecords ?? 0}</strong>
+          Protocol fingerprint: <code>{ledger?.rule?.fingerprint ? `${ledger.rule.fingerprint.slice(0, 16)}…` : "checking"}</code> · Fingerprint-bound records: <strong>{ledger?.summary?.fingerprintedScientificRecords ?? "—"}</strong>
         </p>
+        <h3>Certification authority</h3>
+        <PanelStatus panel={certificationPanel} label="Certification authority" />
         <p>
-          Certification authority: <strong>{certification?.status ?? "CHECKING"}</strong> · Model promotion: <strong>{certification?.modelPromotionAllowed ? "ALLOWED" : "BLOCKED"}</strong> · Live execution: <strong>{certification?.liveExecutionAllowed ? "ALLOWED" : "BLOCKED"}</strong>
+          Certification authority: <strong>{certification?.status ?? "UNAVAILABLE"}</strong> · Model promotion: <strong>{!certificationCurrent ? "UNAVAILABLE" : certification?.modelPromotionAllowed === true ? "ALLOWED" : "BLOCKED"}</strong> · Live execution: <strong>{!certificationCurrent ? "UNAVAILABLE" : certification?.liveExecutionAllowed === true ? "ALLOWED" : "BLOCKED"}</strong>
         </p>
         {(certification?.checks ?? []).filter((x: any) => !x.pass).map((x: any) => (
           <p key={x.id} style={{color:"#ffc9a0",margin:"6px 0"}}>Blocked — {x.id.replaceAll("_", " ")}: {x.detail}</p>
@@ -122,7 +129,7 @@ export default function ResearchLab() {
             <strong>{x.label.replaceAll("_", " ")}</strong> · {x.observations} outcomes / {x.sessions} sessions · high-minus-low PASS rate {pct(x.medianSplitReturnSpread)} · {x.status.replaceAll("_", " ")}
           </p>
         ))}
-        {!ledger?.prospectiveFactorAssociations?.findings?.length ? <p>No factor hypothesis can be formed until fingerprint-bound prospective outcomes mature.</p> : null}
+        {ledger && !ledger.prospectiveFactorAssociations?.findings?.length ? <p>No factor hypothesis can be formed until fingerprint-bound prospective outcomes mature.</p> : null}
       </section>
       <section
         style={{
@@ -133,6 +140,7 @@ export default function ResearchLab() {
         }}
       >
         <h2>Chronological forecast validation</h2>
+        <PanelStatus panel={modelPanel} label="Chronological forecast validation" />
         <p>
           Research status:{" "}
           <strong>{models?.certification ?? "NOT VERIFIED"}</strong>
@@ -173,7 +181,7 @@ export default function ResearchLab() {
             <p style={{ fontSize: 13, color: "#cfdae0" }}>{v.warnings?.[0]}</p>
           </article>
         ))}
-        {!models?.validations?.length ? (
+        {models && !models.validations?.length ? (
           <p>No independently evaluable models returned.</p>
         ) : null}
       </section>
@@ -186,6 +194,7 @@ export default function ResearchLab() {
         }}
       >
         <h2>Factor evidence</h2>
+        <PanelStatus panel={factorPanel} label="Factor evidence" />
         <p>
           <a href="/knowledge-graph" style={{ color: "#85e0cf" }}>
             Explore factor relationships and source lineage →
@@ -273,7 +282,7 @@ export default function ResearchLab() {
             matched forecasts · {p.status}
           </p>
         ))}
-        {!factors?.associations?.length ? (
+        {factors && !factors.associations?.length ? (
           <p>
             Factor outcomes unavailable. The platform must not infer importance
             from factor names or score levels alone.

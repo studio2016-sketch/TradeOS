@@ -1,0 +1,35 @@
+.paperWorkspace { max-width: 1120px; margin: 0 auto; padding: 32px 20px 60px; color: #e7edf5; }
+.paperWorkspace header { max-width: 800px; margin: 28px 0; }
+.paperWorkspace h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.2; margin: 14px 0; }
+.paperWorkspace h2 { font-size: 1.25rem; margin: 0 0 14px; }
+.paperWorkspace h3 { font-size: 1.05rem; }
+.paperWorkspace p, .paperWorkspace li { line-height: 1.6; }
+.paperBack { color: #9ac7ff; }
+.paperBadge { display: inline-block; background: #253421; color: #d9ecc6; border: 1px solid #62744e; padding: 6px 10px; font-size: .75rem; letter-spacing: .08em; border-radius: 6px; }
+.paperColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.paperCard { background: #141e2a; border: 1px solid #344457; border-radius: 12px; padding: 24px; margin: 20px 0; min-width: 0; }
+.paperCaution { background: #312b1c; border: 1px solid #7a673d; border-radius: 8px; padding: 14px 16px; color: #f3e4bf; line-height: 1.6; }
+.paperFields { display: grid; gap: 18px; margin: 24px 0; }
+.paperField { display: flex; flex-direction: column; gap: 6px; }
+.paperField label { font-weight: 600; }
+.paperField input { width: 100%; box-sizing: border-box; color: #f5f7fb; background: #0c131c; border: 1px solid #697d92; border-radius: 6px; padding: 12px; font-size: 1rem; }
+.paperField input[aria-invalid="true"] { border-color: #ffa997; }
+.paperWorkspace small, .paperSmall { color: #b8c8d7; font-size: .85rem; }
+.paperError { color: #ffb5a6; font-size: .9rem; line-height: 1.5; }
+.paperWorkspace button { min-height: 44px; background: #b7d7ff; color: #102137; border: 1px solid #b7d7ff; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: 600; white-space: normal; }
+.paperWorkspace button.paperSecondary { background: #1b2b3c; color: #d9e8f7; border-color: #6d8299; margin: 8px 8px 0 0; }
+.paperWorkspace button:disabled { opacity: .5; cursor: not-allowed; }
+.paperWorkspace :focus-visible { outline: 3px solid #92bdff; outline-offset: 3px; }
+.paperShares strong { font-size: 2.6rem; font-variant-numeric: tabular-nums; }
+.paperMetrics { margin: 20px 0; }
+.paperMetrics > div { display: flex; align-items: start; justify-content: space-between; gap: 16px; border-bottom: 1px solid #344457; padding: 12px 0; }
+.paperMetrics dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.paperMetrics dt { color: #c4d2e0; }
+.paperDrafts { padding-left: 24px; }
+.paperDrafts li { padding: 12px 0; border-bottom: 1px solid #344457; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .paperColumns { grid-template-columns: 1fr; gap: 0; }
+  .paperWorkspace { padding: 20px 12px 40px; }
+  .paperCard { padding: 18px; margin: 14px 0; }
+  .paperMetrics > div { flex-wrap: wrap; }
+}
