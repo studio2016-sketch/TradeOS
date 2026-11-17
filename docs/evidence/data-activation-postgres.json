@@ -1,0 +1,18 @@
+{
+  "server": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "isolatedDatabase": "tradeos_fixture_1794870030893",
+  "checks": [
+    "additive migrations preserve legacy sentinel",
+    "activation interlocks accept writer grants and reject read-only grants",
+    "independent concurrent connections deduplicate exact writes",
+    "concurrent conflicting identity rejected",
+    "read-only role preserves nanoseconds and exact cutoffs",
+    "combined reader excludes a legacy microsecond beyond a nanosecond cutoff",
+    "least-privilege roles and owner-level append-only triggers",
+    "concurrent session claims have one winner",
+    "failed finalization rolls back all new rows and preserves consumed claim",
+    "concurrent atomic completion writes exactly 72 rows once"
+  ],
+  "passed": 10,
+  "productionAccess": false
+}
