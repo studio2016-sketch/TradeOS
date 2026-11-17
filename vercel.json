@@ -10,7 +10,8 @@
       "fix/news-evidence-integration": false,
       "fix/earnings-clock-alternatives": false,
       "fix/storage-timezone-offsets": false,
-      "fix/read-only-data-diagnostic": false
+      "fix/read-only-data-diagnostic": false,
+      "fix/owner-read-only-diagnostic": false
     }
   },
   "crons": [

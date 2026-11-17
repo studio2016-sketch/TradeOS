@@ -11,12 +11,12 @@ export function readOnlyDiagnosticSql(sql:any,signal:AbortSignal){
   return result[0];
  };
 }
-export async function dataReadinessDiagnostic(deps:{sql:any;feed:string;clock:()=>Date;history:(symbol:string,asOf:string,session:string)=>Promise<HistoryResult>}){
+export async function dataReadinessDiagnostic(deps:{sql:any;feed:string;deadline?:number;clock:()=>Date;history:(symbol:string,asOf:string,session:string)=>Promise<HistoryResult>}){
  if(deps.feed!=='iex')throw Error('diagnostic_requires_iex');
- const started=deps.clock(),plan=dailyCollectionPlan(started);let previous=+started;
- const checkClock=()=>{const now=deps.clock();if(!Number.isFinite(+now)||+now<previous||+now-+started>=55000||dailyCollectionPlan(now).session!==plan.session)throw Error('diagnostic_clock_or_deadline');previous=+now;return now;};
+ const started=deps.clock(),plan=dailyCollectionPlan(started),deadline=Math.min(+started+55000,deps.deadline??Infinity);let previous=+started;
+ const checkClock=()=>{const now=deps.clock();if(!Number.isFinite(+now)||+now<previous||(!Number.isFinite(deadline)||+now>=deadline)||dailyCollectionPlan(now).session!==plan.session)throw Error('diagnostic_clock_or_deadline');previous=+now;return now;};
  // Reserve the complete provider timeout plus three seconds for validation/serialization.
- const requireProviderBudget=()=>{const now=checkClock();if(+now-+started+DAILY_HISTORY_TIMEOUT_MS+3000>55000)throw Error('diagnostic_provider_budget');};
+ const requireProviderBudget=()=>{const now=checkClock();if(+now+DAILY_HISTORY_TIMEOUT_MS+3000>deadline)throw Error('diagnostic_provider_budget');};
  const identity=await deps.sql`select current_user as runtime_role,current_database() as database,current_setting('transaction_read_only') as read_only`;
  if(identity[0]?.read_only!=='on'||typeof identity[0]?.runtime_role!=='string'||typeof identity[0]?.database!=='string')throw Error('diagnostic_read_only_required');
  const storage:Record<string,{ready:boolean}>={};
