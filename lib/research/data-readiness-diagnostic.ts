@@ -1,6 +1,6 @@
 import {assertDataStorageReady} from './data-storage-readiness';
 import {dailyCollectionPlan,dailySymbolEvidence,DAILY_SYMBOLS,DAILY_KEYS} from './daily-factor-collection';
-import type {HistoryResult} from './market-factor-history';
+import {DAILY_HISTORY_TIMEOUT_MS,type HistoryResult} from './market-factor-history';
 
 /** Every query uses the application's connection under a database-enforced read-only transaction.
  * No persistent locks, claims, evidence, receipts or permission changes are made.
@@ -15,6 +15,8 @@ export async function dataReadinessDiagnostic(deps:{sql:any;feed:string;clock:()
  if(deps.feed!=='iex')throw Error('diagnostic_requires_iex');
  const started=deps.clock(),plan=dailyCollectionPlan(started);let previous=+started;
  const checkClock=()=>{const now=deps.clock();if(!Number.isFinite(+now)||+now<previous||+now-+started>=55000||dailyCollectionPlan(now).session!==plan.session)throw Error('diagnostic_clock_or_deadline');previous=+now;return now;};
+ // Reserve the complete provider timeout plus three seconds for validation/serialization.
+ const requireProviderBudget=()=>{const now=checkClock();if(+now-+started+DAILY_HISTORY_TIMEOUT_MS+3000>55000)throw Error('diagnostic_provider_budget');};
  const identity=await deps.sql`select current_user as runtime_role,current_database() as database,current_setting('transaction_read_only') as read_only`;
  if(identity[0]?.read_only!=='on'||typeof identity[0]?.runtime_role!=='string'||typeof identity[0]?.database!=='string')throw Error('diagnostic_read_only_required');
  const storage:Record<string,{ready:boolean}>={};
@@ -23,8 +25,9 @@ export async function dataReadinessDiagnostic(deps:{sql:any;feed:string;clock:()
  }
  const histories=[];
  for(let i=0;i<DAILY_SYMBOLS.length;i+=2){
-  checkClock();
+  requireProviderBudget();
   const batch=await Promise.all(DAILY_SYMBOLS.slice(i,i+2).map(async symbol=>{
+   requireProviderBudget();
    let history:HistoryResult;try{history=await deps.history(symbol,started.toISOString(),plan.session);}catch{history={source:'Alpaca:iex',bars:[],error:'fetch_failed'};}
    const received=checkClock();
    // Provider error text and bars never leave this diagnostic. Reuse the collector's validation/calculation.

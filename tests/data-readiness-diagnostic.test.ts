@@ -52,3 +52,27 @@ test('actual endpoint denies anonymous/parameterized calls before DB access and 
  }finally{for(const [key,value] of [['CRON_SECRET',old.secret],['DATABASE_URL',old.db]])if(value===undefined)delete process.env[key!];else process.env[key!]=value;}
  const config=JSON.parse(readFileSync('vercel.json','utf8'));assert.equal(config.git.deploymentEnabled['fix/read-only-data-diagnostic'],false);assert.ok(!config.crons.some((x:any)=>x.path.includes('data-readiness')));
 });
+
+test('slow preflight cannot start a fresh 12-second provider timeout near the shared deadline',async()=>{
+ let elapsed=0,calls=0;
+ const slowSql=async(s:TemplateStringsArray)=>{const rows=await sql(s);elapsed=54000;return rows;};
+ await assert.rejects(dataReadinessDiagnostic({sql:slowSql,feed:'iex',clock:()=>new Date(+now+elapsed),history:async()=>{calls++;return {source:'Alpaca:iex',bars:bars()};}}),/provider_budget/);
+ assert.equal(calls,0);
+});
+test('second batch must retain full provider timeout and response margin',async()=>{
+ let elapsed=0;const called:string[]=[];
+ await assert.rejects(dataReadinessDiagnostic({sql,feed:'iex',clock:()=>new Date(+now+elapsed),history:async(symbol)=>{
+  called.push(symbol);await Promise.resolve();elapsed=40001;return {source:'Alpaca:iex',bars:bars()};
+ }}),/provider_budget/);
+ assert.deepEqual(called,['NVDA','AMD']);
+});
+test('budget boundary reserves twelve seconds plus three seconds; one millisecond late starts no request',async()=>{
+ for(const initialElapsed of [40000,40001]){
+  let elapsed=0;const called:string[]=[];
+  const delayedSql=async(s:TemplateStringsArray)=>{const rows=await sql(s);elapsed=initialElapsed;return rows;};
+  await assert.rejects(dataReadinessDiagnostic({sql:delayedSql,feed:'iex',clock:()=>new Date(+now+elapsed),history:async(symbol)=>{
+   called.push(symbol);await Promise.resolve();elapsed=52000;return {source:'Alpaca:iex',bars:bars()};
+  }}),/provider_budget/);
+  assert.deepEqual(called,initialElapsed===40000?['NVDA','AMD']:[]);
+ }
+});

@@ -2,6 +2,7 @@ import {dailyCollectionPlan} from './daily-factor-collection';
 import {evidenceTimestamp} from './evidence-time';
 import {validateDailyHistory,completedDailyHistory} from './daily-history-validation';
 import type {PriceBar} from "./market-factor-engine";
+export const DAILY_HISTORY_TIMEOUT_MS=12000;
 export type HistoryResult={bars:PriceBar[];source:string;error?:string};
 /** Fetch completed DAILY Alpaca bars only. Never treat intraday bars as daily history. */
 export async function alpacaDailyHistory(symbol:string,asOf:string,completedSession?:string):Promise<HistoryResult>{
@@ -23,7 +24,7 @@ export async function alpacaDailyHistory(symbol:string,asOf:string,completedSess
  url.searchParams.set("limit","1000");url.searchParams.set("adjustment","raw");
  url.searchParams.set("feed",feed);
  try{
-  const response=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(12000)});
+  const response=await fetch(url,{headers:{"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret},cache:"no-store",signal:AbortSignal.timeout(DAILY_HISTORY_TIMEOUT_MS)});
   if(!response.ok)return {bars:[],source:"Alpaca",error:`http_${response.status}`};
   const data=await response.json();
   if(!data||typeof data!=='object'||Array.isArray(data)||!Array.isArray(data.bars)||
