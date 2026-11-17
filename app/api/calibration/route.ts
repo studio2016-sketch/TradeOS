@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {brierScore,calibrationError,confidencePenalty} from "../../../lib/market/calibration";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({mode:"database_unconfigured",sampleCount:0});
  const sql=db();
  const rows=await sql`
@@ -16,3 +17,5 @@ export async function GET(){
  const brier=brierScore(samples),ece=calibrationError(samples);
  return NextResponse.json({mode:"database",sampleCount:samples.length,brier,ece,confidenceMultiplier:confidencePenalty(brier,ece)});
 }
+
+export const GET=withPrivateRead(privateGET);

@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {validateChronologicalForecasts} from "../../../lib/research/chronologicalValidation";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Forecast database not configured"},{status:503});
  const q=new URL(req.url).searchParams;
  const version=(q.get("model")||"").trim();
@@ -28,3 +29,5 @@ export async function GET(req:Request){
   return NextResponse.json({generatedAt:new Date().toISOString(),certification:"RESEARCH_ONLY_NOT_PROMOTED",validations,method:"Chronological 70/30 holdout, frozen training-period base-rate baseline, deterministic resampling of paired squared-error differences. Does not establish a genuinely frozen out-of-sample model, independence, cost-adjusted profitability or proof of adaptive improvement."},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",reason:"Historical research validation unavailable"},{status:503})}
 }
+
+export const GET=withPrivateRead(privateGET);

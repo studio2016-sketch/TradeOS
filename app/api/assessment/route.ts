@@ -1,10 +1,11 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {assess} from "../../../lib/market/assessment";
 import {configuredSourceHealth} from "../../../lib/market/providers";
 import type {Evidence} from "../../../lib/market/types";
 import {observedMarketEvidence} from "../../../lib/market/observedAssessment";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  const observed=await observedMarketEvidence().catch(()=>null);
  if(observed){
    return NextResponse.json({
@@ -23,3 +24,5 @@ export async function GET(){
  const fallback=assess(evidence);
  return NextResponse.json({mode:"fallback_demo",assessment:{...fallback,confidence:0,uncertainty:100,decision:"pass",warnings:[...fallback.warnings,"No live intraday market feed is connected; fallback evidence is non-actionable."]},sources:configuredSourceHealth(),generatedAt:new Date().toISOString()});
 }
+
+export const GET=withPrivateRead(privateGET);

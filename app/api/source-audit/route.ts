@@ -1,10 +1,11 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {bestSnapshots} from "../../../lib/market/live";
 import {historicalBars} from "../../../lib/market/features";
 import {observedAgeMs,observationState} from "../../../lib/market/freshness";
 export const dynamic="force-dynamic";
 const symbols=["SPY","QQQ","NVDA"];
-export async function GET(){
+async function privateGET(){
  const asOf=new Date().toISOString();
  const results=await Promise.allSettled([
   bestSnapshots(symbols),
@@ -28,3 +29,5 @@ export async function GET(){
  const allUnavailable=snapshots.every(s=>s.state==="unavailable");
  return NextResponse.json({generatedAt:asOf,overall:allUnavailable?"unavailable":snapshots.some(s=>s.state==="recent_observation")?"recent_observations":"historical_or_stale",productionCertification:"NOT_CERTIFIED",snapshots,barChecks:[describe(1,"Alpaca 1-minute SPY"),describe(2,"Alpaca daily SPY")],providerAttempts:attempts,limits:["This is a per-request source probe, not a historical uptime or exchange-entitlement audit.","Market closure, holidays and provider subscriptions may explain unchanged observations.","Model scores, economic sources, news, options and account balances require independent source tests."]},{headers:{"Cache-Control":"private, no-store"}});
 }
+
+export const GET=withPrivateRead(privateGET);

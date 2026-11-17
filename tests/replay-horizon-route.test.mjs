@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {registerHooks} from 'node:module';
 const hooks=registerHooks({resolve(specifier,context,nextResolve){
+ if(specifier==='../../../lib/auth/private-read')return nextResolve(new URL('./fixtures/private-read-approved.mjs',import.meta.url).href,context);
  if(specifier==='next/server'||specifier==='../../../lib/market/features')return nextResolve(new URL('./fixtures/replay-route-dependencies.mjs',import.meta.url).href,context);
  if(specifier==='../../../lib/research/replaySimulator')return nextResolve(specifier+'.ts',context);
  return nextResolve(specifier,context);

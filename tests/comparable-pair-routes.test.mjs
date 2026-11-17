@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {fixture} from './fixtures/comparable-outcome-row.ts';
 const hooks=registerHooks({resolve(specifier,context,nextResolve){
+ if(specifier==='../../../lib/auth/private-read')return nextResolve(new URL('./fixtures/private-read-approved.mjs',import.meta.url).href,context);
  if(['next/server','../../../lib/auth/server','../../../lib/db','../../../lib/research/prediction-outcome-ledger'].includes(specifier))return nextResolve(new URL('./fixtures/comparable-route-services.mjs',import.meta.url).href,context);
  return nextResolve(specifier,context);
 }});

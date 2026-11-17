@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {hasDatabase} from "../../../lib/db";
 import {buildFinancialKnowledgeGraph} from "../../../lib/research/knowledgeGraph";
@@ -9,7 +10,7 @@ import {verifyOpenMarketAdvancement} from "../../../lib/market/verification";
 
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){
+async function privateGET(req:Request){
   if(!hasDatabase())return NextResponse.json({status:"database_unconfigured"},{status:503});
   const {searchParams}=new URL(req.url);
   const symbols=(searchParams.get("symbols")||"NVDA,AMD,PLTR,SPY,QQQ,IWM").split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
@@ -42,3 +43,5 @@ export async function GET(req:Request){
     errors,generatedAt:new Date().toISOString()
   });
 }
+
+export const GET=withPrivateRead(privateGET);

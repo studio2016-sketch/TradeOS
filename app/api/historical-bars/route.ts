@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {alpacaDataFetch} from "../../../lib/market/alpaca-data-fetch";
 import {NextResponse} from "next/server";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const q=new URL(req.url).searchParams;
  const symbol=(q.get("symbol")||"SPY").toUpperCase();
  if(!/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol))return NextResponse.json({error:"Invalid symbol"},{status:400});
@@ -20,3 +21,5 @@ export async function GET(req:Request){
  }catch{return NextResponse.json({status:"unavailable",symbol,bars:[],message:"Historical data fetch failed"},{headers:{"Cache-Control":"no-store"}})}
 }
 
+
+export const GET=withPrivateRead(privateGET);

@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {historicalBars} from "../../../lib/market/features";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
   const u=new URL(req.url);
   const symbol=(u.searchParams.get("symbol")||"NVDA").toUpperCase();
   const minutes=Math.max(60,Math.min(10080,Number(u.searchParams.get("minutes")||480)));
@@ -26,3 +27,5 @@ export async function GET(req:Request){
     return NextResponse.json({symbol,mode:"degraded",points:[],error:error instanceof Error?error.message:String(error),generatedAt:new Date().toISOString()},{status:502});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

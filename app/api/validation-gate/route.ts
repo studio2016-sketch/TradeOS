@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 export const dynamic="force-dynamic";
@@ -7,7 +8,7 @@ export const dynamic="force-dynamic";
  * This does NOT establish out-of-sample performance.
  * A true promotion needs frozen point-in-time folds and execution costs.
  */
-export async function GET(req:Request){
+async function privateGET(req:Request){
  if(!hasDatabase())return NextResponse.json({status:"blocked",reason:"Database unavailable",models:[]},{status:503});
  const url=new URL(req.url);
  const requested=(url.searchParams.get("model")||"").trim();
@@ -43,3 +44,5 @@ export async function GET(req:Request){
   return NextResponse.json({status:"research_only",generatedAt:new Date().toISOString(),models,policy:"No model may promote solely from Brier score, alignment, signal count, or backfilled historical data. Require frozen, chronological out-of-sample tests, point-in-time evidence, costs and reviewed execution simulation."},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"unavailable",models:[],message:"Validation evidence could not be retrieved."},{status:503});}
 }
+
+export const GET=withPrivateRead(privateGET);

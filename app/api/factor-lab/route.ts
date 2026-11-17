@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {alignmentVariables} from "../../../lib/alignment/registry";
@@ -9,7 +10,7 @@ import {discoverHistoricalFactorAssociations} from "../../../lib/research/histor
 export const dynamic="force-dynamic";
 const MAX_MARKET_TESTS=600;
 
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const registry=alignmentVariables.map(x=>({id:x.id,label:x.label,group:x.group,weight:x.weight,criticalBuy:Boolean(x.criticalBuy),hardSell:Boolean(x.hardSell),independentlyValidated:false}));
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",registry,associations:[],message:"No forecast ledger available"},{status:503});
  try{
@@ -78,3 +79,5 @@ export async function GET(req:Request){
   return NextResponse.json({status:"UNAVAILABLE",registryCount:registry.length,associations:[],error:"Point-in-time factor evidence could not be safely evaluated",reason:e instanceof Error?e.message:"unknown"},{status:503});
  }
 }
+
+export const GET=withPrivateRead(privateGET);

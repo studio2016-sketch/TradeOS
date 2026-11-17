@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {alpacaMarketClock,bestSnapshots,alpacaDelayedSipSnapshots} from "../../../lib/market/live";
@@ -9,7 +10,7 @@ function ageMs(ts:any){
   return Number.isFinite(t)?Math.max(0,Date.now()-t):null;
 }
 
-export async function GET(){
+async function privateGET(){
   const [clock,market,delayedSip]=await Promise.all([
     alpacaMarketClock().catch(()=>null),
     bestSnapshots(["SPY"]).catch(()=>({provider:null,snapshots:[],attempts:[]})),
@@ -93,3 +94,5 @@ export async function GET(){
     generatedAt:new Date().toISOString()
   });
 }
+
+export const GET=withPrivateRead(privateGET);

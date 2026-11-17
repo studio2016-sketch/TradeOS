@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {historicalBars} from "../../../lib/market/features";
 import {simulateLongAfterDecision} from "../../../lib/research/replaySimulator";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const q=new URL(req.url).searchParams;
  const symbol=(q.get("symbol")||"SPY").toUpperCase().trim();
  const decisionAt=q.get("decisionAt")||"";
@@ -20,3 +21,5 @@ export async function GET(req:Request){
   return NextResponse.json({simulation:output,source:"Alpaca:"+feed,marketHistoryLatestAt:history.at(-1)?.t??null,certification:"RESEARCH_ONLY",limitations:["Uses historical prices only; signal integrity must be separately established as-of decision time.","The simulation assumes a long market order at next available bar open with synthetic slippage and commission assumptions.","Cannot be used to claim cost-adjusted profitability or a production strategy win rate."]},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({mode:"UNAVAILABLE",reason:"Recorded prices unavailable"},{status:503})}
 }
+
+export const GET=withPrivateRead(privateGET);

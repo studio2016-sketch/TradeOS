@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {auditForecastProvenance} from "../../../lib/research/temporalProvenance";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Forecast database unavailable"},{status:503});
  try{
   const sql=db();
@@ -14,3 +15,5 @@ export async function GET(){
   return NextResponse.json({status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),audit:auditForecastProvenance(input),certification:"BLOCKED_UNTIL_POINT_IN_TIME_SOURCE_AND_PAIRED_MODEL_EVIDENCE",policy:"No adaptive weight promotion, model profit claim, or live-execution authorization from exploratory factors or retrospectively assessed history."},{headers:{"Cache-Control":"private, no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",reason:"Forecast provenance inspection unavailable"},{status:503})}
 }
+
+export const GET=withPrivateRead(privateGET);

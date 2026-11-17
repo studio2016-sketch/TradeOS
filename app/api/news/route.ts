@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {curatedNews} from "../../../lib/market/news";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
   const {searchParams}=new URL(req.url);
   const symbols=(searchParams.get("symbols")??"NVDA,AMD,PLTR,SPY,QQQ,IWM").split(",");
   try{
@@ -16,3 +17,5 @@ export async function GET(req:Request){
     return NextResponse.json({mode:"degraded",news:[],error:error instanceof Error?error.message:String(error)},{status:502});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {alpacaSnapshots,massiveSnapshots} from "../../../../lib/market/live";
 import {reconcileDualSource} from "../../../../lib/market/dual-source";
@@ -5,7 +6,7 @@ import type {MarketSnapshot} from "../../../../lib/market/types";
 export const dynamic="force-dynamic";
 
 /** Diagnostic endpoint only: does not change trade decisions or authorize live execution. */
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const params=new URL(req.url).searchParams;
  const symbols=[...new Set((params.get("symbols")??"SPY,QQQ,NVDA").split(",").map(s=>s.trim().toUpperCase()).filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)))].slice(0,20);
  if(!symbols.length)return NextResponse.json({error:"At least one valid symbol required"},{status:400});
@@ -29,3 +30,5 @@ export async function GET(req:Request){
   ]
  },{headers:{"Cache-Control":"no-store"}});
 }
+
+export const GET=withPrivateRead(privateGET);

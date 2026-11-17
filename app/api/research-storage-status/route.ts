@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {storageSigningReady} from "../../../lib/storage/signed-transfer";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  const bucket=process.env.TRADEOS_RESEARCH_STORAGE_BUCKET;
  const endpoint=process.env.TRADEOS_RESEARCH_STORAGE_ENDPOINT;
  const region=process.env.TRADEOS_RESEARCH_STORAGE_REGION;
@@ -19,3 +20,5 @@ export async function GET(){
  }
  return NextResponse.json({status:configured&&manifest?"metadata_connected":"setup_incomplete",bucket:configured?bucket:null,region:configured?region:null,endpointConfigured:Boolean(endpoint),manifestReady:manifest,artifactsRegistered,registeredBytes,usageScope:"Registered metadata only; excludes unregistered object bytes, actual provider usage, and billing.",uploadsEnabled:configured&&manifest&&signingConfigured,downloadsEnabled:configured&&manifest&&signingConfigured,transferAccess:"Verified owner authorization required",privateBucketExpected:true,providerBucketVerifiedExternally:true,warning:"These flags indicate configured authenticated transfer paths, not a live provider health check. Research certification requires independent evidence validation."},{headers:{"Cache-Control":"no-store"}});
 }
+
+export const GET=withPrivateRead(privateGET);

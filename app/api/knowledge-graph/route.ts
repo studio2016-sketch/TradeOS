@@ -1,10 +1,11 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {graphFromResearch} from "../../../lib/research/financialGraph";
 import {buildFinancialKnowledgeGraph} from "../../../lib/research/knowledgeGraph";
 import {graphHypotheses} from "../../../lib/research/factorDiscovery";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const params=new URL(req.url).searchParams;
  const symbol=(params.get("symbol")||"").trim().toUpperCase();
  if(symbol&&!/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol))return NextResponse.json({error:"Invalid stock symbol"},{status:400});
@@ -57,3 +58,5 @@ export async function GET(req:Request){
    {headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",message:"Evidence graph unavailable"},{status:503})}
 }
+
+export const GET=withPrivateRead(privateGET);

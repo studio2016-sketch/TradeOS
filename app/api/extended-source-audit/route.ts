@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {freeOfficialSnapshot} from "../../../lib/market/freeOfficial";
 import {latestRegimeContext} from "../../../lib/market/fred";
@@ -11,7 +12,7 @@ export const maxDuration=60;
 type Check={category:string;source:string;status:string;sampleCount?:number;observationTime?:string|null;details?:string};
 const safe=(e:unknown)=>e instanceof Error?e.message.replace(/(api[_-]?key|token|secret)=([^&\s]+)/gi,"$1=[redacted]").slice(0,160):"Provider request failed";
 async function query<T>(name:string,fn:()=>Promise<T>):Promise<{name:string;result:T|null;error:string|null}>{try{return{name,result:await fn(),error:null}}catch(e){return{name,result:null,error:safe(e)}}}
-export async function GET(){
+async function privateGET(){
  const started=Date.now();
  // Each run verifies upstream responses rather than mere presence of environment variables.
  // No account holdings or credentials are exposed. This endpoint is diagnostic, not authorization.
@@ -47,3 +48,5 @@ export async function GET(){
  const statusCounts=checks.reduce((a:Record<string,number>,c)=>{a[c.status]=(a[c.status]||0)+1;return a},{});
  return NextResponse.json({statusCounts,generatedAt:new Date().toISOString(),durationMs:Date.now()-started,certification:"PARTIAL_SOURCE_CHECK_ONLY",checks,limitations:["Provider configuration alone is not proof of current data.","Official economic observations refresh at publication cadence.","No exchange-level streaming entitlement was established.","No account holdings or sensitive financial details are exposed.","Provider calls may fail or rate limit; no replacement numbers are fabricated.","Article publication timestamps and derivatives remain source assertions until independently reconciled.","Portfolio-return certification requires authenticated balances, positions, and transaction reconciliation."]},{headers:{"Cache-Control":"private, no-store"}});
 }
+
+export const GET=withPrivateRead(privateGET);

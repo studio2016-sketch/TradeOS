@@ -1,16 +1,17 @@
+import {GET as alignmentGET} from "../alignment/route";
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {observedPaperQuote} from "../../../lib/paper/observedQuote";
 import {bestSnapshots} from "../../../lib/market/live";
 import {researchToPaper} from "../../../lib/paper/researchBridge";
 export const dynamic="force-dynamic";
 /** Read-only bridge demo. No endpoint can place an order. */
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const symbol=(new URL(req.url).searchParams.get("symbol")||"SPY").toUpperCase();
  if(!/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol))return NextResponse.json({error:"Invalid symbol"},{status:400});
  try{
-  const origin=new URL(req.url).origin;
   const [a,m]=await Promise.all([
-   fetch(origin+"/api/alignment?symbol="+encodeURIComponent(symbol),{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null),
+   alignmentGET(new Request("https://internal.invalid/api/alignment?symbol="+encodeURIComponent(symbol))).then(r=>r.ok?r.json():null).catch(()=>null),
    bestSnapshots([symbol]).catch(()=>null)
   ]);
   const s=m?.snapshots?.find(x=>x.symbol===symbol);
@@ -23,3 +24,5 @@ export async function GET(req:Request){
   return NextResponse.json({symbol,generatedAt:new Date().toISOString(),source:m?.provider||null,quoteTime:s?.quoteTimestamp||null,quoteVerifiedForSimulation:validQuote,decision:result,warning:"Research-only diagnostic with illustrative one-share risk assumptions. Quote recency alone does not establish official real-time entitlement or validated predictive performance."},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"unavailable",message:"Research assessment failed closed"},{status:503});}
 }
+
+export const GET=withPrivateRead(privateGET);

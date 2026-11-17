@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {certifyResearch} from "../../../lib/research/certificationAuthority";
@@ -9,7 +10,7 @@ import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGE
 import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 export const dynamic="force-dynamic";
 
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Research database disconnected"},{status:503});
  try{
   const sql=db();
@@ -75,3 +76,5 @@ export async function GET(){
   return NextResponse.json({status:"UNAVAILABLE",reason:"Certification evidence could not be independently read",error:e instanceof Error?e.message:"unknown"},{status:503});
  }
 }
+
+export const GET=withPrivateRead(privateGET);

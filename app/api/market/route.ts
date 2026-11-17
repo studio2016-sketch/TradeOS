@@ -1,10 +1,11 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {bestSnapshots,alpacaSnapshots,massiveSnapshots} from "../../../lib/market/live";
 import {reconcileDualSource} from "../../../lib/market/dual-source";
 import type {MarketSnapshot} from "../../../lib/market/types";
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const {searchParams}=new URL(req.url);
  const symbols=[...new Set((searchParams.get("symbols")??"SPY,QQQ,IWM,NVDA,AMD,PLTR").split(",").map(s=>s.trim().toUpperCase()).filter(s=>/^[A-Z0-9.-]{1,10}$/.test(s)))].slice(0,20);
  if(!symbols.length)return NextResponse.json({mode:"invalid_request",error:"No valid symbols."},{status:400});
@@ -42,3 +43,5 @@ export async function GET(req:Request){
   return NextResponse.json({mode:"degraded",snapshots:[],error:error instanceof Error?error.message:String(error)},{status:502});
  }
 }
+
+export const GET=withPrivateRead(privateGET);

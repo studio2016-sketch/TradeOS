@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {rankAssetMatches} from "../../../lib/market/assetSearch";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const q=(new URL(req.url).searchParams.get("q")||"").trim().toUpperCase().slice(0,60);
  if(!process.env.ALPACA_API_KEY||!process.env.ALPACA_API_SECRET)return NextResponse.json({status:"unconfigured",assets:[],message:"Asset directory unavailable."},{headers:{"Cache-Control":"no-store"}});
  try{
@@ -15,3 +16,5 @@ export async function GET(req:Request){
   return NextResponse.json({status:"provider_directory",query:q,assets,sourceCount,limitedTo:100,scope:"Active tradable US equities supported by connected Alpaca account; not every global security.",asOf:new Date().toISOString()},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"unavailable",assets:[],message:"Provider asset directory request failed."},{status:502})}
 }
+
+export const GET=withPrivateRead(privateGET);

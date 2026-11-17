@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {historicalBars} from "../../../lib/market/features";
 import {knownAtCutoff} from "../../../lib/market/replay";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
  const q=new URL(req.url).searchParams;
  const symbol=(q.get("symbol")||"SPY").trim().toUpperCase();
  const asOf=q.get("asOf")||"";
@@ -26,3 +27,5 @@ export async function GET(req:Request){
   return NextResponse.json({symbol,requestedAsOf:new Date(cutoff).toISOString(),source:"Alpaca:"+usedFeed,providerWarning,timeframe:"5Min",mode:bars.length?"recorded_bars_only":"unavailable",points:bars.slice(-120),latestRecordedAt:bars.at(-1)?.t??null,limitations:["Only price and volume bars are reproduced. This is not yet a fully point-in-time news, filings, or macro simulation.","No broker orders are placed.","Historical replay must not be mistaken for a backtested strategy return."]},{headers:{"Cache-Control":"no-store"}});
  }catch(e){return NextResponse.json({mode:"unavailable",symbol,error:e instanceof Error?e.message:"Source unavailable",message:"Historical provider retrieval failed. No simulated price observations substituted."},{status:502,headers:{"Cache-Control":"no-store"}})}
 }
+
+export const GET=withPrivateRead(privateGET);

@@ -1,3 +1,7 @@
+import {GET as assessmentGET} from "../assessment/route";
+import {GET as calibrationGET} from "../calibration/route";
+import {GET as intelligenceGET} from "../intelligence/route";
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {buildAlignment} from "../../../lib/alignment/engine";
 import {buildDecisionInsights} from "../../../lib/alignment/decisionInsights";
@@ -25,23 +29,21 @@ import {evaluateSourceReliability} from "../../../lib/market/sourceReliability";
 
 export const dynamic="force-dynamic";
 
-export async function GET(req:Request){
+async function privateGET(req:Request){
   const {searchParams}=new URL(req.url);
   const symbol=(searchParams.get("symbol")||"NVDA").toUpperCase();
   const tradeCountOk=searchParams.get("tradeCountOk")==="1"?true:searchParams.get("tradeCountOk")==="0"?false:undefined;
   const tiltOk=searchParams.get("tiltOk")==="1"?true:searchParams.get("tiltOk")==="0"?false:undefined;
   const loadFeatures=createRequestFeatureLoader();
-  const base=new URL(req.url);
-  const origin=base.origin;
 
   const [assessmentRes,regime,catalysts,market,calibrationRes,macro,intelligenceRes,official,marketClock]=await Promise.all([
-    fetch(origin+"/api/assessment",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+    assessmentGET().then(r=>r.ok?r.json():null).catch(()=>null),
     latestRegimeContext().then(x=>({mode:x.usableCount>0?"official_daily":"unavailable",...x})).catch(()=>null),
     latestSecCatalysts([symbol],8).then(x=>({mode:"live_authoritative",catalysts:x})).catch(()=>null),
     bestSnapshots([symbol]).then(x=>({mode:x.provider?"provider_data":"unconfigured",...x})).catch(()=>null),
-    fetch(origin+"/api/calibration",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+    calibrationGET().then(r=>r.ok?r.json():null).catch(()=>null),
     macroRiskContext().catch(()=>null),
-    fetch(origin+"/api/intelligence",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+    intelligenceGET().then(r=>r.ok?r.json():null).catch(()=>null),
     freeOfficialSnapshot([symbol,"SPY","QQQ","IWM"]).catch(()=>null),
     alpacaMarketClock().catch(()=>null)
   ]);
@@ -103,3 +105,5 @@ export async function GET(req:Request){
   });
 }
 
+
+export const GET=withPrivateRead(privateGET);

@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"unconfigured",writable:false});
  try{
   const sql=db();
@@ -11,3 +12,5 @@ export async function GET(){
   return NextResponse.json({status:"migration_pending",records:[],writable:false},{headers:{"Cache-Control":"no-store"}});
  }
 }
+
+export const GET=withPrivateRead(privateGET);

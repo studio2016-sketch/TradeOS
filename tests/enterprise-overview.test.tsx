@@ -97,7 +97,7 @@ test("invalid dates and nonfinite observations stay unavailable", () => {
 });
 test("redesign preserves every existing home section and adds navigable accessible shell", () => {
   const source = readFileSync(
-    new URL("../app/page.tsx", import.meta.url),
+    new URL("../app/private-page.tsx", import.meta.url),
     "utf8",
   );
   for (const section of [

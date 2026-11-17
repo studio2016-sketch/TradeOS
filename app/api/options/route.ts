@@ -1,8 +1,9 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {bestSnapshots} from "../../../lib/market/live";
 import {alpacaOptionSurface} from "../../../lib/market/options";
 export const dynamic="force-dynamic";
-export async function GET(req:Request){
+async function privateGET(req:Request){
   const {searchParams}=new URL(req.url);
   const symbol=(searchParams.get("symbol")||"NVDA").toUpperCase();
   try{
@@ -19,3 +20,5 @@ export async function GET(req:Request){
     return NextResponse.json({mode:"degraded",surface:null,error:error instanceof Error?error.message:String(error)},{status:502});
   }
 }
+
+export const GET=withPrivateRead(privateGET);

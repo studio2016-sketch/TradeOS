@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {TRIAL_ACTIVATION,BASELINE_VERSION,CHALLENGER_VERSION} from "../../../lib/research/frozenChallenger";
@@ -7,7 +8,7 @@ import {evaluatePredictionOutcomeRow,summarizePredictionOutcomeEntries} from "..
 import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGERPRINT} from "../../../lib/research/prediction-outcome-verdict";
 import type {SourceTimeCertificate} from "../../../lib/research/source-time-certification";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"UNAVAILABLE",reason:"Research database unavailable"},{status:503});
  try{
   const sql=db();
@@ -63,3 +64,5 @@ export async function GET(){
     status:"RESEARCH_ONLY",generatedAt:new Date().toISOString(),noAutomaticPromotion:true},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"UNAVAILABLE",reason:"Paired outcome trial could not be retrieved"},{status:503})}
 }
+
+export const GET=withPrivateRead(privateGET);

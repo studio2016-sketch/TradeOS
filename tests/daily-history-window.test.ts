@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {GET} from "../app/api/historical-bars/route.ts";
+import {registerHooks} from 'node:module';
+
 
 const bar = (day: string, close = 100) => ({
   t: day + "T04:00:00Z", o: 100, h: 105, l: 95, c: close, v: 1000
 });
 
 test("daily history selects the newest provider page and preserves safeguards", async (t) => {
+const hooks=registerHooks({resolve(specifier,context,nextResolve){
+ if(specifier==='../../../lib/auth/private-read')return nextResolve(new URL('./fixtures/private-read-approved.mjs',import.meta.url).href,context);
+ return nextResolve(specifier,context);
+}});
+const {GET}=await import('../app/api/historical-bars/route.ts');hooks.deregister();
   const previous = {
     key: process.env.ALPACA_API_KEY,
     secret: process.env.ALPACA_API_SECRET,
@@ -38,7 +44,7 @@ test("daily history selects the newest provider page and preserves safeguards", 
       const response = await GET(new Request("https://tradeos.test/api/historical-bars?symbol=SPY"));
       const data = await response.json();
       assert.equal(calls, 1);
-      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
       assert.equal(data.status, "historical");
       assert.equal(data.hasMore, true);
       assert.deepEqual(data.bars.map((b: {time: string}) => b.time.slice(0, 10)),

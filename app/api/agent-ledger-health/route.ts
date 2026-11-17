@@ -1,7 +1,8 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import {NextResponse} from "next/server";
 import {db,hasDatabase} from "../../../lib/db";
 export const dynamic="force-dynamic";
-export async function GET(){
+async function privateGET(){
  if(!hasDatabase())return NextResponse.json({status:"database_unconfigured",hypothesisLedger:false,investigationLedger:false,eventsLedger:false,writeAccess:false});
  try{
  const sql=db();
@@ -10,3 +11,5 @@ export async function GET(){
  return NextResponse.json({status:tables.size===3?"schema_ready":"migration_pending",hypothesisLedger:tables.has("agent_research_hypotheses"),investigationLedger:tables.has("agent_investigations"),eventsLedger:tables.has("agent_investigation_events"),writeAccess:false,automatedWorkers:false},{headers:{"Cache-Control":"no-store"}});
  }catch{return NextResponse.json({status:"database_check_unavailable",writeAccess:false,automatedWorkers:false},{status:503});}
 }
+
+export const GET=withPrivateRead(privateGET);

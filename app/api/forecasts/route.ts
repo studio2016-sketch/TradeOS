@@ -1,3 +1,4 @@
+import {withPrivateRead} from "../../../lib/auth/private-read";
 import { NextResponse } from "next/server";
 import { db, hasDatabase } from "../../../lib/db";
 import { authorizeIngest } from "../../../lib/security";
@@ -5,7 +6,7 @@ import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION,PREDICTION_OUTCOME_PROTOCOL_FINGE
 
 export const dynamic="force-dynamic";
 
-export async function GET(){
+async function privateGET(){
   if(!hasDatabase()) return NextResponse.json({mode:"database_unconfigured",forecasts:[]});
   const sql=db();
   const rows=await sql`select id,created_at,symbol,horizon,model_version,regime,direction,probability,decision,score,uncertainty,agreement,data_quality from forecast_ledger order by created_at desc limit 50`;
@@ -27,3 +28,5 @@ export async function POST(req:Request){
   `;
   return NextResponse.json({forecast:rows[0]},{status:201});
 }
+
+export const GET=withPrivateRead(privateGET);
