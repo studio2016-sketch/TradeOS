@@ -1308,3 +1308,333 @@
     display: none;
   }
 }
+
+/* Learning energy, never trading urgency. */
+.enterpriseShell {
+  --desk-accent: #c9e9c9;
+}
+.enterpriseShell .overviewHeading h2 {
+  color: #edf5dc;
+}
+.enterpriseShell .overviewHero {
+  border-color: #547464;
+  background: linear-gradient(120deg, #294137, #1b2d2a);
+}
+.studyGarden {
+  margin: 24px 0;
+  border: 1px solid #c8d7c1;
+  border-radius: 18px;
+  background: #f1f4e9;
+  color: #24392f;
+  overflow: hidden;
+}
+.studyGarden .eyebrow {
+  color: #506550;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+}
+.studyIntro {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 28px;
+}
+.studyEmblem {
+  display: grid;
+  place-items: center;
+  flex: 0 0 55px;
+  height: 55px;
+  border-radius: 19px 19px 19px 6px;
+  background: #d2e7b9;
+  color: #345734;
+}
+.studyIntro h3 {
+  margin: 5px 0 7px;
+  font-family: Georgia, serif;
+  font-size: clamp(23px, 2.2vw, 30px);
+  font-weight: 500;
+  line-height: 1.18;
+  color: #233b2e;
+}
+.studyIntro p {
+  margin: 0;
+  color: #4c6053;
+  font-size: 13px;
+}
+.studyProgress {
+  margin-left: auto;
+  min-width: 95px;
+  text-align: right;
+}
+.studyProgress strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.studyProgress strong span {
+  font-size: 16px;
+  color: #5b6d60;
+}
+.studyProgress > span {
+  font-size: 11px;
+}
+.studyProgress progress {
+  display: block;
+  width: 95px;
+  height: 6px;
+  margin-top: 10px;
+  accent-color: #466b40;
+}
+.studyMap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 28px;
+}
+.studyGarden button {
+  font: inherit;
+  color: #304f3c;
+  border: 1px solid #b5c6ad;
+  border-radius: 10px;
+  background: #fffef8;
+  padding: 10px 13px;
+  min-height: 44px;
+}
+.studyGarden button:hover {
+  background: #e0ebd4;
+}
+.studyGarden button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.studyGarden :focus-visible {
+  outline: 3px solid #6b43a6;
+  outline-offset: 3px;
+}
+.studyMap button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 15px 13px;
+}
+.studyMap button[aria-pressed="true"] {
+  background: #e2dced;
+  border-color: #8b78a8;
+  color: #463657;
+}
+.studyStep {
+  flex: 0 0 28px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.studyMap button > svg {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.studyMap small,
+.studyMap b {
+  display: block;
+}
+.studyMap small {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+.studyMap b {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.studyActivity {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 30px;
+  margin: 26px 28px 0;
+  padding-top: 24px;
+  border-top: 1px solid #cbd6c4;
+}
+.studyIdea h4 {
+  margin: 12px 0;
+  font-size: 22px;
+  line-height: 1.2;
+  font-family: Georgia, serif;
+  font-weight: 500;
+  color: #263e30;
+}
+.studyIdea p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #415749;
+  margin: 0 0 22px;
+}
+.studyNote {
+  display: block;
+  max-width: 260px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #59685e;
+}
+.studyQuestion fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.studyQuestion legend {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.studyQuestion label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  margin: 7px 0;
+  border: 1px solid #cad4c4;
+  border-radius: 9px;
+  background: #fafbf5;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.studyQuestion label.selected {
+  border-color: #856aa4;
+  background: #eee7f5;
+}
+.studyQuestion input {
+  accent-color: #70508d;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+.studyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.studyActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.studyActions .studyCheck {
+  background: #304f3c;
+  color: #fffef8;
+  border-color: #304f3c;
+}
+.studyActions .studyCheck:hover {
+  background: #3e654b;
+}
+.studyFeedback {
+  min-height: 20px;
+  margin-top: 16px;
+  color: #3f5244;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.studyFeedback strong {
+  color: #3c2b54;
+}
+.studyFeedback p {
+  margin: 5px 0;
+}
+.studyComplete {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin: 20px 28px;
+  padding: 18px;
+  background: #dceaca;
+  border-radius: 12px;
+}
+.studyComplete p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.studyComplete > svg {
+  flex-shrink: 0;
+}
+.studyComplete button {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.studyDisclaimer {
+  border-top: 1px solid #cbd6c4;
+  padding: 15px 28px;
+  margin: 16px 0 0;
+  font-size: 10px;
+  color: #56665a;
+}
+@media (max-width: 1000px) {
+  .studyMap {
+    grid-template-columns: 1fr;
+  }
+  .studyMap button {
+    padding: 11px 14px;
+  }
+  .studyMap b {
+    font-size: 13px;
+  }
+}
+@media (max-width: 700px) {
+  .studyIntro {
+    padding: 20px;
+    flex-wrap: wrap;
+    gap: 13px;
+  }
+  .studyIntro > div:nth-child(2) {
+    flex: 1;
+    min-width: 180px;
+  }
+  .studyProgress {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    margin-left: 0;
+    width: 100%;
+    text-align: left;
+  }
+  .studyProgress strong {
+    font-size: 22px;
+  }
+  .studyProgress progress {
+    margin: 0 0 0 auto;
+  }
+  .studyMap {
+    margin: 0 20px;
+  }
+  .studyActivity {
+    grid-template-columns: 1fr;
+    margin: 20px 20px 0;
+    gap: 22px;
+  }
+  .studyIdea p {
+    margin-bottom: 10px;
+  }
+  .studyNote {
+    max-width: none;
+  }
+  .studyComplete {
+    margin: 20px;
+    flex-wrap: wrap;
+  }
+  .studyComplete button {
+    margin-left: 0;
+  }
+  .studyDisclaimer {
+    padding: 15px 20px;
+  }
+}
+/* Override the legacy workspace mint caption color on these light tiles. */
+.studyGarden .studyMap small {
+  color: inherit;
+}

@@ -15,7 +15,8 @@
       "fix/owner-diagnostic-empty-stream": false,
       "fix/owner-window-nov17": false,
       "fix/owner-window-nov17-second": false,
-      "fix/private-audit-compat": false
+      "fix/private-audit-compat": false,
+      "release/private-study-garden": false
     }
   },
   "crons": [
