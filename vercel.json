@@ -14,7 +14,8 @@
       "fix/owner-read-only-diagnostic": false,
       "fix/owner-diagnostic-empty-stream": false,
       "fix/owner-window-nov17": false,
-      "fix/owner-window-nov17-second": false
+      "fix/owner-window-nov17-second": false,
+      "fix/private-audit-compat": false
     }
   },
   "crons": [
