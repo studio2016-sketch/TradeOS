@@ -38,3 +38,19 @@ test('owner APIs, mutations, duplicate or extra parameters are never OIDC scopes
  for(const path of ['/api/market','/api/forecasts','/','/api/private-runtime-audit?x=1','/api/private-detailed-audit?scope=sources&scope=models','/api/private-market-audit?scope=graph'])assert.equal(await authorizeOidcAudit(req(token,path),key,now),403);
  assert.equal(auditRequestScope(new Request('https://tradeos-lac.vercel.app/api/private-runtime-audit',{method:'POST'})),null);
 });
+test('denial diagnostics use fixed categories and cannot alter authorization or expose raw tokens',async()=>{
+ const reasons:string[]=[];
+ const token=await signed({repository_id:'PRIVATE-CANARY'});
+ assert.equal(await authorizeOidcAudit(req(token),key,now,r=>reasons.push(r)),403);
+ assert.deepEqual(reasons,['identity']);
+ assert.ok(!JSON.stringify(reasons).includes(token));assert.ok(!JSON.stringify(reasons).includes('PRIVATE-CANARY'));
+ assert.equal(await authorizeOidcAudit(req(token),key,now,()=>{throw Error('PRIVATE-CANARY');}),403);
+ reasons.length=0;assert.equal(await authorizeOidcAudit(req(await signed()),key,now,r=>reasons.push(r)),200);assert.deepEqual(reasons,[]);
+});
+test('JOSE failures are classified without serializing provider error data',async()=>{
+ for(const [claims,expected] of [[{iss:'PRIVATE-CANARY'},'jwt_claim_issuer'],[{aud:'PRIVATE-CANARY'},'jwt_claim_audience'],[{exp:t-1},'jwt_claim_time']] as const){
+  const reasons:string[]=[];assert.equal(await authorizeOidcAudit(req(await signed(claims)),key,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,[expected]);
+ }
+ const reasons:string[]=[];const failed=async()=>{throw Object.assign(Error('PRIVATE-CANARY'),{code:'ERR_JWKS_TIMEOUT'});};
+ assert.equal(await authorizeOidcAudit(req(await signed()),failed,now,r=>reasons.push(r)),403);assert.deepEqual(reasons,['jwt_key_fetch']);
+});

@@ -16,7 +16,8 @@
       "fix/owner-window-nov17": false,
       "fix/owner-window-nov17-second": false,
       "fix/private-audit-compat": false,
-      "release/private-study-garden": false
+      "release/private-study-garden": false,
+      "fix/audit-failure-diagnostics": false
     }
   },
   "crons": [

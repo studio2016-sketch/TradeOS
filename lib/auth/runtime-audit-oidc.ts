@@ -23,31 +23,45 @@ export function auditRequestScope(request:Request):string|null{
  return null;
 }
 /** Never returns claims, token values, provider errors or any owner-session authority. */
-export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=keys,now=new Date()):Promise<200|401|403>{
+export type AuditDenial='token_shape'|'jwt_header'|'jwt_time'|'audience'|'identity'|'ref_or_runner'|'event'|'workflow'|'context'|'subject'|'sha'|'run'|'jwt_validation'|'jwt_key_fetch'|'jwt_signature'|'jwt_claim_time'|'jwt_claim_issuer'|'jwt_claim_audience'|'jwt_claim_other';
+export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=keys,now=new Date(),report?:(reason:AuditDenial)=>void):Promise<200|401|403>{
+ const deny=(reason:AuditDenial):403=>{try{report?.(reason);}catch{/* diagnostics must never change authorization */}return 403;};
  const scope=auditRequestScope(request),auth=request.headers.get('authorization');
  if(!auth)return 401;
- if(!scope||auth.length>16384||!/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(auth))return 403;
+ if(!scope||auth.length>16384||!/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(auth))return deny('token_shape');
  try{
   const {payload:p,protectedHeader:h}=await jwtVerify(auth.slice(7),key,{
    algorithms:['RS256'],issuer:AUDIT_ISSUER,audience:AUDIT_AUDIENCE,
    requiredClaims:['sub','iat','nbf','exp','jti'],maxTokenAge:300,clockTolerance:0,currentDate:now,
   });
-  if(h.typ!=='JWT'||typeof h.kid!=='string'||!h.kid||h.jku!==undefined||h.jwk!==undefined||h.x5u!==undefined)return 403;
+  if(h.typ!=='JWT'||typeof h.kid!=='string'||!h.kid||h.jku!==undefined||h.jwk!==undefined||h.x5u!==undefined)return deny('jwt_header');
   const t=Math.floor(now.getTime()/1000);
-  if(!Number.isSafeInteger(p.iat)||!Number.isSafeInteger(p.nbf)||!Number.isSafeInteger(p.exp)||p.iat!>t||p.nbf!>t||p.exp!<=t||p.exp!-p.iat!>600||p.exp!<=p.iat!)return 403;
-  if(p.aud!==AUDIT_AUDIENCE||typeof p.jti!=='string'||!p.jti)return 403;
-  if(p.repository!==repo||p.repository_id!==repoId||p.repository_owner!=='studio2016-sketch'||p.repository_owner_id!==ownerId)return 403;
-  if(p.ref!==main||p.ref_type!=='branch'||p.runner_environment!=='github-hosted')return 403;
-  if(typeof p.event_name!=='string'||!['schedule','workflow_dispatch'].includes(p.event_name))return 403;
-  if(p.workflow_ref!==`${repo}/.github/workflows/${workflows[scope]}@${main}`)return 403;
+  if(!Number.isSafeInteger(p.iat)||!Number.isSafeInteger(p.nbf)||!Number.isSafeInteger(p.exp)||p.iat!>t||p.nbf!>t||p.exp!<=t||p.exp!-p.iat!>600||p.exp!<=p.iat!)return deny('jwt_time');
+  if(p.aud!==AUDIT_AUDIENCE||typeof p.jti!=='string'||!p.jti)return deny('audience');
+  if(p.repository!==repo||p.repository_id!==repoId||p.repository_owner!=='studio2016-sketch'||p.repository_owner_id!==ownerId)return deny('identity');
+  if(p.ref!==main||p.ref_type!=='branch'||p.runner_environment!=='github-hosted')return deny('ref_or_runner');
+  if(typeof p.event_name!=='string'||!['schedule','workflow_dispatch'].includes(p.event_name))return deny('event');
+  if(p.workflow_ref!==`${repo}/.github/workflows/${workflows[scope]}@${main}`)return deny('workflow');
   // No reusable-workflow/environment/PR claim interpretation or wildcard subjects.
-  if(p.environment!==undefined||p.job_workflow_ref!==undefined||p.job_workflow_sha!==undefined||p.head_ref||p.base_ref)return 403;
+  if(p.environment!==undefined||p.job_workflow_ref!==undefined||p.job_workflow_sha!==undefined||p.head_ref||p.base_ref)return deny('context');
   const legacy=`repo:${repo}:ref:${main}`;
   const immutable=`repo:studio2016-sketch@${ownerId}/TradeOS@${repoId}:ref:${main}`;
-  if(p.sub!==legacy&&p.sub!==immutable)return 403;
-  for(const field of ['sha','workflow_sha'])if(typeof p[field]!=='string'||! /^[a-f0-9]{40}$/.test(p[field] as string))return 403;
-  if(p.sha!==p.workflow_sha)return 403;
-  for(const field of ['run_id','run_attempt'])if(typeof p[field]!=='string'||! /^[1-9][0-9]*$/.test(p[field] as string))return 403;
+  if(p.sub!==legacy&&p.sub!==immutable)return deny('subject');
+  for(const field of ['sha','workflow_sha'])if(typeof p[field]!=='string'||! /^[a-f0-9]{40}$/.test(p[field] as string))return deny('sha');
+  if(p.sha!==p.workflow_sha)return deny('sha');
+  for(const field of ['run_id','run_attempt'])if(typeof p[field]!=='string'||! /^[1-9][0-9]*$/.test(p[field] as string))return deny('run');
   return 200;
- }catch{return 403;}
+ }catch(error){
+  const e=error as {code?:unknown;claim?:unknown};
+  if(e?.code==='ERR_JWS_SIGNATURE_VERIFICATION_FAILED')return deny('jwt_signature');
+  if(e?.code==='ERR_JWKS_TIMEOUT'||e?.code==='ERR_JWKS_NO_MATCHING_KEY')return deny('jwt_key_fetch');
+  if(e?.code==='ERR_JWT_EXPIRED')return deny('jwt_claim_time');
+  if(e?.code==='ERR_JWT_CLAIM_VALIDATION_FAILED'){
+   if(e.claim==='iss')return deny('jwt_claim_issuer');
+   if(e.claim==='aud')return deny('jwt_claim_audience');
+   if(e.claim==='iat'||e.claim==='nbf'||e.claim==='exp')return deny('jwt_claim_time');
+   return deny('jwt_claim_other');
+  }
+  return deny('jwt_validation');
+ }
 }
