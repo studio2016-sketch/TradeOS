@@ -23,7 +23,7 @@ export function auditRequestScope(request:Request):string|null{
  return null;
 }
 /** Never returns claims, token values, provider errors or any owner-session authority. */
-export type AuditDenial='token_shape'|'jwt_header'|'jwt_time'|'audience'|'identity'|'ref_or_runner'|'event'|'workflow'|'context'|'subject'|'sha'|'run'|'jwt_validation'|'jwt_key_fetch'|'jwt_signature'|'jwt_claim_time'|'jwt_claim_issuer'|'jwt_claim_audience'|'jwt_claim_other';
+export type AuditDenial='token_shape'|'jwt_header'|'jwt_time'|'audience'|'identity'|'ref_or_runner'|'event'|'workflow'|'context_environment'|'context_reusable_ref'|'context_reusable_sha'|'context_pr_ref'|'subject'|'sha'|'run'|'jwt_validation'|'jwt_key_fetch'|'jwt_signature'|'jwt_claim_time'|'jwt_claim_issuer'|'jwt_claim_audience'|'jwt_claim_other';
 export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=keys,now=new Date(),report?:(reason:AuditDenial)=>void):Promise<200|401|403>{
  const deny=(reason:AuditDenial):403=>{try{report?.(reason);}catch{/* diagnostics must never change authorization */}return 403;};
  const scope=auditRequestScope(request),auth=request.headers.get('authorization');
@@ -43,7 +43,10 @@ export async function authorizeOidcAudit(request:Request,key:JWTVerifyGetKey=key
   if(typeof p.event_name!=='string'||!['schedule','workflow_dispatch'].includes(p.event_name))return deny('event');
   if(p.workflow_ref!==`${repo}/.github/workflows/${workflows[scope]}@${main}`)return deny('workflow');
   // No reusable-workflow/environment/PR claim interpretation or wildcard subjects.
-  if(p.environment!==undefined||p.job_workflow_ref!==undefined||p.job_workflow_sha!==undefined||p.head_ref||p.base_ref)return deny('context');
+  if(p.environment!==undefined)return deny('context_environment');
+  if(p.job_workflow_ref!==undefined)return deny('context_reusable_ref');
+  if(p.job_workflow_sha!==undefined)return deny('context_reusable_sha');
+  if(p.head_ref||p.base_ref)return deny('context_pr_ref');
   const legacy=`repo:${repo}:ref:${main}`;
   const immutable=`repo:studio2016-sketch@${ownerId}/TradeOS@${repoId}:ref:${main}`;
   if(p.sub!==legacy&&p.sub!==immutable)return deny('subject');
