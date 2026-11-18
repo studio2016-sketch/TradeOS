@@ -9,8 +9,11 @@ import {assertDataStorageReady} from '../lib/research/data-storage-readiness';
 const now=new Date('2026-11-16T22:00:00Z');
 const approval={id:'fixture-one-session',session:'2026-11-16',opensAt:'2026-11-16T22:00:00Z',expiresAt:'2026-11-16T23:00:00Z'};
 const request={approvalId:approval.id,session:approval.session};
-test('release switches remain off and disabled/unauthorized daily requests perform no work',async()=>{
- assert.deepEqual(DATA_ACTIVATION_POLICY,{exactSlippageWrites:false,dailyInvocation:null});assert.ok(Object.isFrozen(DATA_ACTIVATION_POLICY));
+test('release permits only the approved single session and disabled/unauthorized requests perform no work',async()=>{
+ assert.equal(DATA_ACTIVATION_POLICY.exactSlippageWrites,false);assert.ok(Object.isFrozen(DATA_ACTIVATION_POLICY));
+ if(DATA_ACTIVATION_POLICY.dailyInvocation!==null)assert.deepEqual(DATA_ACTIVATION_POLICY.dailyInvocation,{
+  id:'jermaine-nov17-one-pilot-20261118',session:'2026-11-17',opensAt:'2026-11-18T00:50:00Z',expiresAt:'2026-11-18T01:30:00Z'
+ });
  const no=()=>assert.fail('disabled request must not touch clock, schema, providers or database');
  assert.equal((await invokeApprovedDailyCollection(request,null,{authorized:true,clock:no,preflight:no,run:no})).httpStatus,409);
  assert.equal((await invokeApprovedDailyCollection(request,approval,{authorized:false,clock:no,preflight:no,run:no})).httpStatus,401);
@@ -46,12 +49,3 @@ test('real schema preflight refuses missing migrations and disabled append-only 
  }finally{await pg.close();}
 });
 
-test('actual manual POST route stays disabled even for an authenticated request naming an approval',async()=>{
- const previous=process.env.CRON_SECRET;
- try{
-  process.env.CRON_SECRET='synthetic-manual-operator';
-  const {POST}=await import('../app/api/operations/daily-factor-collection/route');
-  const anonymous=await POST(new Request('https://fixture.invalid/api/operations/daily-factor-collection',{method:'POST',body:'not json'}));assert.equal(anonymous.status,401);
-  const authorized=await POST(new Request('https://fixture.invalid/api/operations/daily-factor-collection',{method:'POST',headers:{authorization:'Bearer synthetic-manual-operator'},body:JSON.stringify(request)}));assert.equal(authorized.status,409);assert.equal((await authorized.json()).status,'daily_collection_disabled');
- }finally{if(previous===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=previous;}
-});

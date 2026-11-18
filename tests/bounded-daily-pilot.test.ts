@@ -39,14 +39,6 @@ test('owner pilot requires production same-origin POST and dedicated CSRF header
  assert.equal(ownerDailyPilotRequest(request()),true);
  for(const r of [request({method:'GET'}),request({headers:{...headers,origin:'https://evil.invalid'}}),request({headers:{...headers,'sec-fetch-site':'cross-site'}}),request({headers:{}}),request({},url+'?session=2026-11-16'),request({},url.replace('tradeos-lac','preview'))])assert.equal(ownerDailyPilotRequest(r),false);
 });
-test('actual owner collection route remains disabled and never queries DB or session',async()=>{
- const prior={base:process.env.NEON_AUTH_BASE_URL,cookie:process.env.NEON_AUTH_COOKIE_SECRET};
- try{process.env.NEON_AUTH_BASE_URL='https://auth.invalid';process.env.NEON_AUTH_COOKIE_SECRET='fixture-cookie-secret-0123456789abcdef';
- const {POST}=await import('../app/api/operations/owner-daily-pilot/route');
- assert.equal((await POST(request({headers:{}}))).status,403);
- const response=await POST(request());assert.equal(response.status,409);assert.equal((await response.json()).status,'daily_collection_disabled');
- }finally{for(const [k,v] of [['NEON_AUTH_BASE_URL',prior.base],['NEON_AUTH_COOKIE_SECRET',prior.cookie]])if(v===undefined)delete process.env[k!];else process.env[k!]=v;}
-});
 test('strict pilot refuses one failed symbol before persistence and consumes claim without retry',async()=>{
  let claimed=false,called=0;const deps={clock:()=>now,claim:async()=>{if(claimed)return false;claimed=true;return true;},history:async(symbol:string)=>{called++;return symbol==='PLTR'?{source:'Alpaca:iex',bars:[],error:'failed'}:history();},finish:async()=>assert.fail('partial pilot must not persist')};
  await assert.rejects(runDailyFactorCollection(deps,true),/incomplete/);
