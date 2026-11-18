@@ -28,7 +28,8 @@
       "fix/daily-jsonb-replay": false,
       "fix/consensus-evidence-guard": false,
       "fix/stored-news-vintage": false,
-      "fix/portfolio-snapshot-completeness": false
+      "fix/portfolio-snapshot-completeness": false,
+      "fix/shadow-comparable-pairing": false
     }
   },
   "crons": [

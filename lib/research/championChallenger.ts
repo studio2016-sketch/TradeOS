@@ -1,6 +1,7 @@
 import {OUTCOME_PROTOCOL_CONFORMANCE} from "./outcome-protocol-conformance";
 import {db} from "../db";
 import {TRIAL_ACTIVATION,BASELINE_VERSION,CHALLENGER_VERSION} from "./frozenChallenger";
+import {selectComparableProspectivePairs} from "./comparable-prospective-pairs";
 import {pairedProspectiveValidation} from "./phase4-validation";
 
 function stats(rows:any[]){
@@ -26,14 +27,21 @@ export async function championChallengerEvaluation(){
   ` as any[];
   const baseline=stats(rows.filter(r=>r.model_version===BASELINE_VERSION));
   const challenger=stats(rows.filter(r=>r.model_version===CHALLENGER_VERSION));
-  const baselineByKey=new Map(rows.filter(r=>r.model_version===BASELINE_VERSION).map(r=>[String(r.symbol)+"|"+String(r.horizon)+"|"+new Date(r.created_at).toISOString().slice(0,16),r]));
-  const matchedChallenger=rows.filter(r=>r.model_version===CHALLENGER_VERSION&&baselineByKey.has(String(r.symbol)+"|"+String(r.horizon)+"|"+new Date(r.created_at).toISOString().slice(0,16)));
-  const pairRows=matchedChallenger.map(r=>{
-    const key=String(r.symbol)+"|"+String(r.horizon)+"|"+new Date(r.created_at).toISOString().slice(0,16);
-    const b=baselineByKey.get(key)!;
-    const target=r.was_correct?1:0;
-    return {time:new Date(r.created_at).toISOString(),baselineLoss:Math.pow(Number(b.probability)-target,2),challengerLoss:Math.pow(Number(r.probability)-target,2)};
-  });
+  // Use the same unique-target, protocol-bound comparison as scientific validation.
+  // The sentinel cap rejects partial candidate sets rather than inferring uniqueness.
+  const candidates=await sql`with b as (select f.id,f.symbol,f.horizon,f.direction,f.source_snapshot,date_trunc('minute',f.created_at) bucket,f.created_at,f.probability,o.was_correct,o.realized_return,o.notes from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${BASELINE_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null),
+    c as (select f.id,f.symbol,f.horizon,f.direction,f.source_snapshot,date_trunc('minute',f.created_at) bucket,f.created_at,f.probability,o.was_correct,o.realized_return,o.notes from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${CHALLENGER_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null)
+    select b.created_at observed_at,b.symbol,
+      b.id::text baseline_id,c.id::text challenger_id,
+      b.horizon baseline_horizon,c.horizon challenger_horizon,
+      b.direction baseline_direction,c.direction challenger_direction,
+      b.created_at baseline_created_at,c.created_at challenger_created_at,
+      b.source_snapshot baseline_snapshot,c.source_snapshot challenger_snapshot,
+      b.realized_return baseline_return,c.realized_return challenger_return,
+      b.notes baseline_notes,c.notes challenger_notes,b.probability::float baseline_probability,c.probability::float challenger_probability,b.was_correct baseline_outcome,c.was_correct challenger_outcome from b join c using(symbol,horizon,bucket) order by b.created_at asc limit 10001`;
+  const pairing=selectComparableProspectivePairs(candidates as any[]);
+  const pairRows=pairing.prospectivePairs.map(p=>({time:p.timestamp,
+    baselineLoss:(p.baselineP-p.outcome)**2,challengerLoss:(p.challengerP-p.outcome)**2}));
   const pairedValidation=pairedProspectiveValidation(pairRows);
   const matched=pairedValidation.pairs;
   const minimum=60;
@@ -60,6 +68,9 @@ export async function championChallengerEvaluation(){
   return{
     trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,
     baseline,challenger,matchedSamples:matched,minimumMatchedSamples:minimum,pairedValidation,result,
+    pairing:pairing.diagnostics,outcomeDisagreements:pairing.outcomeDisagreements,
+    historicalReconstruction:{pairs:pairing.reconstructedPairs.length,eligibleForProspectiveDepth:false},
+    comparisonScope:"Only unique forecasts with reproducible matching targets, observations and frozen outcome protocol enter prospective comparison. Individual model summaries remain descriptive and may include excluded outcomes.",
     promotionAllowed:false,
     protocolConformance:OUTCOME_PROTOCOL_CONFORMANCE,
     warnings:["Leader and paired metrics are descriptive research only. "+OUTCOME_PROTOCOL_CONFORMANCE.reason],
