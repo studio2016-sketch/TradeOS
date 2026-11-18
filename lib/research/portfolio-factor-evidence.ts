@@ -26,6 +26,7 @@ export async function observedPortfolioFactorEvidence(now=new Date()){
  const inputs=results.flatMap(result=>result.input?[result.input]:[]),diagnostics=results.map(result=>result.diagnostic);
  if(inputs.length!==account.positions.length)return {candidates:[] as PersistableEvidence[],status:"incomplete_position_history",diagnostics};
  const factors=calculatePortfolioRiskFactors(equity,inputs),availableAt=new Date().toISOString(),observedAt=account.generatedAt;
+ if(factors.portfolio_exposure.value===null||factors.single_name_weight.value===null)return {candidates:[] as PersistableEvidence[],status:"portfolio_snapshot_unavailable",diagnostics};
  const source=inputs.length?`Alpaca ${account.environment} account + Alpaca:${feed}:1Day`:`Alpaca ${account.environment} account`;
  const composition=inputs.map(p=>({symbol:p.symbol,weight:p.marketValue/equity,returnDates:Object.keys(p.returns).length}));
  const candidates:PersistableEvidence[]=Object.entries(factors).flatMap(([factor,result])=>result.value===null?[]:[{

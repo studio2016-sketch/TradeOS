@@ -32,3 +32,33 @@ test("portfolio history factors fail closed without synchronized depth",()=>{
  assert.equal(calculatePortfolioRiskFactors(0,[]).portfolio_exposure.value,null);
 });
 
+
+test("a rejected holding invalidates the whole snapshot rather than understating exposure",()=>{
+ const valid={symbol:"AAA",marketValue:4_000,returns:returns(1)};
+ const invalid=[{symbol:"",marketValue:6_000,returns:{}},{symbol:"BBB",marketValue:NaN,returns:{}},{symbol:"BBB",marketValue:Infinity,returns:{}},{symbol:"BBB",marketValue:0,returns:{}},{symbol:123,marketValue:6_000,returns:{}},{symbol:"BBB",marketValue:6_000,returns:null},{symbol:"BBB",marketValue:6_000,returns:[]},null];
+ for(const position of invalid){
+  for(const snapshot of [[valid,position],[position,valid]]){
+   const result=calculatePortfolioRiskFactors(10_000,snapshot as any);
+   for(const factor of Object.values(result)){assert.equal(factor.value,null);assert.equal(factor.reason,"portfolio_unavailable");}
+  }
+ }
+});
+test("duplicate symbols cannot split concentration or manufacture offsetting holdings",()=>{
+ for(const marketValue of [3_000,-4_000]){
+  const result=calculatePortfolioRiskFactors(10_000,[{symbol:"AAA",marketValue:4_000,returns:returns(1)},{symbol:"AAA",marketValue,returns:returns(1)}]);
+  assert.ok(Object.values(result).every(factor=>factor.value===null));
+ }
+});
+test("valid signed holdings preserve gross exposure, concentration and input immutability",()=>{
+ const positions=[{symbol:"AAA",marketValue:4_000,returns:returns(1)},{symbol:"BBB",marketValue:-2_000,returns:returns(.5)}];
+ const before=JSON.stringify(positions),result=calculatePortfolioRiskFactors(10_000,positions);
+ assert.ok(Math.abs(result.portfolio_exposure.value!-.6)<1e-12);assert.equal(result.single_name_weight.value,.4);
+ assert.equal(result.portfolio_exposure.inputCount,2);
+ assert.ok(Object.values(result).every(factor=>factor.value!==null));assert.equal(JSON.stringify(positions),before);
+});
+test("malformed runtime snapshots cannot be mistaken for empty holdings",()=>{
+ for(const snapshot of [null,undefined,{}, {length:0},"",[null]]){
+  const result=calculatePortfolioRiskFactors(10_000,snapshot as any);
+  assert.ok(Object.values(result).every(factor=>factor.value===null));
+ }
+});
