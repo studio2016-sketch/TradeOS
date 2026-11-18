@@ -27,7 +27,8 @@
       "release/nov17-pilot-closed": false,
       "fix/daily-jsonb-replay": false,
       "fix/consensus-evidence-guard": false,
-      "fix/stored-news-vintage": false
+      "fix/stored-news-vintage": false,
+      "fix/portfolio-snapshot-completeness": false
     }
   },
   "crons": [

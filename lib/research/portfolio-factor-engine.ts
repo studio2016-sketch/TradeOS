@@ -11,12 +11,20 @@ const measured=(value:number,inputCount:number):PortfolioFactorResult=>Number.is
 /** Constant-current-weight research diagnostics; no historical holding path is implied. */
 export function calculatePortfolioRiskFactors(equity:number,raw:PortfolioPositionInput[]):PortfolioFactorOutput{
  const empty={portfolio_exposure:unavailable("portfolio_unavailable"),single_name_weight:unavailable("portfolio_unavailable"),position_volatility:unavailable("portfolio_unavailable"),var_95:unavailable("portfolio_unavailable"),expected_shortfall:unavailable("portfolio_unavailable"),max_drawdown:unavailable("portfolio_unavailable")};
- if(!Number.isFinite(equity)||equity<=0)return empty;
+ if(!Number.isFinite(equity)||equity<=0||!Array.isArray(raw))return empty;
  // A validated empty holdings snapshot establishes current exposure only.
  // It does not establish a historical zero-return path or historical risk.
  if(raw.length===0)return {...empty,portfolio_exposure:measured(0,0),single_name_weight:measured(0,0)};
- const positions=raw.filter(p=>/^[A-Z0-9.-]{1,10}$/.test(p.symbol)&&Number.isFinite(p.marketValue)&&p.marketValue!==0);
- if(!positions.length)return empty;
+ // Exposure and risk must describe the complete snapshot, never a filtered subset.
+ // Duplicate symbols cannot safely be aggregated without an explicit lot/netting contract.
+ const symbols=new Set<string>();
+ for(const p of raw){
+  if(!p||typeof p!=="object"||typeof p.symbol!=="string"||!/^[A-Z0-9.-]{1,10}$/.test(p.symbol)||
+   !Number.isFinite(p.marketValue)||p.marketValue===0||symbols.has(p.symbol)||
+   !p.returns||typeof p.returns!=="object"||Array.isArray(p.returns))return empty;
+  symbols.add(p.symbol);
+ }
+ const positions=raw;
  const weights=positions.map(p=>p.marketValue/equity),gross=weights.reduce((sum,w)=>sum+Math.abs(w),0),largest=Math.max(...weights.map(Math.abs));
  const dateSets=positions.map(p=>new Set(Object.entries(p.returns).filter(([date,value])=>/^\d{4}-\d{2}-\d{2}$/.test(date)&&Number.isFinite(value)).map(([date])=>date)));
  const dates=[...dateSets[0]].filter(date=>dateSets.every(set=>set.has(date))).sort();
