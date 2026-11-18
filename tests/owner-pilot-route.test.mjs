@@ -5,6 +5,7 @@ const hooks=registerHooks({resolve(specifier,context,nextResolve){
  return nextResolve(specifier,context);
 }});
 const {POST}=await import('../app/api/operations/owner-daily-pilot/route.ts');
+const {POST:operatorPOST}=await import('../app/api/operations/daily-factor-collection/route.ts');
 const url='https://tradeos-lac.vercel.app/api/operations/owner-daily-pilot';
 const headers={origin:'https://tradeos-lac.vercel.app','sec-fetch-site':'same-origin','x-tradeos-daily-pilot':'owner-pilot-v1'};
 const request=(extra={})=>new Request(url,{method:'POST',headers,...extra});
@@ -13,7 +14,7 @@ const fixture=()=>({
  session:{data:{user:{id:'owner'}}},account:{id:'owner',role:'admin',verified:true,banned:false},calls:[]
 });
 test('enabled owner route uses actual approval/auth/budget gates with isolated non-writing services',async()=>{
- const oldNow=Date.now,oldOwner=process.env.TRADEOS_OWNER_USER_ID;
+ const oldNow=Date.now,oldOwner=process.env.TRADEOS_OWNER_USER_ID,oldSecret=process.env.CRON_SECRET;
  Date.now=()=>Date.parse('2026-11-16T22:00:00Z');process.env.TRADEOS_OWNER_USER_ID='owner';
  try{
   let f=globalThis.__ownerPilot=fixture();
@@ -44,5 +45,9 @@ test('enabled owner route uses actual approval/auth/budget gates with isolated n
    if(stage!=='run')assert.ok(!f.calls.includes('run'));
   }
   f=globalThis.__ownerPilot=fixture();f.approval=null;assert.equal((await POST(request())).status,409);assert.deepEqual(f.calls,[]);
- }finally{hooks.deregister();Date.now=oldNow;if(oldOwner===undefined)delete process.env.TRADEOS_OWNER_USER_ID;else process.env.TRADEOS_OWNER_USER_ID=oldOwner;delete globalThis.__ownerPilot;}
+  process.env.CRON_SECRET='synthetic-manual-operator';
+  const manual=(headers={})=>new Request('https://fixture.invalid/api/operations/daily-factor-collection',{method:'POST',headers,body:'{}'});
+  assert.equal((await operatorPOST(manual())).status,401);assert.deepEqual(f.calls,[]);
+  const disabled=await operatorPOST(manual({authorization:'Bearer synthetic-manual-operator'}));assert.equal(disabled.status,409);assert.equal((await disabled.json()).status,'daily_collection_disabled');assert.deepEqual(f.calls,[]);
+ }finally{hooks.deregister();Date.now=oldNow;if(oldSecret===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=oldSecret;if(oldOwner===undefined)delete process.env.TRADEOS_OWNER_USER_ID;else process.env.TRADEOS_OWNER_USER_ID=oldOwner;delete globalThis.__ownerPilot;}
 });
