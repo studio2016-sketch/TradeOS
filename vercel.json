@@ -24,7 +24,8 @@
       "fix/bounded-owner-daily-pilot": false,
       "fix/pilot-reconcile-current": false,
       "release/nov17-daily-pilot": false,
-      "release/nov17-pilot-closed": false
+      "release/nov17-pilot-closed": false,
+      "feat/study-continuity": false
     }
   },
   "crons": [
