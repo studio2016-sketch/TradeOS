@@ -3,7 +3,7 @@ import {auth} from "../../../lib/auth/server";
 import {db,hasDatabase} from "../../../lib/db";
 import {BASELINE_VERSION,CHALLENGER_VERSION,CERTIFICATION_ACTIVATION} from "../../../lib/research/frozenChallenger";
 import {PREDICTION_OUTCOME_PROTOCOL_ACTIVATION} from "../../../lib/research/prediction-outcome-verdict";
-import {selectComparableProspectivePairs} from "../../../lib/research/comparable-prospective-pairs";
+import {readComparablePairs} from "../../../lib/research/comparable-pair-reader";
 import {evaluateProspectivePairs} from "../../../lib/research/prospectiveTrial";
 import {assessScientificValidation} from "../../../lib/research/scientific-validation";
 
@@ -37,18 +37,9 @@ export async function GET(){
        avg(power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2)) filter(where o.was_correct is not null)::float brier
       from forecast_ledger f left join forecast_outcomes o on o.forecast_id=f.id
       group by f.model_version,f.horizon order by f.model_version,f.horizon`,
-   sql`with b as (select f.id,f.symbol,f.horizon,f.direction,f.source_snapshot,date_trunc('minute',f.created_at) bucket,f.created_at,f.probability,o.was_correct,o.realized_return,o.notes from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${BASELINE_VERSION} and f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and o.was_correct is not null),
-    c as (select f.id,f.symbol,f.horizon,f.direction,f.source_snapshot,date_trunc('minute',f.created_at) bucket,f.created_at,f.probability,o.was_correct,o.realized_return,o.notes from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id where f.model_version=${CHALLENGER_VERSION} and f.created_at>=${CERTIFICATION_ACTIVATION}::timestamptz and o.was_correct is not null)
-    select b.created_at observed_at,b.symbol,
-      b.id::text baseline_id,c.id::text challenger_id,
-      b.horizon baseline_horizon,c.horizon challenger_horizon,
-      b.direction baseline_direction,c.direction challenger_direction,
-      b.created_at baseline_created_at,c.created_at challenger_created_at,
-      b.source_snapshot baseline_snapshot,c.source_snapshot challenger_snapshot,
-      b.realized_return baseline_return,c.realized_return challenger_return,
-      b.notes baseline_notes,c.notes challenger_notes,b.probability::float baseline_probability,c.probability::float challenger_probability,b.was_correct baseline_outcome,c.was_correct challenger_outcome from b join c using(symbol,horizon,bucket) order by b.created_at asc limit 10001`
+   readComparablePairs(sql,CERTIFICATION_ACTIVATION)
   ]);
-  const pairing=selectComparableProspectivePairs(pairRows as any[]);
+  const pairing=pairRows;
   const prospective=evaluateProspectivePairs(pairing.prospectivePairs),raw=(summary as any[])[0];
   const input={forecastTotal:Number(raw.forecast_total),labelledForecasts:Number(raw.labelled_forecasts),forecastSessionDates:Number(raw.forecast_session_dates),
    immutableRecords:Number(raw.immutable_records),timeOrderedImmutableRecords:Number(raw.time_ordered_immutable_records),futureDatedImmutableRecords:Number(raw.future_dated_immutable_records),
