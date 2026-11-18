@@ -1,8 +1,9 @@
+import {readComparablePairs,validateComparablePairs,comparisonDiagnostics} from "../../../../lib/research/comparable-pair-reader";
 import {NextResponse} from "next/server";
 import {authorizeCron} from "../../../../lib/cron";
 import {db,hasDatabase} from "../../../../lib/db";
 import {BASELINE_VERSION,CHALLENGER_VERSION,TRIAL_ACTIVATION} from "../../../../lib/research/frozenChallenger";
-import {pairedProspectiveValidation,phase4InfrastructureGate} from "../../../../lib/research/phase4-validation";
+import {phase4InfrastructureGate} from "../../../../lib/research/phase4-validation";
 import {phase4ScientificBlockers} from "../../../../lib/research/phase4-blockers";
 import {recordCollectorReceipt,failureDetail} from "../../../../lib/research/collector-receipts";
 export const dynamic="force-dynamic";
@@ -32,26 +33,14 @@ export async function GET(req:Request){
     left join tradeos_decision_source_attestations a on a.immutable_decision_id=i.id
     left join tradeos_decision_source_verifications v on v.immutable_decision_id=i.id
     where i.recorded_at>=${TRIAL_ACTIVATION}::timestamptz`,
-   sql`with b as (
-      select f.symbol,f.horizon,date_trunc('minute',f.created_at) as bucket,f.created_at,
-        power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2) as loss
-      from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
-      where f.model_version=${BASELINE_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
-    ), c as (
-      select f.symbol,f.horizon,date_trunc('minute',f.created_at) as bucket,
-        power(f.probability::float-(case when o.was_correct then 1.0 else 0.0 end),2) as loss
-      from forecast_ledger f join forecast_outcomes o on o.forecast_id=f.id
-      where f.model_version=${CHALLENGER_VERSION} and f.created_at>=${TRIAL_ACTIVATION}::timestamptz and o.was_correct is not null
-    )
-    select b.created_at as time,b.loss as baseline_loss,c.loss as challenger_loss
-    from b join c using(symbol,horizon,bucket) order by b.created_at asc`,
+   readComparablePairs(sql,TRIAL_ACTIVATION),
    sql`select count(*)::int as evidence_rows,count(distinct factor_key)::int as evidence_factors,
       count(*) filter(where available_at<observed_at)::int as invalid_vintages,
       count(*) filter(where available_at<observed_at or available_at>now()+interval '1 minute' or trim(source_name)='' or trim(subject)='' or domain not in ('stock','option','macro','news','portfolio') or value::text in ('NaN','Infinity','-Infinity'))::int as invalid_rows
       from tradeos_factor_evidence`,
    sql`select count(distinct c.relname)::int as protected_tables from pg_trigger t join pg_class c on c.oid=t.tgrelid where not t.tgisinternal and t.tgname in ('forecast_ledger_protect','forecast_outcomes_protect','immutable_decision_records_protect','source_observations_protect','tradeos_factor_evidence_protect','tradeos_decision_source_attestations_protect','tradeos_decision_source_verifications_protect')`
   ]);
-  const paired=pairedProspectiveValidation(pairs.map((r:any)=>({time:new Date(r.time).toISOString(),baselineLoss:Number(r.baseline_loss),challengerLoss:Number(r.challenger_loss)})));
+  const paired=validateComparablePairs(pairs);
   const x=integrity[0] as any;
   const gate=phase4InfrastructureGate({
    immutableRecords:Number(x.immutable_records??0),immutableLinked:Number(x.immutable_linked??0),
@@ -62,7 +51,7 @@ export async function GET(req:Request){
    invalidEvidenceVintages:Number((invalid[0] as any)?.invalid_vintages??0),factorEvidenceRows:Number((invalid[0] as any)?.evidence_rows??0),factorEvidenceFactors:Number((invalid[0] as any)?.evidence_factors??0),invalidFactorEvidenceRows:Number((invalid[0] as any)?.invalid_rows??0),appendOnlyProtectedTables:Number((protections[0] as any)?.protected_tables??0)
   });
   const scientificStatus=phase4ScientificBlockers({pairedSamples:paired.pairs,sessionDates:paired.sessions,pairedLowerBound:paired.lowerBound,independentlyVerifiedSourceTimes:Number(x.independently_verified_source_times??0),immutableRecords:Number(x.immutable_records??0),costAdjustedReturnLowerBound:null,executionSlippageValidated:false,portfolioReconciled:false,publicationTimeApplicable:false,publicationTimeVerified:0});
-  const payload={generatedAt:new Date().toISOString(),trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,integrity:x,paired,gate,scientificStatus};
+  const payload={generatedAt:new Date().toISOString(),trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,integrity:x,paired,...comparisonDiagnostics(pairs),gate,scientificStatus};
   const hour=new Date().toISOString().slice(0,13);
   await sql`insert into audit_events(event_type,entity_type,entity_id,model_version,payload)
     select 'phase4_validation_snapshot','research_trial',${hour},${CHALLENGER_VERSION},${JSON.stringify(payload)}::jsonb
