@@ -44,13 +44,14 @@ export async function championChallengerEvaluation(){
     baselineLoss:(p.baselineP-p.outcome)**2,challengerLoss:(p.challengerP-p.outcome)**2}));
   const pairedValidation=pairedProspectiveValidation(pairRows);
   const matched=pairedValidation.pairs;
-  const minimum=60;
+  const minimum=200,minimumSessions=20;
+  const depthSatisfied=matched>=minimum&&pairedValidation.sessions>=minimumSessions;
+  const [low,high]=pairedValidation.bootstrap95;
   let result:"INSUFFICIENT_PROSPECTIVE_DATA"|"BASELINE_LEADS"|"CHALLENGER_LEADS"|"NO_CLEAR_WINNER"="INSUFFICIENT_PROSPECTIVE_DATA";
-  if(pairedValidation.mature&&baseline.samples>=minimum&&challenger.samples>=minimum&&matched>=minimum){
-    const improvement=pairedValidation.meanImprovement??0;
-    if(improvement>0)result="CHALLENGER_LEADS";
-    else if(improvement<0)result="BASELINE_LEADS";
-    else result="NO_CLEAR_WINNER";
+  // phase4's mature flag is specifically positive challenger improvement. Do not
+  // use it to suppress statistically supported baseline leadership.
+  if(depthSatisfied&&low!==null&&high!==null){
+    result=low>0?"CHALLENGER_LEADS":high<0?"BASELINE_LEADS":"NO_CLEAR_WINNER";
   }
   let immutableCoverage:any={baseline:0,challenger:0};
   try{
@@ -67,7 +68,8 @@ export async function championChallengerEvaluation(){
   }catch(_){}
   return{
     trialActivation:TRIAL_ACTIVATION,baselineVersion:BASELINE_VERSION,challengerVersion:CHALLENGER_VERSION,
-    baseline,challenger,matchedSamples:matched,minimumMatchedSamples:minimum,pairedValidation,result,
+    baseline,challenger,matchedSamples:matched,minimumMatchedSamples:minimum,minimumIndependentSessions:minimumSessions,pairedValidation,result,
+    comparisonReadiness:{depthSatisfied,intervalAvailable:low!==null&&high!==null,intervalExcludesZero:low!==null&&high!==null&&(low>0||high<0)},
     pairing:pairing.diagnostics,outcomeDisagreements:pairing.outcomeDisagreements,
     historicalReconstruction:{pairs:pairing.reconstructedPairs.length,eligibleForProspectiveDepth:false},
     comparisonScope:"Only unique forecasts with reproducible matching targets, observations and frozen outcome protocol enter prospective comparison. Individual model summaries remain descriptive and may include excluded outcomes.",

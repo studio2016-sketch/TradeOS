@@ -38,5 +38,24 @@ test('shadow comparison uses unique protocol-bound pairs and transparent exclusi
   const truncated=await evaluate(Array.from({length:10001},()=>valid));
   assert.equal(truncated.matchedSamples,0);assert.equal(truncated.pairing.candidateSetComplete,false);
   const empty=await evaluate([]);assert.equal(empty.matchedSamples,0);assert.equal(empty.pairedValidation.meanImprovement,null);
+  const cohort=(bp,cp)=>Array.from({length:200},(_,i)=>{
+   const row=fixture(),day=String(5+Math.floor(i/10)).padStart(2,'0');
+   for(const side of ['baseline','challenger']){
+    row[side+'_id']=String(2*i+(side==='baseline'?1:2));
+    row[side+'_created_at']=row[side+'_created_at'].replace('2026-11-05','2026-11-'+day);
+    row[side+'_notes']=row[side+'_notes'].replaceAll('2026-11-05','2026-11-'+day);
+   }
+   row.observed_at=row.observed_at.replace('2026-11-05','2026-11-'+day);
+   row.baseline_probability=bp;row.challenger_probability=cp;return row;
+  });
+  for(const [bp,cp,expected] of [[.9,.1,'BASELINE_LEADS'],[.1,.9,'CHALLENGER_LEADS'],[.5,.5,'NO_CLEAR_WINNER']]){
+   const out=await evaluate(cohort(bp,cp));assert.equal(out.result,expected);
+   assert.equal(out.minimumMatchedSamples,200);assert.equal(out.minimumIndependentSessions,20);
+   assert.equal(out.comparisonReadiness.depthSatisfied,true);assert.equal(out.promotionAllowed,false);
+   if(expected==='BASELINE_LEADS')assert.equal(out.pairedValidation.mature,false,'legacy challenger gate remains unchanged');
+  }
+  const shallow=await evaluate(cohort(.1,.9).slice(0,199));
+  assert.equal(shallow.result,'INSUFFICIENT_PROSPECTIVE_DATA');assert.equal(shallow.comparisonReadiness.depthSatisfied,false);
+
  }finally{delete globalThis.__shadowComparison;hooks.deregister();}
 });
