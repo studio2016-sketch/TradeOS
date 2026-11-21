@@ -105,6 +105,10 @@
     {
       "path": "/api/cron/phase5-validation",
       "schedule": "23 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-factors",
+      "schedule": "15 22 * * 1-5"
     }
   ]
 }
